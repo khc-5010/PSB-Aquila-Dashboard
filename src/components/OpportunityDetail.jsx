@@ -234,7 +234,7 @@ function OpportunityDetail({ opportunity, onClose }) {
                     <div className="flex-shrink-0 w-2 h-2 rounded-full bg-blue-500 mt-1.5"></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-400">
-                        {formatDate(activity.created_at)}
+                        {formatDate(activity.activity_date)}
                       </p>
                       <p className="text-sm text-gray-700 mt-0.5">
                         {activity.description || activity.event}
