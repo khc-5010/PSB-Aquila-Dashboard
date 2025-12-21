@@ -223,6 +223,14 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       .slice(0, 2)
   }
 
+  // Owner color mapping
+  const ownerColors = {
+    Kyle: 'bg-[#7C3AED] text-white',
+    Duane: 'bg-[#0891B2] text-white',
+    Steve: 'bg-[#D97706] text-white',
+  }
+  const getOwnerColorClass = (name) => ownerColors[name] || 'bg-indigo-100 text-indigo-700'
+
   // Derive contacts from owner (MVP - simplified)
   const getContacts = () => {
     const owner = opportunity?.owner || 'Unassigned'
@@ -668,7 +676,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium flex items-center justify-center">
+                <span className={`flex-shrink-0 w-8 h-8 rounded-full ${getOwnerColorClass(contacts.aquilaLead)} text-xs font-medium flex items-center justify-center`}>
                   {getInitials(contacts.aquilaLead)}
                 </span>
                 <div className="min-w-0">
