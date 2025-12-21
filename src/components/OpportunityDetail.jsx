@@ -28,21 +28,31 @@ function OpportunityDetail({ opportunity, onClose }) {
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
 
+  // Log Activity modal state
+  const [showLogModal, setShowLogModal] = useState(false)
+  const [activityText, setActivityText] = useState('')
+  const [createdBy, setCreatedBy] = useState('Kyle')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  // Fetch activities function (reusable)
+  const fetchActivities = async () => {
+    if (!opportunity?.id) return
+    setLoadingActivities(true)
+    try {
+      const res = await fetch(`/api/activities?opportunity_id=${opportunity.id}`)
+      const data = res.ok ? await res.json() : []
+      setActivities(Array.isArray(data) ? data : [])
+    } catch {
+      setActivities([])
+    } finally {
+      setLoadingActivities(false)
+    }
+  }
+
   // Fetch activities when opportunity changes
   useEffect(() => {
-    if (opportunity?.id) {
-      setLoadingActivities(true)
-      fetch(`/api/activities?opportunity_id=${opportunity.id}`)
-        .then((res) => (res.ok ? res.json() : []))
-        .then((data) => {
-          setActivities(Array.isArray(data) ? data : [])
-          setLoadingActivities(false)
-        })
-        .catch(() => {
-          setActivities([])
-          setLoadingActivities(false)
-        })
-    }
+    fetchActivities()
   }, [opportunity?.id])
 
   // Format currency
@@ -99,6 +109,40 @@ function OpportunityDetail({ opportunity, onClose }) {
 
   const stakeholderAlert = getStakeholderAlert()
   const contacts = getContacts()
+
+  // Handle Log Activity submission
+  const handleLogActivity = async () => {
+    if (!activityText.trim()) return
+
+    setIsSubmitting(true)
+    setSubmitError('')
+
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_id: opportunity.id,
+          description: activityText.trim(),
+          created_by: createdBy,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to save activity')
+      }
+
+      // Success - close modal and refresh timeline
+      setShowLogModal(false)
+      setActivityText('')
+      setSubmitError('')
+      fetchActivities()
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to save activity')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   // Don't render if no opportunity
   if (!opportunity) return null
@@ -299,11 +343,107 @@ function OpportunityDetail({ opportunity, onClose }) {
           <button className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
             Edit
           </button>
-          <button className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+          <button
+            onClick={() => setShowLogModal(true)}
+            className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
             Log Activity
           </button>
         </div>
       </div>
+
+      {/* Log Activity Modal */}
+      {showLogModal && (
+        <>
+          {/* Modal Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => {
+              if (!isSubmitting) {
+                setShowLogModal(false)
+                setActivityText('')
+                setSubmitError('')
+              }
+            }}
+          />
+
+          {/* Modal Content */}
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">Log Activity</h3>
+              </div>
+
+              {/* Modal Body */}
+              <div className="px-6 py-4 space-y-4">
+                {/* Activity Description */}
+                <div>
+                  <label htmlFor="activity-text" className="block text-sm font-medium text-gray-700 mb-1">
+                    Activity Description <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="activity-text"
+                    rows={4}
+                    value={activityText}
+                    onChange={(e) => setActivityText(e.target.value)}
+                    placeholder="Describe the activity..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                {/* Created By */}
+                <div>
+                  <label htmlFor="created-by" className="block text-sm font-medium text-gray-700 mb-1">
+                    Created by
+                  </label>
+                  <select
+                    id="created-by"
+                    value={createdBy}
+                    onChange={(e) => setCreatedBy(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    disabled={isSubmitting}
+                  >
+                    <option value="Kyle">Kyle</option>
+                    <option value="Duane">Duane</option>
+                    <option value="Steve">Steve</option>
+                  </select>
+                </div>
+
+                {/* Error Message */}
+                {submitError && (
+                  <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                    {submitError}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                <button
+                  onClick={() => {
+                    setShowLogModal(false)
+                    setActivityText('')
+                    setSubmitError('')
+                  }}
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogActivity}
+                  disabled={isSubmitting || !activityText.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }
