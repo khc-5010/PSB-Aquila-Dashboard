@@ -9,7 +9,8 @@ function DroppableColumn({ stage, opportunities, children }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-72 rounded-lg p-4 transition-colors ${
+      style={{ borderTopColor: stage.borderColor }}
+      className={`flex-shrink-0 w-72 rounded-lg p-4 transition-colors border-t-[3px] ${
         isOver ? 'bg-blue-100 ring-2 ring-blue-400' : stage.color
       }`}
     >

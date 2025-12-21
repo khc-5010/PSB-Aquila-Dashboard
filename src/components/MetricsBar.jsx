@@ -40,7 +40,7 @@ function MetricsBar({ opportunities = [] }) {
   ]
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4 flex gap-8">
+    <div className="border-b border-gray-200 px-6 py-4 flex gap-8" style={{ backgroundColor: 'rgba(4, 30, 66, 0.05)' }}>
       {metrics.map((metric, index) => (
         <div key={metric.label} className="flex items-center gap-8">
           <div className="flex flex-col gap-0.5">
