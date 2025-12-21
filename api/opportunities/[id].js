@@ -20,51 +20,65 @@ export default async function handler(req, res) {
       est_value,
       source,
       psb_relationship,
-      next_action
+      next_action,
     } = req.body
 
-    // At least one field must be provided
-    const hasUpdate = [
-      company_name, description, project_type, stage, owner,
-      est_value, source, psb_relationship, next_action
-    ].some(field => field !== undefined)
+    // Build dynamic update - only include fields that were provided
+    const updates = []
+    const values = []
+    let paramIndex = 1
 
-    if (!hasUpdate) {
-      res.status(400).json({ error: 'At least one field is required for update' })
+    if (company_name !== undefined) {
+      updates.push(`company_name = $${paramIndex++}`)
+      values.push(company_name)
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramIndex++}`)
+      values.push(description)
+    }
+    if (project_type !== undefined) {
+      updates.push(`project_type = $${paramIndex++}`)
+      values.push(project_type)
+    }
+    if (stage !== undefined) {
+      updates.push(`stage = $${paramIndex++}`)
+      values.push(stage)
+    }
+    if (owner !== undefined) {
+      updates.push(`owner = $${paramIndex++}`)
+      values.push(owner || null)
+    }
+    if (est_value !== undefined) {
+      updates.push(`est_value = $${paramIndex++}`)
+      values.push(est_value || null)
+    }
+    if (source !== undefined) {
+      updates.push(`source = $${paramIndex++}`)
+      values.push(source || null)
+    }
+    if (psb_relationship !== undefined) {
+      updates.push(`psb_relationship = $${paramIndex++}`)
+      values.push(psb_relationship || null)
+    }
+    if (next_action !== undefined) {
+      updates.push(`next_action = $${paramIndex++}`)
+      values.push(next_action || null)
+    }
+
+    // Must have at least one field to update
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'At least one field is required' })
       return
     }
 
+    // Add the ID as the last parameter
+    values.push(id)
+
     try {
-      // Build dynamic update query based on provided fields
-      const updates = []
-      const values = []
-
-      const fieldMappings = [
-        { name: 'company_name', value: company_name },
-        { name: 'description', value: description },
-        { name: 'project_type', value: project_type },
-        { name: 'stage', value: stage },
-        { name: 'owner', value: owner },
-        { name: 'est_value', value: est_value },
-        { name: 'source', value: source },
-        { name: 'psb_relationship', value: psb_relationship },
-        { name: 'next_action', value: next_action },
-      ]
-
-      for (const field of fieldMappings) {
-        if (field.value !== undefined) {
-          values.push(field.value)
-          updates.push(`${field.name} = $${values.length}`)
-        }
-      }
-
-      values.push(id)
-      const idPlaceholder = `$${values.length}`
-
       const query = `
         UPDATE opportunities
         SET ${updates.join(', ')}, updated_at = NOW()
-        WHERE id = ${idPlaceholder}
+        WHERE id = $${paramIndex}
         RETURNING *
       `
 
