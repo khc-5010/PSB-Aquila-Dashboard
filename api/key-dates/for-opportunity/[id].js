@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { id } = req.query
+  const { id, all } = req.query
   const sql = neon(process.env.DATABASE_URL)
   const today = new Date()
 
@@ -17,13 +17,16 @@ export default async function handler(req, res) {
     }
     const opp = opps[0]
 
-    // Get dates that apply to this project type (or all types)
+    // Get dates that are relevant to this opportunity:
+    // 1. Dates where applies_to_project_types includes this project type
+    // 2. OR critical dates (priority = 1) that apply to everyone (NULL applies_to_project_types)
+    // Dates with NULL applies_to_project_types and priority > 1 are NOT shown (general awareness, not actionable)
     const dates = await sql`
       SELECT * FROM key_dates
       WHERE active = true
       AND (
-        applies_to_project_types IS NULL
-        OR ${opp.project_type} = ANY(applies_to_project_types)
+        ${opp.project_type} = ANY(applies_to_project_types)
+        OR (applies_to_project_types IS NULL AND priority = 1)
       )
     `
 
@@ -77,15 +80,46 @@ export default async function handler(req, res) {
       }
     })
 
-    // Filter and sort
-    const relevant = processed
-      .filter(d => d.days_until <= 180 || d.is_active)
-      .sort((a, b) => a.days_until - b.days_until)
+    // Filter to dates within 180 days or currently active
+    const relevant = processed.filter(d => d.days_until <= 180 || d.is_active)
+
+    // Smart sorting:
+    // 1. Deadlines/shutdowns first
+    // 2. Then by urgency (red > yellow > blue > active > none > past)
+    // 3. Then by days_until ascending
+    const urgencyOrder = { red: 1, yellow: 2, blue: 3, active: 4, none: 5, past: 6 }
+
+    relevant.sort((a, b) => {
+      // Deadlines/shutdowns first
+      const aIsDeadline = ['deadline', 'shutdown'].includes(a.date_type)
+      const bIsDeadline = ['deadline', 'shutdown'].includes(b.date_type)
+      if (aIsDeadline && !bIsDeadline) return -1
+      if (!aIsDeadline && bIsDeadline) return 1
+
+      // Then by urgency
+      const aUrgency = urgencyOrder[a.urgency] || 5
+      const bUrgency = urgencyOrder[b.urgency] || 5
+      if (aUrgency !== bUrgency) {
+        return aUrgency - bUrgency
+      }
+
+      // Then by days until
+      return a.days_until - b.days_until
+    })
+
+    // Apply limit unless ?all=true is specified
+    const limit = 5
+    const showAll = all === 'true'
+    const hasMore = relevant.length > limit
+    const totalCount = relevant.length
+    const limitedDates = showAll ? relevant : relevant.slice(0, limit)
 
     res.status(200).json({
       opportunity_id: id,
       project_type: opp.project_type,
-      dates: relevant
+      dates: limitedDates,
+      hasMore: showAll ? false : hasMore,
+      totalCount
     })
   } catch (error) {
     console.error('Error fetching dates for opportunity:', error)

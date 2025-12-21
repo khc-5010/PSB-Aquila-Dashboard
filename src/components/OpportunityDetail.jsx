@@ -63,6 +63,9 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Key Dates state
   const [keyDates, setKeyDates] = useState([])
   const [keyDatesLoading, setKeyDatesLoading] = useState(false)
+  const [hasMoreDates, setHasMoreDates] = useState(false)
+  const [showAllDates, setShowAllDates] = useState(false)
+  const [totalDatesCount, setTotalDatesCount] = useState(0)
 
   // Fetch activities function (reusable)
   const fetchActivities = async () => {
@@ -106,16 +109,23 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   }, [opportunity?.id, opportunity?.stage, opportunity?.project_type, opportunity?.est_value])
 
   // Fetch key dates for this opportunity
-  const fetchKeyDates = async () => {
+  const fetchKeyDates = async (fetchAll = false) => {
     if (!opportunity?.id) return
     setKeyDatesLoading(true)
     try {
-      const res = await fetch(`/api/key-dates/for-opportunity/${opportunity.id}`)
-      const data = res.ok ? await res.json() : { dates: [] }
+      const url = fetchAll
+        ? `/api/key-dates/for-opportunity/${opportunity.id}?all=true`
+        : `/api/key-dates/for-opportunity/${opportunity.id}`
+      const res = await fetch(url)
+      const data = res.ok ? await res.json() : { dates: [], hasMore: false, totalCount: 0 }
       setKeyDates(data.dates || [])
+      setHasMoreDates(data.hasMore || false)
+      setTotalDatesCount(data.totalCount || 0)
     } catch (err) {
       console.error('Failed to fetch key dates:', err)
       setKeyDates([])
+      setHasMoreDates(false)
+      setTotalDatesCount(0)
     } finally {
       setKeyDatesLoading(false)
     }
@@ -123,6 +133,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
 
   // Fetch key dates when opportunity changes
   useEffect(() => {
+    setShowAllDates(false)
     fetchKeyDates()
   }, [opportunity?.id, opportunity?.project_type])
 
@@ -518,73 +529,89 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
           {(keyDates.length > 0 || keyDatesLoading) && (
             <div className="px-6 py-5 border-b border-gray-100">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
-                Key Dates
+                Key Dates {totalDatesCount > 0 && `(${totalDatesCount})`}
               </h3>
               {keyDatesLoading ? (
                 <div className="animate-pulse space-y-2">
                   <div className="h-16 bg-gray-100 rounded-lg"></div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {keyDates.map(date => {
-                    const isDeadline = date.date_type === 'deadline' || date.date_type === 'shutdown'
-                    const urgencyColors = {
-                      red: { bg: 'bg-red-50', text: 'text-red-600' },
-                      yellow: { bg: 'bg-yellow-50', text: 'text-yellow-700' },
-                      blue: { bg: 'bg-blue-50', text: 'text-blue-600' },
-                      active: { bg: 'bg-orange-50', text: 'text-orange-600' },
-                      none: { bg: 'bg-gray-50', text: 'text-gray-500' }
-                    }
-                    const color = urgencyColors[date.urgency] || urgencyColors.none
+                <>
+                  <div className="space-y-3">
+                    {keyDates.map(date => {
+                      const isDeadline = date.date_type === 'deadline' || date.date_type === 'shutdown'
+                      const urgencyColors = {
+                        red: { bg: 'bg-red-50', text: 'text-red-600' },
+                        yellow: { bg: 'bg-yellow-50', text: 'text-yellow-700' },
+                        blue: { bg: 'bg-blue-50', text: 'text-blue-600' },
+                        active: { bg: 'bg-orange-50', text: 'text-orange-600' },
+                        none: { bg: 'bg-gray-50', text: 'text-gray-500' }
+                      }
+                      const color = urgencyColors[date.urgency] || urgencyColors.none
 
-                    return (
-                      <div key={date.id} className={`rounded-lg p-3 ${color.bg}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`font-medium ${color.text}`}>
-                                {new Date(date.calculated_date).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
-                                {date.calculated_end_date && (
-                                  <> - {new Date(date.calculated_end_date).toLocaleDateString('en-US', {
+                      return (
+                        <div key={date.id} className={`rounded-lg p-3 ${color.bg}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium ${color.text}`}>
+                                  {new Date(date.calculated_date).toLocaleDateString('en-US', {
                                     month: 'short',
-                                    day: 'numeric'
-                                  })}</>
-                                )}
-                              </span>
-                              {isDeadline && (
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-white/50 text-gray-600">
-                                  {date.date_type === 'shutdown' ? 'SHUTDOWN' : 'DEADLINE'}
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                  {date.calculated_end_date && (
+                                    <> - {new Date(date.calculated_end_date).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric'
+                                    })}</>
+                                  )}
                                 </span>
+                                {isDeadline && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-white/50 text-gray-600">
+                                    {date.date_type === 'shutdown' ? 'SHUTDOWN' : 'DEADLINE'}
+                                  </span>
+                                )}
+                              </div>
+                              <p className={`text-sm font-medium mt-0.5 ${color.text}`}>
+                                {date.name}
+                              </p>
+                              {date.warning_message && date.urgency !== 'none' && (
+                                <p className="text-xs mt-1 text-gray-600">
+                                  {date.warning_message}
+                                </p>
+                              )}
+                              {date.is_opportunity && date.action_suggestion && (
+                                <p className="text-xs mt-1 text-gray-600 italic">
+                                  {date.action_suggestion}
+                                </p>
                               )}
                             </div>
-                            <p className={`text-sm font-medium mt-0.5 ${color.text}`}>
-                              {date.name}
-                            </p>
-                            {date.warning_message && date.urgency !== 'none' && (
-                              <p className="text-xs mt-1 text-gray-600">
-                                {date.warning_message}
-                              </p>
-                            )}
-                            {date.is_opportunity && date.action_suggestion && (
-                              <p className="text-xs mt-1 text-gray-600 italic">
-                                {date.action_suggestion}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <span className={`text-sm font-bold ${color.text}`}>
-                              {date.is_active ? 'NOW' : date.days_until > 0 ? `${date.days_until}d` : 'Past'}
-                            </span>
+                            <div className="text-right">
+                              <span className={`text-sm font-bold ${color.text}`}>
+                                {date.is_active ? 'NOW' : date.days_until > 0 ? `${date.days_until}d` : 'Past'}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                  {hasMoreDates && !showAllDates && (
+                    <button
+                      onClick={() => {
+                        setShowAllDates(true)
+                        fetchKeyDates(true)
+                      }}
+                      className="mt-3 text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      View all upcoming dates
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
