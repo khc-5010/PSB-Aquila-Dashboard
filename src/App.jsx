@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import OpportunityCard from './components/pipeline/OpportunityCard'
+import OpportunityDetail from './components/OpportunityDetail'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-gray-100' },
@@ -15,6 +16,7 @@ function App() {
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null)
 
   // Check database health
   useEffect(() => {
@@ -50,8 +52,11 @@ function App() {
   }, {})
 
   const handleCardClick = (opportunity) => {
-    console.log('Clicked opportunity:', opportunity)
-    // TODO: Open detail panel
+    setSelectedOpportunity(opportunity)
+  }
+
+  const handleCloseDetail = () => {
+    setSelectedOpportunity(null)
   }
 
   return (
@@ -145,6 +150,12 @@ function App() {
           PSB-Aquila Partnership Dashboard &bull; Built for Kyle, Duane & Steve
         </p>
       </footer>
+
+      {/* Opportunity Detail Panel */}
+      <OpportunityDetail
+        opportunity={selectedOpportunity}
+        onClose={handleCloseDetail}
+      />
     </div>
   )
 }
