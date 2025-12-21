@@ -13,6 +13,7 @@ import SortableOpportunityCard from './components/pipeline/SortableOpportunityCa
 import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
 import DeadlineBanner from './components/DeadlineBanner'
+import MetricsBar from './components/MetricsBar'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-gray-100' },
@@ -181,6 +182,9 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Metrics Bar */}
+      <MetricsBar opportunities={opportunities} />
 
       {/* Key Dates Deadline Banner */}
       <DeadlineBanner />
