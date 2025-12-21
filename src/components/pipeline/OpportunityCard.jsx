@@ -1,4 +1,4 @@
-function OpportunityCard({ opportunity, onClick }) {
+function OpportunityCard({ opportunity, onClick, isDragging = false }) {
   const { company_name, description, owner, project_type } = opportunity
 
   // Get initials from owner name (e.g., "Kyle" -> "K", "John Doe" -> "JD")
@@ -27,7 +27,9 @@ function OpportunityCard({ opportunity, onClick }) {
   return (
     <div
       onClick={() => onClick?.(opportunity)}
-      className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all"
+      className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer
+        hover:shadow-md hover:border-gray-300 transition-all
+        ${isDragging ? 'shadow-lg ring-2 ring-indigo-400 rotate-2' : ''}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <h3 className="font-medium text-gray-900 text-sm leading-tight">

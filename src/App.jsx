@@ -1,5 +1,15 @@
 import { useState, useEffect } from 'react'
+import {
+  DndContext,
+  DragOverlay,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
 import OpportunityCard from './components/pipeline/OpportunityCard'
+import DroppableColumn from './components/pipeline/DroppableColumn'
+import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
 
@@ -19,6 +29,21 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [activeId, setActiveId] = useState(null)
+
+  // Sensor config - 8px threshold so clicks still work
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  )
+
+  // Find active opportunity for drag overlay
+  const activeOpportunity = activeId
+    ? opportunities.find(o => o.id === activeId)
+    : null
 
   // Check database health
   useEffect(() => {
@@ -66,6 +91,50 @@ function App() {
     setShowAddModal(false)
   }
 
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id)
+  }
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (!over) return
+
+    const opportunityId = active.id
+    const newStage = over.id
+
+    // Find the opportunity
+    const opportunity = opportunities.find(o => o.id === opportunityId)
+    if (!opportunity || opportunity.stage === newStage) return
+
+    // Optimistic update
+    setOpportunities(prev =>
+      prev.map(o =>
+        o.id === opportunityId ? { ...o, stage: newStage } : o
+      )
+    )
+
+    // API call
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: newStage }),
+      })
+
+      if (!res.ok) throw new Error('Failed to update')
+    } catch (error) {
+      // Revert on failure
+      console.error('Failed to update stage:', error)
+      setOpportunities(prev =>
+        prev.map(o =>
+          o.id === opportunityId ? { ...o, stage: opportunity.stage } : o
+        )
+      )
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -110,24 +179,23 @@ function App() {
       )}
 
       {/* Kanban Board */}
-      <main className="p-6">
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {STAGES.map((stage) => {
-            const stageOpportunities = opportunitiesByStage[stage.id] || []
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <main className="p-6">
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {STAGES.map((stage) => {
+              const stageOpportunities = opportunitiesByStage[stage.id] || []
 
-            return (
-              <div
-                key={stage.id}
-                className={`flex-shrink-0 w-72 ${stage.color} rounded-lg p-4`}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold text-gray-700">{stage.name}</h2>
-                  <span className="bg-white px-2 py-0.5 rounded text-sm text-gray-500">
-                    {stageOpportunities.length}
-                  </span>
-                </div>
-
-                <div className="space-y-3 min-h-[200px]">
+              return (
+                <DroppableColumn
+                  key={stage.id}
+                  stage={stage}
+                  opportunities={stageOpportunities}
+                >
                   {loading ? (
                     <div className="bg-white/50 rounded-lg p-4 animate-pulse">
                       <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -135,7 +203,7 @@ function App() {
                     </div>
                   ) : stageOpportunities.length > 0 ? (
                     stageOpportunities.map((opp) => (
-                      <OpportunityCard
+                      <SortableOpportunityCard
                         key={opp.id}
                         opportunity={opp}
                         onClick={handleCardClick}
@@ -146,16 +214,19 @@ function App() {
                       <p className="text-sm text-gray-400 text-center">No opportunities</p>
                     </div>
                   )}
-                </div>
+                </DroppableColumn>
+              )
+            })}
+          </div>
+        </main>
 
-                <button className="mt-3 w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-white/50 rounded transition-colors">
-                  + Add Opportunity
-                </button>
-              </div>
-            )
-          })}
-        </div>
-      </main>
+        {/* Drag overlay - ghost card while dragging */}
+        <DragOverlay>
+          {activeOpportunity ? (
+            <OpportunityCard opportunity={activeOpportunity} isDragging />
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
