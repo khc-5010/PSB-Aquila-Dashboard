@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import OpportunityCard from './components/pipeline/OpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
+import AddOpportunityModal from './components/AddOpportunityModal'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-gray-100' },
@@ -17,6 +18,7 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   // Check database health
   useEffect(() => {
@@ -59,6 +61,11 @@ function App() {
     setSelectedOpportunity(null)
   }
 
+  const handleOpportunityCreated = (newOpp) => {
+    setOpportunities((prev) => [...prev, newOpp])
+    setShowAddModal(false)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -69,6 +76,12 @@ function App() {
             <p className="text-sm text-gray-500">Industrial AI Alliance Pipeline</p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              + Add Opportunity
+            </button>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
               dbStatus === 'connected'
                 ? 'bg-green-100 text-green-700'
@@ -156,6 +169,14 @@ function App() {
         opportunity={selectedOpportunity}
         onClose={handleCloseDetail}
       />
+
+      {/* Add Opportunity Modal */}
+      {showAddModal && (
+        <AddOpportunityModal
+          onClose={() => setShowAddModal(false)}
+          onCreated={handleOpportunityCreated}
+        />
+      )}
     </div>
   )
 }
