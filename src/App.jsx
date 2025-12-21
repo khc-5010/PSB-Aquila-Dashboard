@@ -12,6 +12,9 @@ import DroppableColumn from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
+import ValueBreakdownModal from './components/ValueBreakdownModal'
+import ActionSummaryModal from './components/ActionSummaryModal'
+import ActiveProjectsModal from './components/ActiveProjectsModal'
 import DeadlineBanner from './components/DeadlineBanner'
 import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
@@ -32,6 +35,7 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [metricsModal, setMetricsModal] = useState(null) // 'value' | 'action' | 'active' | null
   const [activeId, setActiveId] = useState(null)
 
   // Sensor config - 8px threshold so clicks still work
@@ -94,6 +98,10 @@ function App() {
     setShowAddModal(false)
   }
 
+  const handleMetricsSelect = (opp) => {
+    setSelectedOpportunity(opp)
+  }
+
   const handleOpportunityUpdate = (updatedOpp) => {
     setOpportunities(prev =>
       prev.map(o => o.id === updatedOpp.id ? updatedOpp : o)
@@ -154,7 +162,12 @@ function App() {
       <Header dbStatus={dbStatus} onAddOpportunity={() => setShowAddModal(true)} />
 
       {/* Metrics Bar */}
-      <MetricsBar opportunities={opportunities} />
+      <MetricsBar
+        opportunities={opportunities}
+        onValueClick={() => setMetricsModal('value')}
+        onActionClick={() => setMetricsModal('action')}
+        onActiveClick={() => setMetricsModal('active')}
+      />
 
       {/* Key Dates Deadline Banner */}
       <DeadlineBanner />
@@ -235,6 +248,29 @@ function App() {
         <AddOpportunityModal
           onClose={() => setShowAddModal(false)}
           onCreated={handleOpportunityCreated}
+        />
+      )}
+
+      {/* Metrics Modals */}
+      {metricsModal === 'value' && (
+        <ValueBreakdownModal
+          opportunities={opportunities}
+          onClose={() => setMetricsModal(null)}
+          onSelectOpportunity={handleMetricsSelect}
+        />
+      )}
+      {metricsModal === 'action' && (
+        <ActionSummaryModal
+          opportunities={opportunities}
+          onClose={() => setMetricsModal(null)}
+          onSelectOpportunity={handleMetricsSelect}
+        />
+      )}
+      {metricsModal === 'active' && (
+        <ActiveProjectsModal
+          opportunities={opportunities}
+          onClose={() => setMetricsModal(null)}
+          onSelectOpportunity={handleMetricsSelect}
         />
       )}
     </div>
