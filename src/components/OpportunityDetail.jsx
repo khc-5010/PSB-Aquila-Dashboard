@@ -1,32 +1,48 @@
 import { useState, useEffect } from 'react'
 
-// Stakeholder mapping based on project type
-const STAKEHOLDER_ALERTS = {
-  'Research Agreement': {
-    name: 'Alicyn Rhoades',
-    reason: 'Research agreement structure - 4-6 week processing time. Loop in Jennifer Surrena for contracts.',
+// Engagement level styling for dynamic alerts
+const alertStyles = {
+  A: { // Approve - most urgent
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    icon: null, // Using SVG instead
+    iconColor: 'text-red-600',
+    iconBg: 'bg-red-100',
+    label: 'APPROVAL REQUIRED'
   },
-  'Senior Design': {
-    name: 'Dean Lewis',
-    reason: 'Senior Design coordinator (dal16@psu.edu). Note: August 15 deadline for fall semester placement.',
+  C: { // Consult
+    bg: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    icon: null,
+    iconColor: 'text-yellow-600',
+    iconBg: 'bg-yellow-100',
+    label: 'CONSULT'
   },
-  'Consulting Engagement': {
-    name: 'Amy Bridger',
-    reason: 'Partnership structure review. Aquila-led engagement.',
+  I: { // Inform
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    icon: null,
+    iconColor: 'text-blue-600',
+    iconBg: 'bg-blue-100',
+    label: 'INFORM'
   },
-  'Alliance Membership': {
-    name: 'Amy Bridger',
-    reason: 'Revenue model and alliance membership discussions.',
-  },
-  'Workforce Training': {
-    name: 'TBD',
-    reason: 'Program-specific routing - stakeholder to be determined.',
-  },
+  O: { // Optional
+    bg: 'bg-gray-50',
+    border: 'border-gray-200',
+    icon: null,
+    iconColor: 'text-gray-500',
+    iconBg: 'bg-gray-100',
+    label: 'OPTIONAL'
+  }
 }
 
 function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
+
+  // Dynamic alerts state
+  const [alerts, setAlerts] = useState([])
+  const [alertsLoading, setAlertsLoading] = useState(false)
 
   // Log Activity modal state
   const [showLogModal, setShowLogModal] = useState(false)
@@ -60,6 +76,42 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     fetchActivities()
   }, [opportunity?.id])
 
+  // Fetch dynamic alerts
+  const fetchAlerts = async () => {
+    if (!opportunity?.id) return
+    setAlertsLoading(true)
+    try {
+      const res = await fetch(`/api/opportunities/${opportunity.id}/alerts`)
+      const data = res.ok ? await res.json() : { alerts: [] }
+      setAlerts(data.alerts || [])
+    } catch (err) {
+      console.error('Failed to fetch alerts:', err)
+      setAlerts([])
+    } finally {
+      setAlertsLoading(false)
+    }
+  }
+
+  // Fetch alerts when opportunity or relevant fields change
+  useEffect(() => {
+    fetchAlerts()
+  }, [opportunity?.id, opportunity?.stage, opportunity?.project_type, opportunity?.est_value])
+
+  // Handle dismiss alert
+  const handleDismissAlert = async (ruleId) => {
+    try {
+      await fetch(`/api/opportunities/${opportunity.id}/alerts/${ruleId}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dismissed_by: 'kyle' }) // TODO: get from auth context
+      })
+      // Remove from local state immediately for instant feedback
+      setAlerts(prev => prev.filter(a => a.id !== ruleId))
+    } catch (err) {
+      console.error('Failed to dismiss alert:', err)
+    }
+  }
+
   // Reset next action editing state when opportunity changes
   useEffect(() => {
     setIsEditingNextAction(false)
@@ -90,10 +142,34 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     })
   }
 
-  // Get stakeholder alert based on project type
-  const getStakeholderAlert = () => {
-    if (!opportunity?.project_type) return null
-    return STAKEHOLDER_ALERTS[opportunity.project_type] || null
+  // Get icon SVG based on engagement level
+  const getAlertIcon = (level) => {
+    switch (level) {
+      case 'A': // Approve - exclamation
+        return (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        )
+      case 'C': // Consult - chat
+        return (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        )
+      case 'I': // Inform - info
+        return (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      default: // Optional - circle
+        return (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+    }
   }
 
   // Get initials from name
@@ -118,7 +194,6 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     }
   }
 
-  const stakeholderAlert = getStakeholderAlert()
   const contacts = getContacts()
 
   // Handle Log Activity submission
@@ -339,26 +414,74 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
             </div>
           )}
 
-          {/* Stakeholder Alert */}
-          {stakeholderAlert && (
+          {/* Dynamic Stakeholder Alerts */}
+          {(alerts.length > 0 || alertsLoading) && (
             <div className="px-6 py-5 border-b border-gray-100">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0">
-                    <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-blue-900">
-                      Loop in: {stakeholderAlert.name}
-                    </h4>
-                    <p className="mt-1 text-sm text-blue-700">
-                      {stakeholderAlert.reason}
-                    </p>
-                  </div>
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                Stakeholder Alerts {alerts.length > 0 && `(${alerts.length})`}
+              </h3>
+              {alertsLoading ? (
+                <div className="animate-pulse space-y-2">
+                  <div className="h-16 bg-gray-100 rounded-lg"></div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  {alerts.map(alert => {
+                    const style = alertStyles[alert.engagement_level] || alertStyles.I
+                    return (
+                      <div
+                        key={alert.id}
+                        className={`${style.bg} ${style.border} border rounded-lg p-3 relative`}
+                      >
+                        <button
+                          onClick={() => handleDismissAlert(alert.id)}
+                          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-sm p-1 rounded hover:bg-white/50 transition-colors"
+                          title="Dismiss alert"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <div className="flex items-start gap-2">
+                          <span className={`flex-shrink-0 w-6 h-6 rounded-full ${style.iconBg} ${style.iconColor} flex items-center justify-center`}>
+                            {getAlertIcon(alert.engagement_level)}
+                          </span>
+                          <div className="flex-1 pr-6">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs font-semibold uppercase tracking-wide ${style.iconColor}`}>
+                                {style.label}
+                              </span>
+                              {alert.category && (
+                                <>
+                                  <span className="text-xs text-gray-400">•</span>
+                                  <span className="text-xs text-gray-500 capitalize">{alert.category}</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="font-medium text-gray-900">
+                              {alert.stakeholder_name}
+                              {alert.stakeholder_role && (
+                                <span className="font-normal text-gray-500"> — {alert.stakeholder_role}</span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-700 mt-1">
+                              {alert.alert_message}
+                            </div>
+                            {alert.stakeholder_email && (
+                              <a
+                                href={`mailto:${alert.stakeholder_email}`}
+                                className="text-sm text-blue-600 hover:underline mt-1 inline-block"
+                              >
+                                {alert.stakeholder_email}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
