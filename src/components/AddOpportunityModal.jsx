@@ -9,6 +9,7 @@ function AddOpportunityModal({ onClose, onCreated }) {
     stage: 'lead',
     owner: '',
     est_value: '',
+    next_action: '',
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -33,6 +34,7 @@ function AddOpportunityModal({ onClose, onCreated }) {
         stage: formData.stage,
         owner: formData.owner || null,
         est_value: formData.est_value ? parseFloat(formData.est_value) : null,
+        next_action: formData.next_action.trim() || null,
       }
 
       const res = await fetch('/api/opportunities', {
@@ -192,6 +194,23 @@ function AddOpportunityModal({ onClose, onCreated }) {
                     disabled={isSubmitting}
                   />
                 </div>
+              </div>
+
+              {/* Next Action */}
+              <div>
+                <label htmlFor="next_action" className="block text-sm font-medium text-gray-700 mb-1">
+                  Next Action
+                </label>
+                <textarea
+                  id="next_action"
+                  name="next_action"
+                  rows={2}
+                  value={formData.next_action}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                  placeholder="What's the next step for this opportunity?"
+                  disabled={isSubmitting}
+                />
               </div>
 
               {/* Error Message */}

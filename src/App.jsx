@@ -91,6 +91,16 @@ function App() {
     setShowAddModal(false)
   }
 
+  const handleOpportunityUpdate = (updatedOpp) => {
+    setOpportunities(prev =>
+      prev.map(o => o.id === updatedOpp.id ? updatedOpp : o)
+    )
+    // Also update selectedOpportunity if it's the same one
+    if (selectedOpportunity?.id === updatedOpp.id) {
+      setSelectedOpportunity(updatedOpp)
+    }
+  }
+
   const handleDragStart = (event) => {
     setActiveId(event.active.id)
   }
@@ -239,6 +249,7 @@ function App() {
       <OpportunityDetail
         opportunity={selectedOpportunity}
         onClose={handleCloseDetail}
+        onUpdate={handleOpportunityUpdate}
       />
 
       {/* Add Opportunity Modal */}
