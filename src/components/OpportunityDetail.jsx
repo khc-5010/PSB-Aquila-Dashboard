@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import EditOpportunityModal from './EditOpportunityModal'
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -43,6 +44,9 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Dynamic alerts state
   const [alerts, setAlerts] = useState([])
   const [alertsLoading, setAlertsLoading] = useState(false)
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Log Activity modal state
   const [showLogModal, setShowLogModal] = useState(false)
@@ -669,7 +673,10 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
 
         {/* Footer Actions */}
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex gap-3">
-          <button className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setShowEditModal(true)}
+            className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
             Edit
           </button>
           <button
@@ -772,6 +779,18 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* Edit Opportunity Modal */}
+      {showEditModal && (
+        <EditOpportunityModal
+          opportunity={opportunity}
+          onClose={() => setShowEditModal(false)}
+          onUpdate={(updated) => {
+            onUpdate(updated)
+            setShowEditModal(false)
+          }}
+        />
       )}
     </>
   )

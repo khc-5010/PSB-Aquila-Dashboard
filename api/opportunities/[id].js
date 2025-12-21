@@ -11,11 +11,26 @@ export default async function handler(req, res) {
 
   // PATCH: Update opportunity fields
   if (req.method === 'PATCH') {
-    const { stage, next_action } = req.body
+    const {
+      company_name,
+      description,
+      project_type,
+      stage,
+      owner,
+      est_value,
+      source,
+      psb_relationship,
+      next_action
+    } = req.body
 
     // At least one field must be provided
-    if (stage === undefined && next_action === undefined) {
-      res.status(400).json({ error: 'At least one field (stage or next_action) is required' })
+    const hasUpdate = [
+      company_name, description, project_type, stage, owner,
+      est_value, source, psb_relationship, next_action
+    ].some(field => field !== undefined)
+
+    if (!hasUpdate) {
+      res.status(400).json({ error: 'At least one field is required for update' })
       return
     }
 
@@ -24,14 +39,23 @@ export default async function handler(req, res) {
       const updates = []
       const values = []
 
-      if (stage !== undefined) {
-        values.push(stage)
-        updates.push(`stage = $${values.length}`)
-      }
+      const fieldMappings = [
+        { name: 'company_name', value: company_name },
+        { name: 'description', value: description },
+        { name: 'project_type', value: project_type },
+        { name: 'stage', value: stage },
+        { name: 'owner', value: owner },
+        { name: 'est_value', value: est_value },
+        { name: 'source', value: source },
+        { name: 'psb_relationship', value: psb_relationship },
+        { name: 'next_action', value: next_action },
+      ]
 
-      if (next_action !== undefined) {
-        values.push(next_action)
-        updates.push(`next_action = $${values.length}`)
+      for (const field of fieldMappings) {
+        if (field.value !== undefined) {
+          values.push(field.value)
+          updates.push(`${field.name} = $${values.length}`)
+        }
       }
 
       values.push(id)
