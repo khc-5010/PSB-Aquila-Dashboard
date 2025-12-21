@@ -12,6 +12,7 @@ import DroppableColumn from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
+import DeadlineBanner from './components/DeadlineBanner'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-gray-100' },
@@ -180,6 +181,9 @@ function App() {
           </div>
         </div>
       </header>
+
+      {/* Key Dates Deadline Banner */}
+      <DeadlineBanner />
 
       {/* Error Banner */}
       {error && (
