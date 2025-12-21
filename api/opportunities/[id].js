@@ -11,20 +11,40 @@ export default async function handler(req, res) {
 
   // PATCH: Update opportunity fields
   if (req.method === 'PATCH') {
-    const { stage } = req.body
+    const { stage, next_action } = req.body
 
-    if (!stage) {
-      res.status(400).json({ error: 'stage is required' })
+    // At least one field must be provided
+    if (stage === undefined && next_action === undefined) {
+      res.status(400).json({ error: 'At least one field (stage or next_action) is required' })
       return
     }
 
     try {
-      const result = await sql`
+      // Build dynamic update query based on provided fields
+      const updates = []
+      const values = []
+
+      if (stage !== undefined) {
+        values.push(stage)
+        updates.push(`stage = $${values.length}`)
+      }
+
+      if (next_action !== undefined) {
+        values.push(next_action)
+        updates.push(`next_action = $${values.length}`)
+      }
+
+      values.push(id)
+      const idPlaceholder = `$${values.length}`
+
+      const query = `
         UPDATE opportunities
-        SET stage = ${stage}, updated_at = NOW()
-        WHERE id = ${id}
+        SET ${updates.join(', ')}, updated_at = NOW()
+        WHERE id = ${idPlaceholder}
         RETURNING *
       `
+
+      const result = await sql.unsafe(query, values)
 
       if (result.length === 0) {
         res.status(404).json({ error: 'Opportunity not found' })

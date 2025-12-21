@@ -51,6 +51,17 @@ function OpportunityCard({ opportunity, onClick, isDragging = false }) {
           {project_type}
         </span>
       )}
+
+      {opportunity.next_action && (
+        <div className="mt-3 bg-gray-50 rounded p-2">
+          <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium mb-0.5">
+            Next Action
+          </p>
+          <p className="text-xs text-gray-600 line-clamp-2">
+            {opportunity.next_action}
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -24,7 +24,7 @@ const STAKEHOLDER_ALERTS = {
   },
 }
 
-function OpportunityDetail({ opportunity, onClose }) {
+function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
 
@@ -34,6 +34,11 @@ function OpportunityDetail({ opportunity, onClose }) {
   const [createdBy, setCreatedBy] = useState('Kyle')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+
+  // Next Action editing state
+  const [isEditingNextAction, setIsEditingNextAction] = useState(false)
+  const [nextActionValue, setNextActionValue] = useState('')
+  const [isSavingNextAction, setIsSavingNextAction] = useState(false)
 
   // Fetch activities function (reusable)
   const fetchActivities = async () => {
@@ -54,6 +59,12 @@ function OpportunityDetail({ opportunity, onClose }) {
   useEffect(() => {
     fetchActivities()
   }, [opportunity?.id])
+
+  // Reset next action editing state when opportunity changes
+  useEffect(() => {
+    setIsEditingNextAction(false)
+    setNextActionValue(opportunity?.next_action || '')
+  }, [opportunity?.id, opportunity?.next_action])
 
   // Format currency
   const formatCurrency = (value) => {
@@ -144,6 +155,56 @@ function OpportunityDetail({ opportunity, onClose }) {
     }
   }
 
+  // Handle Next Action save
+  const handleSaveNextAction = async () => {
+    const trimmedValue = nextActionValue.trim()
+    const originalValue = opportunity.next_action || ''
+
+    // No change, just exit edit mode
+    if (trimmedValue === originalValue) {
+      setIsEditingNextAction(false)
+      return
+    }
+
+    setIsSavingNextAction(true)
+
+    // Optimistic update
+    if (onUpdate) {
+      onUpdate({ ...opportunity, next_action: trimmedValue || null })
+    }
+    setIsEditingNextAction(false)
+
+    try {
+      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ next_action: trimmedValue || null }),
+      })
+
+      if (!res.ok) throw new Error('Failed to update')
+    } catch (error) {
+      console.error('Failed to update next action:', error)
+      // Revert on failure
+      if (onUpdate) {
+        onUpdate({ ...opportunity, next_action: originalValue || null })
+      }
+      setNextActionValue(originalValue)
+    } finally {
+      setIsSavingNextAction(false)
+    }
+  }
+
+  // Handle key press in next action input
+  const handleNextActionKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSaveNextAction()
+    } else if (e.key === 'Escape') {
+      setIsEditingNextAction(false)
+      setNextActionValue(opportunity?.next_action || '')
+    }
+  }
+
   // Don't render if no opportunity
   if (!opportunity) return null
 
@@ -219,6 +280,51 @@ function OpportunityDetail({ opportunity, onClose }) {
                 </dd>
               </div>
             </div>
+          </div>
+
+          {/* Next Action */}
+          <div className="px-6 py-5 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                Next Action
+              </h3>
+              {!isEditingNextAction && (
+                <button
+                  onClick={() => {
+                    setNextActionValue(opportunity.next_action || '')
+                    setIsEditingNextAction(true)
+                  }}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Edit
+                </button>
+              )}
+            </div>
+            {isEditingNextAction ? (
+              <div>
+                <textarea
+                  value={nextActionValue}
+                  onChange={(e) => setNextActionValue(e.target.value)}
+                  onBlur={handleSaveNextAction}
+                  onKeyDown={handleNextActionKeyDown}
+                  placeholder="What's the next step for this opportunity?"
+                  rows={2}
+                  autoFocus
+                  disabled={isSavingNextAction}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Press Enter to save, Escape to cancel
+                </p>
+              </div>
+            ) : (
+              <p className={`text-sm ${opportunity.next_action ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                {opportunity.next_action || 'No next action set'}
+              </p>
+            )}
           </div>
 
           {/* Description */}

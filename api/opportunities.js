@@ -32,6 +32,7 @@ export default async function handler(req, res) {
         est_value,
         source,
         psb_relationship,
+        next_action,
       } = req.body
 
       // Validate required fields
@@ -50,6 +51,7 @@ export default async function handler(req, res) {
           est_value,
           source,
           psb_relationship,
+          next_action,
           created_at,
           updated_at
         ) VALUES (
@@ -61,6 +63,7 @@ export default async function handler(req, res) {
           ${est_value || null},
           ${source || null},
           ${psb_relationship || null},
+          ${next_action || null},
           NOW(),
           NOW()
         )
