@@ -14,6 +14,7 @@ import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
 import DeadlineBanner from './components/DeadlineBanner'
 import MetricsBar from './components/MetricsBar'
+import Header from './components/layout/Header'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-gray-100' },
@@ -150,38 +151,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">PSB-Aquila Opportunity Tracker</h1>
-            <p className="text-sm text-gray-500">Industrial AI Alliance Pipeline</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              + Add Opportunity
-            </button>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
-              dbStatus === 'connected'
-                ? 'bg-green-100 text-green-700'
-                : dbStatus === 'checking'
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-red-100 text-red-700'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                dbStatus === 'connected'
-                  ? 'bg-green-500'
-                  : dbStatus === 'checking'
-                  ? 'bg-yellow-500'
-                  : 'bg-red-500'
-              }`} />
-              {dbStatus === 'connected' ? 'Database Connected' : dbStatus === 'checking' ? 'Checking...' : 'Database Offline'}
-            </span>
-          </div>
-        </div>
-      </header>
+      <Header dbStatus={dbStatus} onAddOpportunity={() => setShowAddModal(true)} />
 
       {/* Metrics Bar */}
       <MetricsBar opportunities={opportunities} />
