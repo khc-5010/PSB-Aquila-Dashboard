@@ -9,15 +9,14 @@ function DroppableColumn({ stage, opportunities, children }) {
   return (
     <div
       ref={setNodeRef}
-      style={{ borderTopColor: stage.borderColor }}
-      className={`flex-shrink-0 w-72 rounded-lg p-4 transition-colors border-t-[3px] ${
-        isOver ? 'bg-blue-100 ring-2 ring-blue-400' : stage.color
+      className={`flex-shrink-0 w-72 rounded-lg p-4 transition-all duration-200 border border-[#E2E8F0] ${
+        isOver ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
       }`}
     >
       {/* Column header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-semibold text-gray-700">{stage.name}</h2>
-        <span className="bg-white px-2 py-0.5 rounded text-sm text-gray-500">
+        <h2 className="font-medium text-gray-700">{stage.name}</h2>
+        <span className="bg-[#F1F5F9] px-2 py-0.5 rounded text-sm text-gray-500 font-medium">
           {opportunities.length}
         </span>
       </div>
