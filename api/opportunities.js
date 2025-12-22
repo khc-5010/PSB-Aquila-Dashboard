@@ -9,7 +9,14 @@ export default async function handler(req, res) {
       const opportunities = await sql`
         SELECT * FROM opportunities ORDER BY updated_at DESC
       `
-      return res.status(200).json(opportunities)
+
+      // Map database column names to frontend field names
+      const mapped = opportunities.map(row => ({
+        ...row,
+        est_value: row.estimated_value,
+      }))
+
+      return res.status(200).json(mapped)
     } catch (error) {
       console.error('Error fetching opportunities:', error)
       return res.status(500).json({ error: error.message })
