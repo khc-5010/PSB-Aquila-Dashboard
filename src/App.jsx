@@ -20,12 +20,12 @@ import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
 
 const STAGES = [
-  { id: 'lead', name: 'Lead', color: 'bg-gray-100', borderColor: '#9CA3AF' },
-  { id: 'qualified', name: 'Qualified', color: 'bg-blue-100', borderColor: '#93C5FD' },
-  { id: 'proposal', name: 'Proposal', color: 'bg-yellow-100', borderColor: '#FCD34D' },
-  { id: 'negotiation', name: 'Negotiation', color: 'bg-orange-100', borderColor: '#FDBA74' },
-  { id: 'active', name: 'Active', color: 'bg-green-100', borderColor: '#86EFAC' },
-  { id: 'complete', name: 'Complete', color: 'bg-purple-100', borderColor: '#C4B5FD' },
+  { id: 'lead', name: 'Lead', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
+  { id: 'qualified', name: 'Qualified', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
+  { id: 'proposal', name: 'Proposal', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
+  { id: 'negotiation', name: 'Negotiation', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
+  { id: 'active', name: 'Active', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
+  { id: 'complete', name: 'Complete', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
 ]
 
 function App() {
