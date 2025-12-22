@@ -1,6 +1,8 @@
 import { neon } from '@neondatabase/serverless'
 
 export default async function handler(req, res) {
+  console.log('>>> [id].js HIT:', req.method, req.query.id)
+
   const { id } = req.query
   const sql = neon(process.env.DATABASE_URL)
 
