@@ -8,7 +8,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import OpportunityCard from './components/pipeline/OpportunityCard'
-import DroppableColumn from './components/pipeline/DroppableColumn'
+import DroppableColumn, { columnColors, defaultColors } from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
 import AddOpportunityModal from './components/AddOpportunityModal'
@@ -190,6 +190,7 @@ function App() {
           <div className="flex gap-4 overflow-x-auto pb-4">
             {STAGES.map((stage) => {
               const stageOpportunities = opportunitiesByStage[stage.id] || []
+              const stageColors = columnColors[stage.id] || defaultColors
 
               return (
                 <DroppableColumn
@@ -211,8 +212,8 @@ function App() {
                       />
                     ))
                   ) : (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 opacity-50">
-                      <p className="text-sm text-gray-400 text-center">No opportunities</p>
+                    <div className={`bg-white rounded-lg shadow-sm border p-4 ${stageColors.isDark ? 'border-white/20 opacity-70' : 'border-gray-200 opacity-50'}`}>
+                      <p className={`text-sm text-center ${stageColors.isDark ? 'text-white/70' : 'text-gray-400'}`}>No opportunities</p>
                     </div>
                   )}
                 </DroppableColumn>
