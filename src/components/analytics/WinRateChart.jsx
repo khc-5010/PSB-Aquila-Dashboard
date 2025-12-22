@@ -1,11 +1,24 @@
 const TYPE_COLORS = {
-  'TBD': '#9CA3AF',
-  'Research Agreement': '#8B5CF6',
-  'Senior Design': '#3B82F6',
-  'Consulting Engagement': '#0D9488',
-  'Workforce Training': '#F59E0B',
-  'Alliance Membership': '#EC4899',
-  'Does Not Fit': '#EF4444',
+  'tbd': '#9CA3AF',
+  'research': '#8B5CF6',
+  'senior_design': '#3B82F6',
+  'consulting': '#0D9488',
+  'workforce': '#F59E0B',
+  'membership': '#EC4899',
+  'does_not_fit': '#EF4444',
+}
+
+const formatLabel = (type) => {
+  const labels = {
+    'tbd': 'TBD',
+    'research': 'Research',
+    'senior_design': 'Senior Design',
+    'consulting': 'Consulting',
+    'workforce': 'Workforce Training',
+    'membership': 'Membership',
+    'does_not_fit': 'Does Not Fit',
+  }
+  return labels[type] || type
 }
 
 function WinRateChart({ data, loading }) {
@@ -58,8 +71,8 @@ function WinRateChart({ data, loading }) {
           return (
             <div key={row.project_type}>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-gray-700 truncate max-w-[140px]" title={row.project_type}>
-                  {row.project_type}
+                <span className="text-sm text-gray-700 truncate max-w-[140px]" title={formatLabel(row.project_type)}>
+                  {formatLabel(row.project_type)}
                 </span>
                 <span className={`text-sm font-semibold ${getWinRateColor(winRate)}`}>
                   {winRate}%

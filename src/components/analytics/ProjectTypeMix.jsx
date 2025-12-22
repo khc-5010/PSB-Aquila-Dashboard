@@ -9,20 +9,33 @@ import { Doughnut } from 'react-chartjs-2'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const TYPE_COLORS = {
-  'TBD': '#9CA3AF',
-  'Research Agreement': '#8B5CF6',
-  'Senior Design': '#3B82F6',
-  'Consulting Engagement': '#0D9488',
-  'Workforce Training': '#F59E0B',
-  'Alliance Membership': '#EC4899',
-  'Does Not Fit': '#EF4444',
+  'tbd': '#9CA3AF',
+  'research': '#8B5CF6',
+  'senior_design': '#3B82F6',
+  'consulting': '#0D9488',
+  'workforce': '#F59E0B',
+  'membership': '#EC4899',
+  'does_not_fit': '#EF4444',
+}
+
+const formatLabel = (type) => {
+  const labels = {
+    'tbd': 'TBD',
+    'research': 'Research',
+    'senior_design': 'Senior Design',
+    'consulting': 'Consulting',
+    'workforce': 'Workforce Training',
+    'membership': 'Membership',
+    'does_not_fit': 'Does Not Fit',
+  }
+  return labels[type] || type
 }
 
 function ProjectTypeMix({ data, loading }) {
   const total = data?.reduce((sum, row) => sum + parseInt(row.count), 0) || 0
 
   const chartData = {
-    labels: data?.map((r) => r.project_type) || [],
+    labels: data?.map((r) => formatLabel(r.project_type)) || [],
     datasets: [
       {
         data: data?.map((r) => parseInt(r.count)) || [],
@@ -102,8 +115,8 @@ function ProjectTypeMix({ data, loading }) {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: TYPE_COLORS[row.project_type] || '#9CA3AF' }}
                     />
-                    <span className="text-sm text-gray-600 truncate max-w-[120px]" title={row.project_type}>
-                      {row.project_type}
+                    <span className="text-sm text-gray-600 truncate max-w-[120px]" title={formatLabel(row.project_type)}>
+                      {formatLabel(row.project_type)}
                     </span>
                   </div>
                   <span className="text-sm font-medium text-gray-900">{percentage}%</span>
