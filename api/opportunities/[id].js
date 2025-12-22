@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       console.log('Query:', queryText)
       console.log('Values:', values)
 
-      const result = await sql(queryText, values)
+      const result = await sql.query(queryText, values)
 
       console.log('Result:', JSON.stringify(result))
 
