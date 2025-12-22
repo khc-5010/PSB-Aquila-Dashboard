@@ -2,16 +2,19 @@ import { neon } from '@neondatabase/serverless'
 
 export default async function handler(req, res) {
   console.log('>>> [id].js HIT:', req.method, req.query.id)
+  console.log('>>> req.body:', JSON.stringify(req.body))
 
   const { id } = req.query
   const sql = neon(process.env.DATABASE_URL)
 
   if (!id) {
+    console.log('>>> No ID, returning 400')
     return res.status(400).json({ error: 'Opportunity ID is required' })
   }
 
   // PATCH - Update opportunity
   if (req.method === 'PATCH') {
+    console.log('>>> In PATCH block')
     const {
       company_name, description, project_type, stage,
       owner, est_value, source, psb_relationship, next_action,
@@ -31,6 +34,9 @@ export default async function handler(req, res) {
     if (psb_relationship !== undefined) { updates.push(`psb_relationship = $${i++}`); values.push(psb_relationship || null) }
     if (next_action !== undefined) { updates.push(`next_action = $${i++}`); values.push(next_action || null) }
 
+    console.log('>>> updates:', updates)
+    console.log('>>> values:', values)
+
     if (updates.length === 0) {
       return res.status(400).json({ error: 'At least one field required' })
     }
@@ -40,6 +46,9 @@ export default async function handler(req, res) {
     try {
       const query = `UPDATE opportunities SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING *`
       const result = await sql.unsafe(query, values)
+
+      console.log('>>> result:', JSON.stringify(result))
+      console.log('>>> result[0]:', JSON.stringify(result[0]))
 
       if (result.length === 0) {
         return res.status(404).json({ error: 'Opportunity not found' })
