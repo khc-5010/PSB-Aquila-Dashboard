@@ -7,8 +7,7 @@ export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
 
   if (!id) {
-    res.status(400).json({ error: 'Opportunity ID is required' })
-    return
+    return res.status(400).json({ error: 'Opportunity ID is required' })
   }
 
   // PATCH: Update opportunity fields
@@ -69,8 +68,7 @@ export default async function handler(req, res) {
 
     // Must have at least one field to update
     if (updates.length === 0) {
-      res.status(400).json({ error: 'At least one field is required' })
-      return
+      return res.status(400).json({ error: 'At least one field is required' })
     }
 
     // Add the ID as the last parameter
@@ -84,20 +82,21 @@ export default async function handler(req, res) {
         RETURNING *
       `
 
+      console.log('Executing query:', query, 'values:', values)
       const result = await sql.unsafe(query, values)
+      console.log('Query result:', result)
 
       if (result.length === 0) {
-        res.status(404).json({ error: 'Opportunity not found' })
-        return
+        return res.status(404).json({ error: 'Opportunity not found' })
       }
 
-      res.status(200).json(result[0])
+      console.log('Returning updated opportunity:', result[0])
+      return res.status(200).json(result[0])
     } catch (error) {
       console.error('Error updating opportunity:', error)
-      res.status(500).json({ error: error.message })
+      return res.status(500).json({ error: error.message })
     }
-    return
   }
 
-  res.status(405).json({ error: 'Method not allowed' })
+  return res.status(405).json({ error: 'Method not allowed' })
 }
