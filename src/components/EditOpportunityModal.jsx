@@ -65,11 +65,26 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to update opportunity')
+        const errorText = await res.text()
+        console.error('API error response:', res.status, errorText)
+        let errorMessage = 'Failed to update opportunity'
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          if (errorText) errorMessage = errorText
+        }
+        throw new Error(errorMessage)
       }
 
-      const updatedOpp = await res.json()
+      const responseText = await res.text()
+      console.log('API success response:', responseText)
+
+      if (!responseText) {
+        throw new Error('Empty response from server')
+      }
+
+      const updatedOpp = JSON.parse(responseText)
       onUpdate(updatedOpp)
       onClose()
     } catch (err) {

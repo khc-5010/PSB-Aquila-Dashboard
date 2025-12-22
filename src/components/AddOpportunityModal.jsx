@@ -44,11 +44,26 @@ function AddOpportunityModal({ onClose, onCreated }) {
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to create opportunity')
+        const errorText = await res.text()
+        console.error('API error response:', res.status, errorText)
+        let errorMessage = 'Failed to create opportunity'
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          if (errorText) errorMessage = errorText
+        }
+        throw new Error(errorMessage)
       }
 
-      const newOpp = await res.json()
+      const responseText = await res.text()
+      console.log('API success response:', responseText)
+
+      if (!responseText) {
+        throw new Error('Empty response from server')
+      }
+
+      const newOpp = JSON.parse(responseText)
       onCreated(newOpp)
     } catch (err) {
       setError(err.message || 'Failed to create opportunity')
