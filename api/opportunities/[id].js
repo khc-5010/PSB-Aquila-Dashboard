@@ -61,7 +61,14 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Opportunity not found' })
       }
 
-      return res.status(200).json(result[0])
+      // Map database column names back to frontend field names
+      const row = result[0]
+      const response = {
+        ...row,
+        est_value: row.estimated_value,  // frontend expects est_value
+      }
+
+      return res.status(200).json(response)
     } catch (error) {
       console.error('Error:', error)
       return res.status(500).json({ error: error.message })
