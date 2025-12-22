@@ -23,7 +23,7 @@ export default async function handler(req, res) {
           project_type = COALESCE(${project_type}, project_type),
           stage = COALESCE(${stage}, stage),
           owner = COALESCE(${owner}, owner),
-          est_value = COALESCE(${est_value}, est_value),
+          estimated_value = COALESCE(${est_value}, estimated_value),
           source = COALESCE(${source}, source),
           psb_relationship = COALESCE(${psb_relationship}, psb_relationship),
           next_action = COALESCE(${next_action}, next_action),
