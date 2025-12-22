@@ -60,6 +60,10 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   const [nextActionValue, setNextActionValue] = useState('')
   const [isSavingNextAction, setIsSavingNextAction] = useState(false)
 
+  // Outcome state
+  const [isMarkingOutcome, setIsMarkingOutcome] = useState(false)
+  const [showAbandonDropdown, setShowAbandonDropdown] = useState(false)
+
   // Key Dates state
   const [keyDates, setKeyDates] = useState([])
   const [keyDatesLoading, setKeyDatesLoading] = useState(false)
@@ -328,6 +332,59 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     }
   }
 
+  // Handle marking outcome (won/lost/abandoned)
+  const handleMarkOutcome = async (outcomeType) => {
+    setIsMarkingOutcome(true)
+    setShowAbandonDropdown(false)
+
+    const closedAt = new Date().toISOString()
+
+    // Optimistic update
+    const previousState = { ...opportunity }
+    if (onUpdate) {
+      onUpdate({
+        ...opportunity,
+        outcome: outcomeType,
+        closed_at: closedAt,
+        stage: 'complete'
+      })
+    }
+
+    try {
+      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          outcome: outcomeType,
+          closed_at: closedAt,
+          stage: 'complete'
+        }),
+      })
+
+      if (!res.ok) throw new Error('Failed to update outcome')
+
+      // Log the stage transition
+      await fetch('/api/stage-transitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_id: opportunity.id,
+          from_stage: opportunity.stage,
+          to_stage: 'complete',
+          transitioned_by: 'user',
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to mark outcome:', error)
+      // Revert on failure
+      if (onUpdate) {
+        onUpdate(previousState)
+      }
+    } finally {
+      setIsMarkingOutcome(false)
+    }
+  }
+
   // Don't render if no opportunity
   if (!opportunity) return null
 
@@ -404,6 +461,105 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
               </div>
             </div>
           </div>
+
+          {/* Outcome Actions - Show for active/negotiation stages without outcome */}
+          {['active', 'negotiation'].includes(opportunity.stage) && !opportunity.outcome && (
+            <div className="px-6 py-5 border-b border-gray-100 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                Close Opportunity
+              </h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleMarkOutcome('won')}
+                  disabled={isMarkingOutcome}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Mark as Won
+                </button>
+                <button
+                  onClick={() => handleMarkOutcome('lost')}
+                  disabled={isMarkingOutcome}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-gray-500 rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Mark as Lost
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAbandonDropdown(!showAbandonDropdown)}
+                    disabled={isMarkingOutcome}
+                    className="px-3 py-2 text-sm text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    title="More options"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                  </button>
+                  {showAbandonDropdown && (
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                      <button
+                        onClick={() => handleMarkOutcome('abandoned')}
+                        className="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-50 rounded-lg flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                        Mark as Abandoned
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {isMarkingOutcome && (
+                <p className="mt-2 text-xs text-gray-500 text-center">Updating...</p>
+              )}
+            </div>
+          )}
+
+          {/* Outcome Status - Show for closed opportunities */}
+          {opportunity.outcome && (
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+                Outcome
+              </h3>
+              <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${
+                opportunity.outcome === 'won'
+                  ? 'bg-green-50 text-green-700'
+                  : opportunity.outcome === 'lost'
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-yellow-50 text-yellow-700'
+              }`}>
+                {opportunity.outcome === 'won' && (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                {opportunity.outcome === 'lost' && (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                {opportunity.outcome === 'abandoned' && (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                )}
+                <span className="font-medium capitalize">
+                  {opportunity.outcome === 'won' ? 'Won' : opportunity.outcome === 'lost' ? 'Lost' : 'Abandoned'}
+                </span>
+                {opportunity.closed_at && (
+                  <span className="text-sm opacity-75">
+                    on {formatDate(opportunity.closed_at)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Next Action */}
           <div className="px-6 py-5 border-b border-gray-100">
