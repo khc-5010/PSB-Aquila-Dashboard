@@ -143,6 +143,14 @@ export default async function handler(req, res) {
       `
     ])
 
+    // Parse Postgres array strings to JS arrays
+    const parsedDeadlines = deadlines.map(d => ({
+      ...d,
+      applies_to: Array.isArray(d.applies_to)
+        ? d.applies_to
+        : (d.applies_to || '').replace(/[{}]/g, '').split(',').filter(Boolean)
+    }))
+
     // Calculate summary KPIs
     const totalPipelineValue = pipelineValue.reduce((sum, row) => sum + Number(row.total_value), 0)
     const activeOpportunities = pipelineValue.reduce((sum, row) => sum + Number(row.count), 0)
@@ -177,7 +185,7 @@ export default async function handler(req, res) {
       heatmap,
       sources,
       projectTypes,
-      deadlines,
+      deadlines: parsedDeadlines,
       winRates: winRatesWithPercent,
       cycleTime
     })
