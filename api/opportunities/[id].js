@@ -22,6 +22,8 @@ export default async function handler(req, res) {
       source: 'source',
       psb_relationship: 'psb_relationship',
       next_action: 'next_action',
+      outcome: 'outcome',
+      closed_at: 'closed_at',
     }
 
     // Build SET clause only for provided fields

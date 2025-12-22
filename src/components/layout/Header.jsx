@@ -1,4 +1,4 @@
-function Header({ dbStatus, onAddOpportunity }) {
+function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
   const users = [
     { name: 'Kyle', color: '#7C3AED' },
     { name: 'Duane', color: '#0891B2' },
@@ -21,16 +21,42 @@ function Header({ dbStatus, onAddOpportunity }) {
           <h1 className="text-xl font-semibold text-white">
             AI<sup className="text-sm">2</sup> Opportunity Tracker
           </h1>
+
+          {/* Navigation Tabs */}
+          <div className="ml-6 flex bg-white/10 rounded-lg p-1">
+            <button
+              onClick={() => onViewChange('pipeline')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeView === 'pipeline'
+                  ? 'bg-white text-[#041E42]'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Pipeline
+            </button>
+            <button
+              onClick={() => onViewChange('analytics')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeView === 'analytics'
+                  ? 'bg-white text-[#041E42]'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Analytics
+            </button>
+          </div>
         </div>
 
         {/* Right side - Actions and user avatars */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={onAddOpportunity}
-            className="px-4 py-2 text-sm font-medium text-white bg-white/20 rounded-lg hover:bg-white/30 transition-colors border border-white/30"
-          >
-            + Add Opportunity
-          </button>
+          {activeView === 'pipeline' && (
+            <button
+              onClick={onAddOpportunity}
+              className="px-4 py-2 text-sm font-medium text-white bg-white/20 rounded-lg hover:bg-white/30 transition-colors border border-white/30"
+            >
+              + Add Opportunity
+            </button>
+          )}
 
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
             dbStatus === 'connected'

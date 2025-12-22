@@ -107,12 +107,49 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 
 ## Database Schema
 
-*To be defined. Will include:*
+### Core Tables
 
-- `opportunities` - Main tracking table (company, type, stage, owner, dates)
-- `activities` - Activity log / notes per opportunity
-- `stakeholders` - Contact information and routing rules
-- `deadlines` - Critical dates and automated alerts
+- **`opportunities`** - Main opportunity records
+  - `id` (UUID, PK) - Unique identifier
+  - `company_name` - Company/organization name
+  - `description` - Opportunity description
+  - `project_type` - Type classification (Research Agreement, Senior Design, etc.)
+  - `stage` - Pipeline stage (lead, qualified, proposal, negotiation, active, complete)
+  - `owner` - Assigned team member (Kyle, Duane, Steve)
+  - `estimated_value` - Estimated deal value
+  - `source` - Lead source
+  - `psb_relationship` - Existing PSB relationship
+  - `next_action` - Next action to take
+  - `outcome` - Deal outcome (won, lost, abandoned) - set when closed
+  - `closed_at` - Timestamp when opportunity was closed
+  - `created_at`, `updated_at` - Timestamps
+
+- **`activities`** - Activity log entries
+  - `id`, `opportunity_id` (FK), `activity_date`, `description`, `created_by`
+
+- **`contacts`** - Contact info per opportunity
+  - Links stakeholders to specific opportunities
+
+- **`stakeholder_alerts`** - Routing rules by project type
+  - Defines which stakeholders need to be notified based on project type and stage
+
+- **`key_dates`** - Key dates calendar
+  - `id`, `name`, `date_type`, `fixed_date`, `recurring_month/day`
+  - `applies_to` (project_type array), `warn_days_*`, `warning_message`
+
+### Analytics Tables
+
+- **`stage_transitions`** - Logs every stage change for funnel/velocity analysis
+  - `id` (UUID, PK)
+  - `opportunity_id` (FK) - Reference to opportunity
+  - `from_stage` - Previous stage (nullable for initial creation)
+  - `to_stage` - New stage
+  - `transitioned_at` - Timestamp of transition
+  - `transitioned_by` - User who made the change
+
+- **`deadlines`** - Key dates for analytics dashboard
+  - `id`, `name`, `description`, `deadline_date`
+  - `applies_to` (project_type array) - Which project types this applies to
 
 ## Keeping This File Current
 

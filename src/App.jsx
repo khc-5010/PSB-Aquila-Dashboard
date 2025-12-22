@@ -18,6 +18,7 @@ import ActiveProjectsModal from './components/ActiveProjectsModal'
 import DeadlineBanner from './components/DeadlineBanner'
 import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
+import AnalyticsDashboard from './components/AnalyticsDashboard'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
@@ -37,6 +38,7 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [metricsModal, setMetricsModal] = useState(null) // 'value' | 'action' | 'active' | null
   const [activeId, setActiveId] = useState(null)
+  const [activeView, setActiveView] = useState('pipeline') // 'pipeline' | 'analytics'
 
   // Sensor config - 8px threshold so clicks still work
   const sensors = useSensors(
@@ -145,6 +147,18 @@ function App() {
       })
 
       if (!res.ok) throw new Error('Failed to update')
+
+      // Log the stage transition for analytics
+      await fetch('/api/stage-transitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_id: opportunityId,
+          from_stage: opportunity.stage,
+          to_stage: newStage,
+          transitioned_by: 'user', // Could be dynamic based on auth
+        }),
+      })
     } catch (error) {
       // Revert on failure
       console.error('Failed to update stage:', error)
@@ -159,76 +173,125 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <Header dbStatus={dbStatus} onAddOpportunity={() => setShowAddModal(true)} />
-
-      {/* Metrics Bar */}
-      <MetricsBar
-        opportunities={opportunities}
-        onValueClick={() => setMetricsModal('value')}
-        onActionClick={() => setMetricsModal('action')}
-        onActiveClick={() => setMetricsModal('active')}
+      <Header
+        dbStatus={dbStatus}
+        onAddOpportunity={() => setShowAddModal(true)}
+        activeView={activeView}
+        onViewChange={setActiveView}
       />
 
-      {/* Key Dates Deadline Banner */}
-      <DeadlineBanner />
+      {activeView === 'pipeline' ? (
+        <>
+          {/* Metrics Bar */}
+          <MetricsBar
+            opportunities={opportunities}
+            onValueClick={() => setMetricsModal('value')}
+            onActionClick={() => setMetricsModal('action')}
+            onActiveClick={() => setMetricsModal('active')}
+          />
 
-      {/* Error Banner */}
-      {error && (
-        <div className="bg-red-50 border-b border-red-200 px-6 py-3">
-          <p className="text-sm text-red-700">Error loading opportunities: {error}</p>
-        </div>
+          {/* Key Dates Deadline Banner */}
+          <DeadlineBanner />
+
+          {/* Error Banner */}
+          {error && (
+            <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+              <p className="text-sm text-red-700">Error loading opportunities: {error}</p>
+            </div>
+          )}
+
+          {/* Kanban Board */}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <main className="p-6">
+              <div className="flex gap-4 overflow-x-auto pb-4">
+                {STAGES.map((stage) => {
+                  const stageOpportunities = opportunitiesByStage[stage.id] || []
+                  const stageColors = columnColors[stage.id] || defaultColors
+
+                  return (
+                    <DroppableColumn
+                      key={stage.id}
+                      stage={stage}
+                      opportunities={stageOpportunities}
+                    >
+                      {loading ? (
+                        <div className="bg-white/50 rounded-lg p-4 animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      ) : stageOpportunities.length > 0 ? (
+                        stageOpportunities.map((opp) => (
+                          <SortableOpportunityCard
+                            key={opp.id}
+                            opportunity={opp}
+                            onClick={handleCardClick}
+                          />
+                        ))
+                      ) : (
+                        <div className={`bg-white rounded-lg shadow-sm border p-4 ${stageColors.isDark ? 'border-white/20 opacity-70' : 'border-gray-200 opacity-50'}`}>
+                          <p className={`text-sm text-center ${stageColors.isDark ? 'text-white/70' : 'text-gray-400'}`}>No opportunities</p>
+                        </div>
+                      )}
+                    </DroppableColumn>
+                  )
+                })}
+              </div>
+            </main>
+
+            {/* Drag overlay - ghost card while dragging */}
+            <DragOverlay>
+              {activeOpportunity ? (
+                <OpportunityCard opportunity={activeOpportunity} isDragging />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+
+          {/* Opportunity Detail Panel */}
+          <OpportunityDetail
+            opportunity={selectedOpportunity}
+            onClose={handleCloseDetail}
+            onUpdate={handleOpportunityUpdate}
+          />
+
+          {/* Add Opportunity Modal */}
+          {showAddModal && (
+            <AddOpportunityModal
+              onClose={() => setShowAddModal(false)}
+              onCreated={handleOpportunityCreated}
+            />
+          )}
+
+          {/* Metrics Modals */}
+          {metricsModal === 'value' && (
+            <ValueBreakdownModal
+              opportunities={opportunities}
+              onClose={() => setMetricsModal(null)}
+              onSelectOpportunity={handleMetricsSelect}
+            />
+          )}
+          {metricsModal === 'action' && (
+            <ActionSummaryModal
+              opportunities={opportunities}
+              onClose={() => setMetricsModal(null)}
+              onSelectOpportunity={handleMetricsSelect}
+            />
+          )}
+          {metricsModal === 'active' && (
+            <ActiveProjectsModal
+              opportunities={opportunities}
+              onClose={() => setMetricsModal(null)}
+              onSelectOpportunity={handleMetricsSelect}
+            />
+          )}
+        </>
+      ) : (
+        <AnalyticsDashboard />
       )}
-
-      {/* Kanban Board */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <main className="p-6">
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {STAGES.map((stage) => {
-              const stageOpportunities = opportunitiesByStage[stage.id] || []
-              const stageColors = columnColors[stage.id] || defaultColors
-
-              return (
-                <DroppableColumn
-                  key={stage.id}
-                  stage={stage}
-                  opportunities={stageOpportunities}
-                >
-                  {loading ? (
-                    <div className="bg-white/50 rounded-lg p-4 animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                    </div>
-                  ) : stageOpportunities.length > 0 ? (
-                    stageOpportunities.map((opp) => (
-                      <SortableOpportunityCard
-                        key={opp.id}
-                        opportunity={opp}
-                        onClick={handleCardClick}
-                      />
-                    ))
-                  ) : (
-                    <div className={`bg-white rounded-lg shadow-sm border p-4 ${stageColors.isDark ? 'border-white/20 opacity-70' : 'border-gray-200 opacity-50'}`}>
-                      <p className={`text-sm text-center ${stageColors.isDark ? 'text-white/70' : 'text-gray-400'}`}>No opportunities</p>
-                    </div>
-                  )}
-                </DroppableColumn>
-              )
-            })}
-          </div>
-        </main>
-
-        {/* Drag overlay - ghost card while dragging */}
-        <DragOverlay>
-          {activeOpportunity ? (
-            <OpportunityCard opportunity={activeOpportunity} isDragging />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
 
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
@@ -236,44 +299,6 @@ function App() {
           PSB-Aquila Partnership Dashboard &bull; Built for Kyle, Duane & Steve
         </p>
       </footer>
-
-      {/* Opportunity Detail Panel */}
-      <OpportunityDetail
-        opportunity={selectedOpportunity}
-        onClose={handleCloseDetail}
-        onUpdate={handleOpportunityUpdate}
-      />
-
-      {/* Add Opportunity Modal */}
-      {showAddModal && (
-        <AddOpportunityModal
-          onClose={() => setShowAddModal(false)}
-          onCreated={handleOpportunityCreated}
-        />
-      )}
-
-      {/* Metrics Modals */}
-      {metricsModal === 'value' && (
-        <ValueBreakdownModal
-          opportunities={opportunities}
-          onClose={() => setMetricsModal(null)}
-          onSelectOpportunity={handleMetricsSelect}
-        />
-      )}
-      {metricsModal === 'action' && (
-        <ActionSummaryModal
-          opportunities={opportunities}
-          onClose={() => setMetricsModal(null)}
-          onSelectOpportunity={handleMetricsSelect}
-        />
-      )}
-      {metricsModal === 'active' && (
-        <ActiveProjectsModal
-          opportunities={opportunities}
-          onClose={() => setMetricsModal(null)}
-          onSelectOpportunity={handleMetricsSelect}
-        />
-      )}
     </div>
   )
 }
