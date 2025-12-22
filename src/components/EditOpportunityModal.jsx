@@ -58,7 +58,10 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
         next_action: formData.next_action.trim() || null,
       }
 
-      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const url = `/api/opportunities/${opportunity.id}`
+      console.log('Saving to:', url, 'payload:', payload)
+
+      const res = await fetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
