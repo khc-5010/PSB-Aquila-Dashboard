@@ -1,27 +1,6 @@
-import { useState, useEffect } from 'react'
-
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-function ActivityHeatmap() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/activity-heatmap')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching activity heatmap:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function ActivityHeatmap({ data, loading }) {
   // Build 12-week grid
   const getWeeksData = () => {
     const weeks = []

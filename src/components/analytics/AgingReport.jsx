@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 const STAGE_COLORS = {
   lead: '#8B5CF6',
   qualified: '#3B82F6',
@@ -8,26 +6,7 @@ const STAGE_COLORS = {
   active: '#22C55E',
 }
 
-function AgingReport() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/aging')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching aging data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function AgingReport({ data, loading }) {
   const getUrgencyColor = (days) => {
     if (days >= 30) return 'text-red-600 bg-red-50'
     if (days >= 14) return 'text-yellow-600 bg-yellow-50'

@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 const TYPE_COLORS = {
   'TBD': '#9CA3AF',
   'Research Agreement': '#8B5CF6',
@@ -10,26 +8,7 @@ const TYPE_COLORS = {
   'Does Not Fit': '#EF4444',
 }
 
-function WinRateChart() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/win-rates')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching win rates:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function WinRateChart({ data, loading }) {
   const getWinRateColor = (rate) => {
     if (rate >= 70) return 'text-green-600'
     if (rate >= 40) return 'text-yellow-600'

@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 const SOURCE_COLORS = [
   '#0D9488', // teal-600
   '#3B82F6', // blue-500
@@ -10,26 +8,7 @@ const SOURCE_COLORS = [
   '#6366F1', // indigo-500
 ]
 
-function LeadSources() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/sources')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching lead sources:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function LeadSources({ data, loading }) {
   const maxCount = Math.max(...(data?.map((r) => parseInt(r.count)) || [1]), 1)
 
   if (loading) {

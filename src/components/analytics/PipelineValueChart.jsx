@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,26 +28,7 @@ const STAGE_CONFIG = {
 
 const STAGE_ORDER = ['lead', 'qualified', 'proposal', 'negotiation', 'active']
 
-function PipelineValueChart() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/pipeline-value')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching pipeline value:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function PipelineValueChart({ data, loading }) {
   const formatCurrency = (value) => {
     if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`
     if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`

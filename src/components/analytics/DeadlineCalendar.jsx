@@ -1,25 +1,4 @@
-import { useState, useEffect } from 'react'
-
-function DeadlineCalendar() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/deadlines')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching deadlines:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function DeadlineCalendar({ data, loading }) {
   const formatDate = (dateStr) => {
     const date = new Date(dateStr)
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })

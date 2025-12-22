@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 const STAGE_CONFIG = {
   lead: { label: 'Lead', color: '#8B5CF6' },
   qualified: { label: 'Qualified', color: '#3B82F6' },
@@ -11,26 +9,7 @@ const STAGE_CONFIG = {
 
 const STAGE_ORDER = ['lead', 'qualified', 'proposal', 'negotiation', 'active', 'complete']
 
-function ConversionFunnel() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/funnel')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching funnel data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function ConversionFunnel({ data, loading }) {
   // Build funnel data
   const funnelData = STAGE_ORDER.map((stage) => {
     const row = data?.find((r) => r.to_stage === stage)

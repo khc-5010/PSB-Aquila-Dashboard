@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -19,26 +18,7 @@ const TYPE_COLORS = {
   'Does Not Fit': '#EF4444',
 }
 
-function ProjectTypeMix() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/project-types')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching project types:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function ProjectTypeMix({ data, loading }) {
   const total = data?.reduce((sum, row) => sum + parseInt(row.count), 0) || 0
 
   const chartData = {

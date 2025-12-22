@@ -1,5 +1,3 @@
-import { useState, useEffect } from 'react'
-
 const OWNER_COLORS = {
   Kyle: '#8B5CF6',
   Duane: '#0D9488',
@@ -16,26 +14,7 @@ const STAGE_COLORS = {
   active: '#22C55E',
 }
 
-function OwnerWorkload() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/workload')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching workload:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function OwnerWorkload({ data, loading }) {
   // Group by owner
   const owners = ['Kyle', 'Duane', 'Steve']
   const workloadByOwner = owners.map((owner) => {

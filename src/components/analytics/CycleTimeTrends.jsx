@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -23,26 +22,7 @@ ChartJS.register(
   Filler
 )
 
-function CycleTimeTrends() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await fetch('/api/analytics/cycle-time')
-        const result = await res.json()
-        setData(result)
-      } catch (error) {
-        console.error('Error fetching cycle time:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [])
-
+function CycleTimeTrends({ data, loading }) {
   const formatMonth = (dateStr) => {
     const date = new Date(dateStr)
     return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })

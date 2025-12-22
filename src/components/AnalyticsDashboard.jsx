@@ -13,10 +13,32 @@ import CycleTimeTrends from './analytics/CycleTimeTrends'
 
 function AnalyticsDashboard() {
   const [dateRange, setDateRange] = useState('90')
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [analyticsData, setAnalyticsData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchAnalytics = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/analytics')
+      if (!response.ok) throw new Error('Failed to fetch analytics')
+      const data = await response.json()
+      setAnalyticsData(data)
+    } catch (err) {
+      console.error('Error fetching analytics:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchAnalytics()
+  }, [])
 
   const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1)
+    fetchAnalytics()
   }
 
   return (
@@ -39,62 +61,70 @@ function AnalyticsDashboard() {
           </div>
           <button
             onClick={handleRefresh}
-            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+            disabled={loading}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 disabled:opacity-50"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh
+            {loading ? 'Loading...' : 'Refresh'}
           </button>
         </div>
       </div>
 
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+          <p className="text-sm text-red-700">Error loading analytics: {error}</p>
+        </div>
+      )}
+
       {/* KPI Summary Bar */}
-      <KPIBar key={`kpi-${refreshKey}`} />
+      <KPIBar data={analyticsData?.summary} loading={loading} />
 
       {/* Dashboard Grid */}
       <div className="p-6">
         <div className="grid grid-cols-12 gap-6">
           {/* Row 1: Pipeline Value (8 cols) + Owner Workload (4 cols) */}
           <div className="col-span-12 lg:col-span-8">
-            <PipelineValueChart key={`pipeline-${refreshKey}`} />
+            <PipelineValueChart data={analyticsData?.pipelineValue} loading={loading} />
           </div>
           <div className="col-span-12 lg:col-span-4">
-            <OwnerWorkload key={`workload-${refreshKey}`} />
+            <OwnerWorkload data={analyticsData?.workload} loading={loading} />
           </div>
 
           {/* Row 2: Conversion Funnel (6 cols) + Project Type Mix (6 cols) */}
           <div className="col-span-12 lg:col-span-6">
-            <ConversionFunnel key={`funnel-${refreshKey}`} />
+            <ConversionFunnel data={analyticsData?.funnel} loading={loading} />
           </div>
           <div className="col-span-12 lg:col-span-6">
-            <ProjectTypeMix key={`types-${refreshKey}`} />
+            <ProjectTypeMix data={analyticsData?.projectTypes} loading={loading} />
           </div>
 
           {/* Row 3: Aging Report (6 cols) + Lead Sources (6 cols) */}
           <div className="col-span-12 lg:col-span-6">
-            <AgingReport key={`aging-${refreshKey}`} />
+            <AgingReport data={analyticsData?.aging} loading={loading} />
           </div>
           <div className="col-span-12 lg:col-span-6">
-            <LeadSources key={`sources-${refreshKey}`} />
+            <LeadSources data={analyticsData?.sources} loading={loading} />
           </div>
 
           {/* Row 4: Activity Heatmap (8 cols) + Win Rate (4 cols) */}
           <div className="col-span-12 lg:col-span-8">
-            <ActivityHeatmap key={`heatmap-${refreshKey}`} />
+            <ActivityHeatmap data={analyticsData?.heatmap} loading={loading} />
           </div>
           <div className="col-span-12 lg:col-span-4">
-            <WinRateChart key={`winrate-${refreshKey}`} />
+            <WinRateChart data={analyticsData?.winRates} loading={loading} />
           </div>
 
           {/* Row 5: Deadline Calendar (full width) */}
           <div className="col-span-12">
-            <DeadlineCalendar key={`deadlines-${refreshKey}`} />
+            <DeadlineCalendar data={analyticsData?.deadlines} loading={loading} />
           </div>
 
           {/* Row 6: Cycle Time Trends (6 cols) */}
           <div className="col-span-12 lg:col-span-6">
-            <CycleTimeTrends key={`cycle-${refreshKey}`} />
+            <CycleTimeTrends data={analyticsData?.cycleTime} loading={loading} />
           </div>
         </div>
       </div>
