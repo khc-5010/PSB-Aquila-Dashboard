@@ -5,7 +5,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
     company_name: '',
     description: '',
-    project_type: 'TBD',
+    project_type: 'tbd',
     stage: 'lead',
     owner: '',
     est_value: '',
@@ -22,7 +22,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       setFormData({
         company_name: opportunity.company_name || '',
         description: opportunity.description || '',
-        project_type: opportunity.project_type || 'TBD',
+        project_type: opportunity.project_type || 'tbd',
         stage: opportunity.stage || 'lead',
         owner: opportunity.owner || '',
         est_value: opportunity.est_value ? String(opportunity.est_value) : '',
@@ -167,8 +167,8 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
                     disabled={isSubmitting}
                   >
                     {PROJECT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                      <option key={type.value} value={type.value}>
+                        {type.label}
                       </option>
                     ))}
                   </select>

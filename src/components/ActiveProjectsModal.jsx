@@ -1,3 +1,5 @@
+import { getProjectTypeLabel } from '../constants/options'
+
 /**
  * Formats a numeric value as currency with K/M suffixes
  */
@@ -74,9 +76,9 @@ function ActiveProjectsModal({ opportunities, onClose, onSelectOpportunity }) {
 
                     {/* Details row */}
                     <div className="flex items-center gap-3 flex-wrap">
-                      {opp.project_type && opp.project_type !== 'TBD' && (
+                      {opp.project_type && opp.project_type !== 'tbd' && (
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-700">
-                          {opp.project_type}
+                          {getProjectTypeLabel(opp.project_type)}
                         </span>
                       )}
                       {opp.owner && (
