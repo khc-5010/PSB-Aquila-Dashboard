@@ -242,7 +242,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       aquilaLead: owner,
       industryLead: 'TBD',
       psbContact: 'TBD',
-      researchLead: opportunity?.project_type === 'Research Agreement' ? 'Alicyn Rhoades' : 'TBD',
+      researchLead: opportunity?.project_type === 'research' ? 'Alicyn Rhoades' : 'TBD',
     }
   }
 
