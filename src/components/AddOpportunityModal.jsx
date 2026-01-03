@@ -5,7 +5,7 @@ function AddOpportunityModal({ onClose, onCreated }) {
   const [formData, setFormData] = useState({
     company_name: '',
     description: '',
-    project_type: 'TBD',
+    project_type: 'tbd',
     stage: 'lead',
     owner: '',
     est_value: '',
@@ -142,8 +142,8 @@ function AddOpportunityModal({ onClose, onCreated }) {
                     disabled={isSubmitting}
                   >
                     {PROJECT_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                      <option key={type.value} value={type.value}>
+                        {type.label}
                       </option>
                     ))}
                   </select>

@@ -1,3 +1,5 @@
+import { getProjectTypeLabel } from '../../constants/options'
+
 function OpportunityCard({ opportunity, onClick, isDragging = false }) {
   const { company_name, description, owner, project_type } = opportunity
 
@@ -46,7 +48,7 @@ function OpportunityCard({ opportunity, onClick, isDragging = false }) {
         <span
           className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-[#F1F5F9] text-[#475569] border border-gray-200"
         >
-          {project_type}
+          {getProjectTypeLabel(project_type)}
         </span>
       )}
 

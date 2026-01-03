@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
+import { getProjectTypeLabel } from '../constants/options'
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -433,7 +434,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <dt className="text-xs text-gray-500 uppercase tracking-wide">Project Type</dt>
-                <dd className="mt-1 text-sm text-gray-900">{opportunity.project_type || 'Not specified'}</dd>
+                <dd className="mt-1 text-sm text-gray-900">{getProjectTypeLabel(opportunity.project_type) || 'Not specified'}</dd>
               </div>
               <div>
                 <dt className="text-xs text-gray-500 uppercase tracking-wide">Owner</dt>
