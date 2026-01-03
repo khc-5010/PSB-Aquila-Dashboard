@@ -38,7 +38,7 @@ export default async function handler(req, res) {
       const result = await sql`
         INSERT INTO opportunities (
           company_name, description, project_type, stage, owner,
-          est_value, source, psb_relationship, next_action, created_at, updated_at
+          estimated_value, source, psb_relationship, next_action, created_at, updated_at
         ) VALUES (
           ${company_name.trim()}, ${description || null}, ${project_type}, ${stage},
           ${owner || null}, ${est_value || null}, ${source || null},
