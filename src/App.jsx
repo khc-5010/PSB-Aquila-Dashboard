@@ -7,6 +7,8 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
+import { useAuth } from './context/AuthContext'
+import LoginScreen from './components/auth/LoginScreen'
 import OpportunityCard from './components/pipeline/OpportunityCard'
 import DroppableColumn, { columnColors, defaultColors } from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
@@ -31,6 +33,7 @@ const STAGES = [
 ]
 
 function App() {
+  const { user, loading: authLoading } = useAuth()
   const [dbStatus, setDbStatus] = useState('checking')
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -157,7 +160,7 @@ function App() {
           opportunity_id: opportunityId,
           from_stage: opportunity.stage,
           to_stage: newStage,
-          transitioned_by: 'user', // Could be dynamic based on auth
+          transitioned_by: user?.name || 'user',
         }),
       })
     } catch (error) {
@@ -169,6 +172,22 @@ function App() {
         )
       )
     }
+  }
+
+  // Auth gate
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginScreen />
   }
 
   return (
