@@ -19,7 +19,8 @@ src/
 ├── components/
 │   ├── ui/              # Reusable UI components (Button, Card, Modal, etc.)
 │   ├── pipeline/        # Kanban board, columns, opportunity cards
-│   ├── prospects/       # Prospect pipeline table, detail panel, filters, wave badges
+│   ├── prospects/       # Prospect pipeline table, detail panel, filters, wave badges, analytics charts
+│   │   └── charts/      # Chart components: WaveSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -173,6 +174,7 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 - `POST /api/prospects` — Create new prospect
 - `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`)
 - `PATCH /api/prospects?id=X` — Update prospect fields
+- `GET /api/prospects?action=analytics` — Aggregated analytics data for charts (accepts same filter params as list endpoint)
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and wave columns
@@ -185,6 +187,9 @@ Wave 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation
 Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastics (PE acquisition)
 Wave 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
 Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumont Technologies
+
+### Sub-View Toggle Pattern
+The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (wave cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
 
 ### Seed/Import
 - SQL migration: `scripts/create-prospect-table.sql`

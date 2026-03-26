@@ -15,6 +15,155 @@ export default async function handler(req, res) {
 
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
+    // Analytics aggregation
+    if (action === 'analytics') {
+      try {
+        const { category, priority, geography_tier, engagement_wave, medical_device_mfg } = req.query
+
+        // Build WHERE clause from filters
+        const conditions = []
+        const params = []
+
+        if (engagement_wave) {
+          params.push(engagement_wave)
+          conditions.push(`engagement_wave = $${params.length}`)
+        }
+        if (category) {
+          params.push(category)
+          conditions.push(`category = $${params.length}`)
+        }
+        if (priority) {
+          params.push(priority)
+          conditions.push(`priority = $${params.length}`)
+        }
+        if (geography_tier) {
+          params.push(geography_tier)
+          conditions.push(`geography_tier = $${params.length}`)
+        }
+        if (medical_device_mfg) {
+          params.push(medical_device_mfg)
+          conditions.push(`medical_device_mfg = $${params.length}`)
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        // Run all aggregation queries in parallel
+        const [
+          waveCounts,
+          categoryCounts,
+          geoCounts,
+          signalData,
+          readinessData,
+          ownershipData,
+          waveTopCompanies,
+          recentMA,
+        ] = await Promise.all([
+          // Wave summary counts
+          sql.query(
+            `SELECT engagement_wave, COUNT(*)::int AS count
+             FROM prospect_companies ${whereClause}
+             GROUP BY engagement_wave ORDER BY count DESC`,
+            params
+          ),
+          // Category breakdown
+          sql.query(
+            `SELECT category, COUNT(*)::int AS count
+             FROM prospect_companies ${whereClause}
+             GROUP BY category ORDER BY count DESC`,
+            params
+          ),
+          // Geography distribution
+          sql.query(
+            `SELECT geography_tier, COUNT(*)::int AS count
+             FROM prospect_companies ${whereClause}
+             GROUP BY geography_tier ORDER BY count DESC`,
+            params
+          ),
+          // Signal analysis (scatter data)
+          sql.query(
+            `SELECT id, company, signal_count, cwp_contacts, press_count,
+                    revenue_est_m, engagement_wave, medical_device_mfg
+             FROM prospect_companies ${whereClause}
+             ORDER BY signal_count DESC NULLS LAST`,
+            params
+          ),
+          // Readiness scorecard (RJG x Medical)
+          sql.query(
+            `SELECT rjg_cavity_pressure, medical_device_mfg, COUNT(*)::int AS count
+             FROM prospect_companies ${whereClause}
+             GROUP BY rjg_cavity_pressure, medical_device_mfg`,
+            params
+          ),
+          // Ownership breakdown
+          sql.query(
+            `SELECT ownership_type, COUNT(*)::int AS count
+             FROM prospect_companies ${whereClause}
+             GROUP BY ownership_type ORDER BY count DESC`,
+            params
+          ),
+          // Top company per wave (by signal_count)
+          sql.query(
+            `SELECT DISTINCT ON (engagement_wave)
+               engagement_wave, company, signal_count, outreach_rank
+             FROM prospect_companies ${whereClause}
+             ORDER BY engagement_wave, outreach_rank ASC NULLS LAST, signal_count DESC NULLS LAST`,
+            params
+          ),
+          // Recent M&A companies
+          sql.query(
+            `SELECT id, company, ownership_type, recent_ma, engagement_wave
+             FROM prospect_companies
+             ${whereClause ? whereClause + ' AND' : 'WHERE'} recent_ma IS NOT NULL AND recent_ma != ''
+             ORDER BY company`,
+            params
+          ),
+        ])
+
+        // Readiness: group into RJG buckets with medical split
+        const readinessGrouped = {}
+        for (const row of readinessData) {
+          const rjg = row.rjg_cavity_pressure || 'Unknown'
+          const bucket = rjg.includes('Yes') || rjg.includes('confirmed') ? 'Confirmed'
+            : rjg === 'Likely' ? 'Likely' : 'Unknown'
+          if (!readinessGrouped[bucket]) readinessGrouped[bucket] = { medical: 0, nonMedical: 0 }
+          if (row.medical_device_mfg === 'Yes') {
+            readinessGrouped[bucket].medical += row.count
+          } else {
+            readinessGrouped[bucket].nonMedical += row.count
+          }
+        }
+
+        // Get top companies for readiness "gold" segment (RJG confirmed + Medical)
+        let readinessGoldCompanies = []
+        const goldWhereBase = whereClause
+          ? `${whereClause} AND`
+          : 'WHERE'
+        const goldResult = await sql.query(
+          `SELECT company FROM prospect_companies
+           ${goldWhereBase} (rjg_cavity_pressure LIKE '%Yes%' OR rjg_cavity_pressure LIKE '%confirmed%')
+             AND medical_device_mfg = 'Yes'
+           ORDER BY signal_count DESC NULLS LAST LIMIT 10`,
+          params
+        )
+        readinessGoldCompanies = goldResult.map(r => r.company)
+
+        return res.status(200).json({
+          waves: waveCounts,
+          waveTopCompanies: waveTopCompanies,
+          categories: categoryCounts,
+          geography: geoCounts,
+          signals: signalData,
+          readiness: readinessGrouped,
+          readinessGoldCompanies,
+          ownership: ownershipData,
+          recentMA: recentMA,
+        })
+      } catch (error) {
+        console.error('Error fetching prospect analytics:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Single prospect by ID
     if (id) {
       try {

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
+import ProspectAnalytics from './ProspectAnalytics'
 import WaveBadge from './WaveBadge'
 
 const WAVE_OPTIONS = ['Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
@@ -37,6 +38,7 @@ function ProspectTable() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [editingRank, setEditingRank] = useState(null)
   const [editingRankValue, setEditingRankValue] = useState('')
+  const [subView, setSubView] = useState('table') // 'table' | 'charts'
 
   // Fetch prospects
   useEffect(() => {
@@ -190,6 +192,42 @@ function ProspectTable() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem-3rem)]">
+      {/* Sub-view toggle + Filters */}
+      <div className="bg-white border-b border-gray-200 px-6 pt-3 pb-0">
+        <div className="flex items-center gap-1 mb-0">
+          <button
+            onClick={() => setSubView('table')}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              subView === 'table'
+                ? 'bg-white text-[#041E42] border-gray-200'
+                : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18M3 6h18" />
+              </svg>
+              Table
+            </span>
+          </button>
+          <button
+            onClick={() => setSubView('charts')}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              subView === 'charts'
+                ? 'bg-white text-[#041E42] border-gray-200'
+                : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Charts
+            </span>
+          </button>
+        </div>
+      </div>
+
       <ProspectFilters
         filters={filters}
         onFilterChange={setFilters}
@@ -197,6 +235,12 @@ function ProspectTable() {
         filteredCount={filtered.length}
       />
 
+      {subView === 'charts' ? (
+        <div className="flex-1 overflow-auto bg-gray-50">
+          <ProspectAnalytics filters={filters} onFilterChange={setFilters} />
+        </div>
+      ) : (
+      <>
       {/* Table container */}
       <div className="flex-1 overflow-auto">
         <table className="w-full min-w-[1200px]">
@@ -392,6 +436,8 @@ function ProspectTable() {
         onClose={() => setSelectedProspect(null)}
         onUpdate={updateProspect}
       />
+      </>
+      )}
     </div>
   )
 }
