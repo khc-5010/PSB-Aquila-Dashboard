@@ -13,6 +13,7 @@ import crypto from 'crypto'
  * PATCH /api/auth?action=update-user&id=X — admin: edit user
  * POST /api/auth?action=reset-pin&id=X   — admin: generate new PIN
  * GET  /api/auth?action=list-users   — admin: get all users
+ * POST /api/auth?action=setup        — one-time: create tables + admin user
  */
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
@@ -247,6 +248,62 @@ export default async function handler(req, res) {
         console.error('Update user error:', err)
         return res.status(500).json({ error: 'Failed to update user' })
       }
+    }
+  }
+
+  // ─── One-time setup (POST ?action=setup) ────────────
+  if (req.method === 'POST' && action === 'setup') {
+    try {
+      // Create tables
+      await sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          pin_hash TEXT NOT NULL,
+          color TEXT NOT NULL DEFAULT '#6B7280',
+          role TEXT NOT NULL DEFAULT 'member',
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          last_login_at TIMESTAMPTZ
+        )
+      `
+      await sql`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id TEXT PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `
+      await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`
+      await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
+
+      // Check if admin already exists
+      const existing = await sql`SELECT id, name, email FROM users WHERE role = 'admin' LIMIT 1`
+      if (existing.length > 0) {
+        return res.status(200).json({
+          message: 'Tables exist. Admin already created.',
+          admin: { name: existing[0].name, email: existing[0].email },
+        })
+      }
+
+      // Create Kyle as initial admin
+      const pin = String(Math.floor(100000 + Math.random() * 900000))
+      const pinHash = await bcrypt.hash(pin, 10)
+      await sql`
+        INSERT INTO users (name, email, pin_hash, color, role)
+        VALUES ('Kyle', 'kyle@aquila-ai.com', ${pinHash}, '#7C3AED', 'admin')
+      `
+
+      return res.status(201).json({
+        message: 'Auth tables created and admin account ready.',
+        admin: { name: 'Kyle', email: 'kyle@aquila-ai.com' },
+        pin,
+        warning: 'Save this PIN now — it cannot be retrieved again. Change the email in the admin panel after login.',
+      })
+    } catch (err) {
+      console.error('Setup error:', err)
+      return res.status(500).json({ error: 'Setup failed: ' + err.message })
     }
   }
 
