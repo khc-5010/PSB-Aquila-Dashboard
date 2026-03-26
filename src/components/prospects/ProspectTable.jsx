@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../../context/AuthContext'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
@@ -28,6 +29,7 @@ function displayValue(val) {
 }
 
 function ProspectTable() {
+  const { user } = useAuth()
   const [prospects, setProspects] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -59,7 +61,7 @@ function ProspectTable() {
   }, [])
 
   // Update a prospect field (optimistic)
-  const updateProspect = useCallback(async (id, field, value, editedBy = 'Brett') => {
+  const updateProspect = useCallback(async (id, field, value, editedBy = user?.name || 'Unknown') => {
     // Optimistic update
     setProspects(prev => prev.map(p =>
       p.id === id ? { ...p, [field]: value, last_edited_by: editedBy } : p
@@ -84,7 +86,7 @@ function ProspectTable() {
       // Revert — refetch
       fetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
     }
-  }, [selectedProspect])
+  }, [selectedProspect, user])
 
   // Filter logic
   const filtered = prospects.filter(p => {

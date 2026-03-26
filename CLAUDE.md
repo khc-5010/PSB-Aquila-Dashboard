@@ -51,6 +51,10 @@ npx prisma generate      # Generate Prisma client (if using Prisma)
 npx prisma db push       # Push schema to Neon
 npx prisma studio        # Open database GUI
 
+# Auth Setup
+node scripts/setup-admin.js        # Create admin user + auth tables (run once)
+node scripts/setup-admin.js --reset # Reset admin PIN
+
 # Deployment
 vercel                   # Deploy to Vercel (preview)
 vercel --prod            # Deploy to production
@@ -154,6 +158,14 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
   - `id`, `name`, `description`, `deadline_date`
   - `applies_to` (project_type array) - Which project types this applies to
 
+### Auth Tables
+
+- **`users`** - Dashboard user accounts (4 users)
+  - `id` (SERIAL, PK), `name`, `email` (unique), `pin_hash`, `color`, `role` (admin/member), `is_active`, `created_at`, `last_login_at`
+
+- **`sessions`** - Active login sessions (persist until logout)
+  - `id` (TEXT, PK — random UUID token), `user_id` (FK), `created_at`
+
 ### Prospect Tables
 
 - **`prospect_companies`** - 179-company prospect database for alliance outreach
@@ -196,6 +208,49 @@ The Prospects tab uses a Table/Charts sub-view toggle within the view (not a sep
 - Seed script: `scripts/seed-prospects.js` (reads Excel if available, otherwise seeds known companies)
 - Excel dependency: `xlsx` (SheetJS) package
 
+## Authentication System
+
+### Architecture
+- **Session-based auth** with email + 6-digit PIN login. No JWT, no external auth libraries.
+- **Sessions persist until explicit logout** — no expiry, no timeout.
+- Session token stored in `localStorage` as `session_token`, sent as `Authorization: Bearer <token>` header.
+- All auth endpoints consolidated in a single `api/auth.js` (Vercel function limit).
+
+### Key Components
+- `src/context/AuthContext.jsx` — `AuthProvider` wraps the app in `main.jsx`. Exposes `useAuth()` hook providing `{ user, login, logout, loading, authFetch }`.
+- `src/components/auth/LoginScreen.jsx` — Login gate (Penn State navy gradient, centered card).
+- `src/components/auth/AdminPanel.jsx` — Admin-only user management modal (add/edit/deactivate users, reset PINs).
+- `Header.jsx` — Shows logged-in user avatar, team member avatars, admin gear icon (admin only), logout button.
+
+### Auth API Routes (`api/auth.js`)
+- `POST ?action=login` — Validate email + PIN, create session
+- `POST ?action=logout` — Delete session
+- `GET ?action=validate` — Validate session token
+- `GET ?action=me` — Get current user profile
+- `POST ?action=create-user` — Admin: add new user (returns one-time PIN)
+- `PATCH ?action=update-user&id=X` — Admin: edit user
+- `POST ?action=reset-pin&id=X` — Admin: generate new PIN
+- `GET ?action=list-users` — Admin: get all users
+
+### User Identity Pattern
+- `useAuth()` is the canonical way to get the current user (`{ id, name, email, color, role }`)
+- All hardcoded user arrays have been removed from `Header.jsx`
+- `last_edited_by` on prospect edits now uses the authenticated user's name
+- `transitioned_by` on pipeline stage changes now uses the authenticated user's name
+
+### Users (4 total)
+- **Kyle** (admin) — Alliance Coordinator, only admin
+- **Duane** (member) — Aquila operations
+- **Steve** (member) — Aquila legal/contracts
+- **Brett** (member) — Aquila industry expert
+
+### Database Tables
+- `users` — id, name, email, pin_hash, color, role, is_active, created_at, last_login_at
+- `sessions` — id (token), user_id, created_at
+
+### Initial Setup
+Run `node scripts/setup-admin.js` to create auth tables and the initial admin (Kyle) account. The script generates a 6-digit PIN displayed once. Kyle then creates other users via the admin panel.
+
 ## Keeping This File Current
 
 This file is only useful if it stays accurate. Maintain it actively:
@@ -220,8 +275,8 @@ VITE_API_URL=            # API base URL (if separate backend)
 ### API Route Consolidation (Vercel Hobby = 12 function limit)
 - **One file per feature** in `api/`. Do NOT use nested directories for sub-routes.
 - Route internally using HTTP method + `req.query` params (`?id=X`, `?action=import`)
-- Current function count: **9** (target: ≤ 10 to leave headroom)
-- Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`
+- Current function count: **10** (target: ≤ 12, Vercel Hobby limit)
+- Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`, `auth.js`
 
 ## Notes
 
