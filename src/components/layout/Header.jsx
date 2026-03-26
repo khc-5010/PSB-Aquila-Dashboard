@@ -3,6 +3,7 @@ function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
     { name: 'Kyle', color: '#7C3AED' },
     { name: 'Duane', color: '#0891B2' },
     { name: 'Steve', color: '#D97706' },
+    { name: 'Brett', color: '#059669' },
   ]
 
   return (
@@ -43,6 +44,16 @@ function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
               }`}
             >
               Analytics
+            </button>
+            <button
+              onClick={() => onViewChange('prospects')}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                activeView === 'prospects'
+                  ? 'bg-white text-[#041E42]'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              Prospects
             </button>
           </div>
         </div>
