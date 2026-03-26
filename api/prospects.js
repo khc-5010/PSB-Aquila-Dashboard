@@ -101,6 +101,66 @@ export default async function handler(req, res) {
 
   // ─── POST ──────────────────────────────────────────────
   if (req.method === 'POST') {
+    // One-time seed: POST /api/prospects?action=seed
+    if (action === 'seed') {
+      try {
+        // Check if data already exists
+        const existing = await sql`SELECT COUNT(*)::int AS count FROM prospect_companies`
+        if (existing[0].count > 0) {
+          return res.status(200).json({
+            message: `Table already has ${existing[0].count} rows. Seed skipped. To re-seed, delete all rows first.`,
+            count: existing[0].count,
+          })
+        }
+
+        const companies = [
+          // Wave 1 (ranked 1-5)
+          { company: 'Matrix Tool, Inc.', city: 'Fairview', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 1 },
+          { company: 'X-Cell Tool & Mold', city: 'Fairview', state: 'PA', category: 'Mold Maker', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 2 },
+          { company: 'C&J Industries, Inc.', city: 'Meadville', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 3 },
+          { company: 'Automation Plastics Corp', city: 'Aurora', state: 'OH', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 4 },
+          { company: 'Erie Molded Plastics', city: 'Erie', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 5 },
+          // Time-Sensitive
+          { company: 'Currier Plastics', city: 'Auburn', state: 'NY', category: 'Converter', geography_tier: 'Tier 2', priority: 'HIGH PRIORITY', engagement_wave: 'Time-Sensitive', notes: 'PE acquisition Sept 2025 — inside optimal window NOW' },
+          { company: 'Allegheny Performance Plastics', city: 'Meadville', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Time-Sensitive', notes: 'PE acquisition Oct 2025' },
+          // Wave 2
+          { company: 'Venture Plastics', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Ferriot Inc.', category: 'Converter+Tooling', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Accudyn Products', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Caplugs/Protective Industries', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'TTMP/PRISM Plastics', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Adler Industrial Solutions', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Essentra Components', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          // Infrastructure
+          { company: 'RJG Inc.', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+          { company: 'DME Company', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+          { company: 'Husky Technologies', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+          { company: 'Mold-Masters', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+          { company: 'Beaumont Technologies', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+        ]
+
+        let inserted = 0
+        for (const c of companies) {
+          await sql`
+            INSERT INTO prospect_companies (
+              company, city, state, category, geography_tier, priority,
+              engagement_wave, outreach_rank, notes
+            ) VALUES (
+              ${c.company}, ${c.city || null}, ${c.state || null}, ${c.category || null},
+              ${c.geography_tier || null}, ${c.priority || null},
+              ${c.engagement_wave || 'Unassigned'}, ${c.outreach_rank || null}, ${c.notes || null}
+            )
+          `
+          inserted++
+        }
+
+        return res.status(201).json({ message: `Seeded ${inserted} prospect companies`, inserted })
+      } catch (error) {
+        console.error('Error seeding prospects:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Bulk import/upsert
     if (action === 'import') {
       try {
