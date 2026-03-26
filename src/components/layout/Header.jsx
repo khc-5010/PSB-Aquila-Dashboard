@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
+import ChangePinModal from '../auth/ChangePinModal'
 
 function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
   const { user, logout, authFetch } = useAuth()
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showChangePin, setShowChangePin] = useState(false)
   const [teamUsers, setTeamUsers] = useState([])
 
   // Fetch active team members for avatar display
@@ -145,6 +147,17 @@ function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
               </button>
             )}
 
+            {/* Change PIN */}
+            <button
+              onClick={() => setShowChangePin(true)}
+              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title="Change PIN"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+              </svg>
+            </button>
+
             {/* Logout */}
             <button
               onClick={logout}
@@ -161,6 +174,7 @@ function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
 
       {/* Admin Panel Modal */}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {showChangePin && <ChangePinModal onClose={() => setShowChangePin(false)} />}
     </>
   )
 }

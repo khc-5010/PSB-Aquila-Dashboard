@@ -161,6 +161,37 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Failed to reset PIN' })
       }
     }
+
+    // ── Change own PIN (any authenticated user) ──────────
+    if (action === 'change-pin') {
+      const user = await getSessionUser()
+      if (!user) return res.status(401).json({ error: 'Not authenticated' })
+
+      try {
+        const { current_pin, new_pin } = req.body || {}
+        if (!current_pin || !new_pin) {
+          return res.status(400).json({ error: 'Current PIN and new PIN are required' })
+        }
+        if (!/^\d{6}$/.test(new_pin)) {
+          return res.status(400).json({ error: 'New PIN must be exactly 6 digits' })
+        }
+
+        // Verify current PIN
+        const rows = await sql`SELECT pin_hash FROM users WHERE id = ${user.id}`
+        const valid = await bcrypt.compare(String(current_pin), rows[0].pin_hash)
+        if (!valid) {
+          return res.status(401).json({ error: 'Current PIN is incorrect' })
+        }
+
+        const pinHash = await bcrypt.hash(String(new_pin), 10)
+        await sql`UPDATE users SET pin_hash = ${pinHash} WHERE id = ${user.id}`
+
+        return res.status(200).json({ success: true })
+      } catch (err) {
+        console.error('Change PIN error:', err)
+        return res.status(500).json({ error: 'Failed to change PIN' })
+      }
+    }
   }
 
   // ─── GET ───────────────────────────────────────────────
