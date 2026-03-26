@@ -68,7 +68,7 @@ function ProspectTable() {
     }
 
     try {
-      const res = await fetch(`/api/prospects/${id}`, {
+      const res = await fetch(`/api/prospects?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value, last_edited_by: editedBy }),

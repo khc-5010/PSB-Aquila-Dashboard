@@ -167,10 +167,12 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 
 ## Prospect Pipeline Architecture
 
-### API Routes
-- `GET/POST /api/prospects` — List all (with optional query param filters), create new
-- `GET/PATCH /api/prospects/[id]` — Get single, update fields
-- `POST /api/prospects/import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`)
+### API Routes (consolidated — single file per feature)
+- `GET /api/prospects` — List all (with optional filter query params)
+- `GET /api/prospects?id=X` — Get single prospect
+- `POST /api/prospects` — Create new prospect
+- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`)
+- `PATCH /api/prospects?id=X` — Update prospect fields
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and wave columns
@@ -207,6 +209,14 @@ This file is only useful if it stays accurate. Maintain it actively:
 DATABASE_URL=            # Neon PostgreSQL connection string
 VITE_API_URL=            # API base URL (if separate backend)
 ```
+
+## Conventions
+
+### API Route Consolidation (Vercel Hobby = 12 function limit)
+- **One file per feature** in `api/`. Do NOT use nested directories for sub-routes.
+- Route internally using HTTP method + `req.query` params (`?id=X`, `?action=import`)
+- Current function count: **9** (target: ≤ 10 to leave headroom)
+- Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`
 
 ## Notes
 
