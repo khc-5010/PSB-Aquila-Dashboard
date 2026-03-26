@@ -1,0 +1,119 @@
+import { useState, useEffect } from 'react'
+
+import WaveSummary from './charts/WaveSummary'
+import CategoryBreakdown from './charts/CategoryBreakdown'
+import GeographyMap from './charts/GeographyMap'
+import SignalAnalysis from './charts/SignalAnalysis'
+import ReadinessScorecard from './charts/ReadinessScorecard'
+import OwnershipProfile from './charts/OwnershipProfile'
+
+function ProspectAnalytics({ filters, onFilterChange }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+
+    // Build query params from filters
+    const params = new URLSearchParams({ action: 'analytics' })
+    if (filters.wave && filters.wave !== 'All') params.set('engagement_wave', filters.wave)
+    if (filters.category && filters.category !== 'All') params.set('category', filters.category)
+    if (filters.geo && filters.geo !== 'All') params.set('geography_tier', filters.geo)
+    if (filters.priority && filters.priority !== 'All') params.set('priority', filters.priority)
+    if (filters.preset === 'medical') params.set('medical_device_mfg', 'Yes')
+
+    fetch(`/api/prospects?${params}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then(setData)
+      .catch(err => {
+        console.error('Error fetching prospect analytics:', err)
+        setError(err.message)
+      })
+      .finally(() => setLoading(false))
+  }, [filters])
+
+  const handleWaveClick = (wave) => {
+    onFilterChange({ wave, category: 'All', priority: 'All', geo: 'All', search: '', preset: null })
+  }
+
+  const handleCategoryClick = (category) => {
+    onFilterChange({ wave: 'All', category, priority: 'All', geo: 'All', search: '', preset: null })
+  }
+
+  const handleGeoClick = (geo) => {
+    onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo, search: '', preset: null })
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-700">Error loading analytics: {error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 pb-20">
+      <div className="grid grid-cols-12 gap-6">
+        {/* Row 1: Wave Summary Cards (full width) */}
+        <div className="col-span-12">
+          <WaveSummary
+            waves={data?.waves}
+            waveTopCompanies={data?.waveTopCompanies}
+            loading={loading}
+            onWaveClick={handleWaveClick}
+          />
+        </div>
+
+        {/* Row 2: Category Breakdown (6 cols) + Geography (6 cols) */}
+        <div className="col-span-12 lg:col-span-6">
+          <CategoryBreakdown
+            categories={data?.categories}
+            loading={loading}
+            onCategoryClick={handleCategoryClick}
+          />
+        </div>
+        <div className="col-span-12 lg:col-span-6">
+          <GeographyMap
+            geography={data?.geography}
+            loading={loading}
+            onGeoClick={handleGeoClick}
+          />
+        </div>
+
+        {/* Row 3: Signal Analysis (full width) */}
+        <div className="col-span-12">
+          <SignalAnalysis
+            signals={data?.signals}
+            loading={loading}
+          />
+        </div>
+
+        {/* Row 4: Readiness Scorecard (6 cols) + Ownership Profile (6 cols) */}
+        <div className="col-span-12 lg:col-span-6">
+          <ReadinessScorecard
+            readiness={data?.readiness}
+            readinessGoldCompanies={data?.readinessGoldCompanies}
+            loading={loading}
+          />
+        </div>
+        <div className="col-span-12 lg:col-span-6">
+          <OwnershipProfile
+            ownership={data?.ownership}
+            recentMA={data?.recentMA}
+            loading={loading}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default ProspectAnalytics
