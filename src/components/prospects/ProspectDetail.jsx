@@ -1,0 +1,260 @@
+import { useState, useEffect } from 'react'
+
+import WaveBadge from './WaveBadge'
+
+const WAVE_OPTIONS = ['Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+
+function displayValue(val) {
+  if (val === null || val === undefined || val === '') return '\u2014'
+  return String(val)
+}
+
+function Section({ title, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-gray-100 last:border-b-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <span className="text-sm font-semibold text-[#041E42]">{title}</span>
+        <span className="text-gray-400 text-xs">{open ? '\u25B2' : '\u25BC'}</span>
+      </button>
+      {open && <div className="px-5 pb-4">{children}</div>}
+    </div>
+  )
+}
+
+function Field({ label, value, className = '' }) {
+  return (
+    <div className={className}>
+      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</dt>
+      <dd className="mt-0.5 text-sm text-gray-900">{displayValue(value)}</dd>
+    </div>
+  )
+}
+
+function EditableField({ label, value, onSave, multiline = false }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value || '')
+
+  useEffect(() => {
+    setDraft(value || '')
+  }, [value])
+
+  const handleSave = () => {
+    setEditing(false)
+    if (draft !== (value || '')) {
+      onSave(draft || null)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !multiline) handleSave()
+    if (e.key === 'Escape') { setDraft(value || ''); setEditing(false) }
+  }
+
+  return (
+    <div>
+      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-2">
+        {label}
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-blue-500 hover:text-blue-700 text-xs font-normal">
+            edit
+          </button>
+        )}
+      </dt>
+      <dd className="mt-0.5">
+        {editing ? (
+          multiline ? (
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              rows={3}
+              className="w-full text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          ) : (
+            <input
+              type="text"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              className="w-full text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          )
+        ) : (
+          <span className="text-sm text-gray-900">{displayValue(value)}</span>
+        )}
+      </dd>
+    </div>
+  )
+}
+
+function ProspectDetail({ prospect, onClose, onUpdate }) {
+  if (!prospect) return null
+
+  const p = prospect
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/20 z-40 transition-opacity"
+        onClick={onClose}
+      />
+
+      {/* Panel */}
+      <div className="fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-200 ease-out">
+        {/* Header */}
+        <div className="flex-shrink-0 bg-[#041E42] px-5 py-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
+              {p.also_known_as && (
+                <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
+              )}
+              <div className="flex items-center gap-2 mt-2">
+                <WaveBadge wave={p.engagement_wave} />
+                {p.outreach_rank && (
+                  <span className="text-white/70 text-sm">Rank #{p.outreach_rank}</span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white ml-3 mt-1 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Engagement Planning - editable section at top */}
+          <Section title="Engagement Planning" defaultOpen={true}>
+            <div className="space-y-3">
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Wave</dt>
+                <dd className="mt-0.5">
+                  <select
+                    value={p.engagement_wave || 'Unassigned'}
+                    onChange={(e) => onUpdate(p.id, 'engagement_wave', e.target.value)}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                  >
+                    {WAVE_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </dd>
+              </div>
+
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Rank</dt>
+                <dd className="mt-0.5">
+                  <input
+                    type="number"
+                    min="1"
+                    value={p.outreach_rank ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                      onUpdate(p.id, 'outreach_rank', val)
+                    }}
+                    placeholder="Set rank..."
+                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                  />
+                </dd>
+              </div>
+
+              <EditableField
+                label="Suggested Next Step"
+                value={p.suggested_next_step}
+                onSave={(val) => onUpdate(p.id, 'suggested_next_step', val)}
+                multiline
+              />
+
+              <EditableField
+                label="Wave Notes"
+                value={p.wave_notes}
+                onSave={(val) => onUpdate(p.id, 'wave_notes', val)}
+                multiline
+              />
+
+              <EditableField
+                label="Notes"
+                value={p.notes}
+                onSave={(val) => onUpdate(p.id, 'notes', val)}
+                multiline
+              />
+
+              <Field label="Engagement Type" value={p.engagement_type} />
+              <Field label="Legacy Data Potential" value={p.legacy_data_potential} />
+            </div>
+          </Section>
+
+          {/* Company Info */}
+          <Section title="Company Info" defaultOpen={true}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="Category" value={p.category} />
+              <Field label="In-House Tooling" value={p.in_house_tooling} />
+              <Field label="City" value={p.city} />
+              <Field label="State" value={p.state} />
+              <Field label="Geography Tier" value={p.geography_tier} />
+              <Field label="Website" value={p.website} className="col-span-2" />
+              <Field label="Source Report" value={p.source_report} className="col-span-2" />
+              <Field label="Priority" value={p.priority} />
+              <Field label="Ownership Type" value={p.ownership_type} />
+              <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
+            </dl>
+          </Section>
+
+          {/* Company Metrics */}
+          <Section title="Company Metrics" defaultOpen={false}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="Employees (Approx)" value={p.employees_approx} />
+              <Field label="Year Founded" value={p.year_founded} />
+              <Field label="Years in Business" value={p.years_in_business} />
+              <Field label="Revenue Known" value={p.revenue_known} />
+              <Field label="Revenue Est ($M)" value={p.revenue_est_m} />
+              <Field label="Press Count" value={p.press_count} />
+            </dl>
+          </Section>
+
+          {/* Signals & Readiness */}
+          <Section title="Signals & Readiness" defaultOpen={true}>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <Field label="Signal Count" value={p.signal_count} />
+              <Field label="Top Signal" value={p.top_signal} />
+              <Field label="RJG Cavity Pressure" value={p.rjg_cavity_pressure} />
+              <Field label="Medical Device Mfg" value={p.medical_device_mfg} />
+              <Field label="Key Certifications" value={p.key_certifications} className="col-span-2" />
+            </dl>
+          </Section>
+
+          {/* PSB Relationship */}
+          <Section title="PSB Relationship" defaultOpen={false}>
+            <dl className="space-y-3">
+              <Field label="CWP Contacts" value={p.cwp_contacts} />
+              <Field label="PSB Connection Notes" value={p.psb_connection_notes} />
+            </dl>
+          </Section>
+
+          {/* Meta */}
+          <div className="px-5 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100">
+            <div className="flex justify-between">
+              <span>Last edited by: {p.last_edited_by || 'N/A'}</span>
+              <span>Updated: {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : 'N/A'}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export default ProspectDetail

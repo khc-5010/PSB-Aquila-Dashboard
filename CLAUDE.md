@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-PSB-Aquila Opportunity Tracker is a Kanban-style pipeline management tool for tracking university-industry partnership opportunities between Penn State Behrend (PSB) and Aquila. Three users (Kyle, Duane, Steve) use it to manage opportunities from initial lead through active project engagement.
+PSB-Aquila Opportunity Tracker is a Kanban-style pipeline management tool for tracking university-industry partnership opportunities between Penn State Behrend (PSB) and Aquila. Four users (Kyle, Duane, Steve, Brett) use it to manage opportunities from initial lead through active project engagement.
 
 ## Tech Stack
 
@@ -19,6 +19,7 @@ src/
 ├── components/
 │   ├── ui/              # Reusable UI components (Button, Card, Modal, etc.)
 │   ├── pipeline/        # Kanban board, columns, opportunity cards
+│   ├── prospects/       # Prospect pipeline table, detail panel, filters, wave badges
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -100,6 +101,7 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 ### Key Stakeholders
 
 - **Kyle, Duane, Steve** - Primary users managing the pipeline
+- **Brett Hyder** - Aquila industry expert (40 years in plastics), manages prospect outreach prioritization
 - **Alicyn Rhoades** - PSB Vice Chancellor for Research
 - **Jennifer Surrena** - PSB Contracts
 - **Dean Lewis** - Senior Design coordinator (dal16@psu.edu)
@@ -151,6 +153,44 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
   - `id`, `name`, `description`, `deadline_date`
   - `applies_to` (project_type array) - Which project types this applies to
 
+### Prospect Tables
+
+- **`prospect_companies`** - 179-company prospect database for alliance outreach
+  - `id` (SERIAL, PK)
+  - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `geography_tier`, `source_report`, `priority`
+  - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`
+  - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg`, `key_certifications`
+  - Relationships: `ownership_type`, `recent_ma`, `cwp_contacts`, `psb_connection_notes`
+  - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
+  - Dashboard-managed (editable): `engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`
+  - Timestamps: `created_at`, `updated_at`
+
+## Prospect Pipeline Architecture
+
+### API Routes (consolidated — single file per feature)
+- `GET /api/prospects` — List all (with optional filter query params)
+- `GET /api/prospects?id=X` — Get single prospect
+- `POST /api/prospects` — Create new prospect
+- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`)
+- `PATCH /api/prospects?id=X` — Update prospect fields
+
+### Frontend Components
+- `ProspectTable` — Main sortable table with inline-editable rank and wave columns
+- `ProspectFilters` — Filter bar with preset buttons (Wave 1, Wave 2, Time-Sensitive, Medical Molders, Converter+Tooling, Tier 1 Local)
+- `ProspectDetail` — Right slide-out panel (follows OpportunityDetail pattern) with all 29 fields in sections
+- `WaveBadge` — Colored badge: Wave 1=green, Wave 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
+
+### Wave Pre-Assignments
+Wave 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation Plastics Corp, Erie Molded Plastics
+Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastics (PE acquisition)
+Wave 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
+Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumont Technologies
+
+### Seed/Import
+- SQL migration: `scripts/create-prospect-table.sql`
+- Seed script: `scripts/seed-prospects.js` (reads Excel if available, otherwise seeds known companies)
+- Excel dependency: `xlsx` (SheetJS) package
+
 ## Keeping This File Current
 
 This file is only useful if it stays accurate. Maintain it actively:
@@ -170,8 +210,16 @@ DATABASE_URL=            # Neon PostgreSQL connection string
 VITE_API_URL=            # API base URL (if separate backend)
 ```
 
+## Conventions
+
+### API Route Consolidation (Vercel Hobby = 12 function limit)
+- **One file per feature** in `api/`. Do NOT use nested directories for sub-routes.
+- Route internally using HTTP method + `req.query` params (`?id=X`, `?action=import`)
+- Current function count: **9** (target: ≤ 10 to leave headroom)
+- Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`
+
 ## Notes
 
-- This is a small team tool (3 users), optimize for simplicity over scale
+- This is a small team tool (4 users), optimize for simplicity over scale
 - Mobile-friendly but desktop-primary usage expected
 - Focus on visibility and reducing dropped balls in the pipeline

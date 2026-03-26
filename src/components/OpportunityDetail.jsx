@@ -97,7 +97,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     if (!opportunity?.id) return
     setAlertsLoading(true)
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}/alerts`)
+      const res = await fetch(`/api/opportunities/${opportunity.id}?action=alerts`)
       const data = res.ok ? await res.json() : { alerts: [] }
       setAlerts(data.alerts || [])
     } catch (err) {
@@ -119,8 +119,8 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     setKeyDatesLoading(true)
     try {
       const url = fetchAll
-        ? `/api/key-dates/for-opportunity/${opportunity.id}?all=true`
-        : `/api/key-dates/for-opportunity/${opportunity.id}`
+        ? `/api/key-dates?opportunityId=${opportunity.id}&all=true`
+        : `/api/key-dates?opportunityId=${opportunity.id}`
       const res = await fetch(url)
       const data = res.ok ? await res.json() : { dates: [], hasMore: false, totalCount: 0 }
       setKeyDates(data.dates || [])
@@ -145,7 +145,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Handle dismiss alert
   const handleDismissAlert = async (ruleId) => {
     try {
-      await fetch(`/api/opportunities/${opportunity.id}/alerts/${ruleId}/dismiss`, {
+      await fetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dismissed_by: 'kyle' }) // TODO: get from auth context

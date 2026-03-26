@@ -19,6 +19,7 @@ import DeadlineBanner from './components/DeadlineBanner'
 import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
+import ProspectTable from './components/prospects/ProspectTable'
 
 const STAGES = [
   { id: 'lead', name: 'Lead', color: 'bg-[#F8FAFC]', borderColor: '#94A3B8' },
@@ -38,7 +39,7 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [metricsModal, setMetricsModal] = useState(null) // 'value' | 'action' | 'active' | null
   const [activeId, setActiveId] = useState(null)
-  const [activeView, setActiveView] = useState('pipeline') // 'pipeline' | 'analytics'
+  const [activeView, setActiveView] = useState('pipeline') // 'pipeline' | 'analytics' | 'prospects'
 
   // Sensor config - 8px threshold so clicks still work
   const sensors = useSensors(
@@ -180,7 +181,9 @@ function App() {
         onViewChange={setActiveView}
       />
 
-      {activeView === 'pipeline' ? (
+      {activeView === 'prospects' ? (
+        <ProspectTable />
+      ) : activeView === 'pipeline' ? (
         <>
           {/* Metrics Bar */}
           <MetricsBar
@@ -296,7 +299,7 @@ function App() {
       {/* Footer */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
         <p className="text-sm text-gray-500 text-center">
-          PSB-Aquila Partnership Dashboard &bull; Built for Kyle, Duane & Steve
+          PSB-Aquila Partnership Dashboard &bull; Built for Kyle, Duane, Steve & Brett
         </p>
       </footer>
     </div>
