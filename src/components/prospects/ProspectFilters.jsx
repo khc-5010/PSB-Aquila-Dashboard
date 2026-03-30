@@ -3,7 +3,7 @@ import { useState } from 'react'
 const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const CATEGORY_OPTIONS = ['All', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
-const GEO_OPTIONS = ['All', 'Tier 1', 'Tier 2', 'Infrastructure']
+const GEO_OPTIONS = ['All', 'Tier 1', 'Tier 2', 'Tier 3', 'Infrastructure']
 const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 const PRESETS = [

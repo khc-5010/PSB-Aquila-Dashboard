@@ -11,6 +11,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 const GEO_COLORS = {
   'Tier 1': '#041E42',
   'Tier 2': '#2563eb',
+  'Tier 3': '#f59e0b',
   'Infrastructure': '#7c3aed',
 }
 
