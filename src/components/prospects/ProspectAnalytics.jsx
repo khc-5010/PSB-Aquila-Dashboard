@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import WaveSummary from './charts/WaveSummary'
+import GroupSummary from './charts/GroupSummary'
 import CategoryBreakdown from './charts/CategoryBreakdown'
 import GeographyMap from './charts/GeographyMap'
 import SignalAnalysis from './charts/SignalAnalysis'
@@ -18,7 +18,7 @@ function ProspectAnalytics({ filters, onFilterChange }) {
 
     // Build query params from filters
     const params = new URLSearchParams({ action: 'analytics' })
-    if (filters.wave && filters.wave !== 'All') params.set('engagement_wave', filters.wave)
+    if (filters.group && filters.group !== 'All') params.set('outreach_group', filters.group)
     if (filters.category && filters.category !== 'All') params.set('category', filters.category)
     if (filters.geo && filters.geo !== 'All') params.set('geography_tier', filters.geo)
     if (filters.priority && filters.priority !== 'All') params.set('priority', filters.priority)
@@ -37,16 +37,16 @@ function ProspectAnalytics({ filters, onFilterChange }) {
       .finally(() => setLoading(false))
   }, [filters])
 
-  const handleWaveClick = (wave) => {
-    onFilterChange({ wave, category: 'All', priority: 'All', geo: 'All', search: '', preset: null })
+  const handleGroupClick = (group) => {
+    onFilterChange({ group, category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
   }
 
   const handleCategoryClick = (category) => {
-    onFilterChange({ wave: 'All', category, priority: 'All', geo: 'All', search: '', preset: null })
+    onFilterChange({ group: 'All', category, priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
   }
 
   const handleGeoClick = (geo) => {
-    onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo, search: '', preset: null })
+    onFilterChange({ group: 'All', category: 'All', priority: 'All', geo, status: 'All', search: '', preset: null })
   }
 
   if (error) {
@@ -62,13 +62,13 @@ function ProspectAnalytics({ filters, onFilterChange }) {
   return (
     <div className="p-6 pb-20">
       <div className="grid grid-cols-12 gap-6">
-        {/* Row 1: Wave Summary Cards (full width) */}
+        {/* Row 1: Group Summary Cards (full width) */}
         <div className="col-span-12">
-          <WaveSummary
-            waves={data?.waves}
-            waveTopCompanies={data?.waveTopCompanies}
+          <GroupSummary
+            groups={data?.groups}
+            groupTopCompanies={data?.groupTopCompanies}
             loading={loading}
-            onWaveClick={handleWaveClick}
+            onGroupClick={handleGroupClick}
           />
         </div>
 

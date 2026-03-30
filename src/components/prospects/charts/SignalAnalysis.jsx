@@ -9,9 +9,9 @@ import { Bubble } from 'react-chartjs-2'
 
 ChartJS.register(LinearScale, PointElement, Tooltip, Legend)
 
-const WAVE_COLORS = {
-  'Wave 1': '#16a34a',
-  'Wave 2': '#2563eb',
+const GROUP_COLORS = {
+  'Group 1': '#16a34a',
+  'Group 2': '#2563eb',
   'Time-Sensitive': '#d97706',
   'Infrastructure': '#7c3aed',
   'Unassigned': '#9ca3af',
@@ -42,14 +42,14 @@ function SignalAnalysis({ signals, loading }) {
     )
   }
 
-  // Group by wave for separate datasets (legend)
-  const waveGroups = {}
+  // Group by outreach group for separate datasets (legend)
+  const groupBuckets = {}
   for (const s of data) {
-    const wave = s.engagement_wave || 'Unassigned'
-    if (!waveGroups[wave]) waveGroups[wave] = []
+    const group = s.outreach_group || 'Unassigned'
+    if (!groupBuckets[group]) groupBuckets[group] = []
     const pressCount = s.press_count || 0
     const radius = Math.max(4, Math.min(20, pressCount * 2 + 4))
-    waveGroups[wave].push({
+    groupBuckets[group].push({
       x: s.signal_count || 0,
       y: s.cwp_contacts || 0,
       r: radius,
@@ -60,11 +60,11 @@ function SignalAnalysis({ signals, loading }) {
     })
   }
 
-  const datasets = Object.entries(waveGroups).map(([wave, points]) => ({
-    label: wave,
+  const datasets = Object.entries(groupBuckets).map(([group, points]) => ({
+    label: group,
     data: points,
-    backgroundColor: (WAVE_COLORS[wave] || '#9ca3af') + '99',
-    borderColor: WAVE_COLORS[wave] || '#9ca3af',
+    backgroundColor: (GROUP_COLORS[group] || '#9ca3af') + '99',
+    borderColor: GROUP_COLORS[group] || '#9ca3af',
     borderWidth: 1.5,
   }))
 

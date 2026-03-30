@@ -34,7 +34,7 @@ const EXCEL_TO_DB = {
 }
 
 // Fields that the server preserves via COALESCE — don't send in import payload
-const PRESERVED_FIELDS = ['engagement_wave', 'outreach_rank', 'wave_notes', 'last_edited_by']
+const PRESERVED_FIELDS = ['outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by']
 
 function cleanValue(val) {
   if (val === null || val === undefined) return null
@@ -287,7 +287,7 @@ function BulkImportModal({ onClose, onSuccess }) {
                 </div>
 
                 <p className="text-xs text-gray-500 mt-3">
-                  Existing companies (matched by name) will be updated. User-edited fields (wave, rank, notes) are preserved.
+                  Existing companies (matched by name) will be updated. User-edited fields (group, rank, notes) are preserved.
                 </p>
               </>
             )}

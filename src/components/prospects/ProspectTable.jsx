@@ -4,16 +4,17 @@ import { useAuth } from '../../context/AuthContext'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
-import WaveBadge from './WaveBadge'
+import OutreachGroupBadge from './OutreachGroupBadge'
+import StatusBadge from './StatusBadge'
 import AddCompanyModal from './AddCompanyModal'
 import BulkImportModal from './BulkImportModal'
 
-const WAVE_OPTIONS = ['Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
-const WAVE_SORT_ORDER = {
-  'Wave 1': 1,
+const GROUP_SORT_ORDER = {
+  'Group 1': 1,
   'Time-Sensitive': 2,
-  'Wave 2': 3,
+  'Group 2': 3,
   'Infrastructure': 4,
   'Unassigned': 5,
 }
@@ -48,7 +49,7 @@ function exportToCSV(data, filename) {
     'key_certifications', 'ownership_type', 'recent_ma',
     'cwp_contacts', 'psb_connection_notes',
     'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
-    'engagement_wave', 'outreach_rank', 'wave_notes', 'website'
+    'outreach_group', 'outreach_rank', 'group_notes', 'prospect_status', 'website'
   ]
 
   const headers = columns.map(c => c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
@@ -78,7 +79,7 @@ function ProspectTable() {
   const [error, setError] = useState(null)
   const [selectedProspect, setSelectedProspect] = useState(null)
   const [filters, setFilters] = useState({
-    wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: null,
+    group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null,
   })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [editingRank, setEditingRank] = useState(null)
@@ -154,10 +155,14 @@ function ProspectTable() {
     if (filters.preset === 'warm_leads') {
       if ((p.cwp_contacts ?? 0) < 5) return false
     }
-    if (filters.wave !== 'All' && p.engagement_wave !== filters.wave) return false
+    if (filters.preset === 'ready_for_research') {
+      if (p.prospect_status !== 'Prioritized') return false
+    }
+    if (filters.group !== 'All' && p.outreach_group !== filters.group) return false
     if (filters.category !== 'All' && p.category !== filters.category) return false
     if (filters.priority !== 'All' && p.priority !== filters.priority) return false
     if (filters.geo !== 'All' && p.geography_tier !== filters.geo) return false
+    if (filters.status !== 'All' && p.prospect_status !== filters.status) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
       const searchable = [p.company, p.city, p.state, p.category, p.notes, p.suggested_next_step]
@@ -180,10 +185,10 @@ function ProspectTable() {
       const cmp = String(aVal).localeCompare(String(bVal))
       return sortConfig.direction === 'asc' ? cmp : -cmp
     }
-    // Default sort: wave order → rank → signal_count desc
-    const waveA = WAVE_SORT_ORDER[a.engagement_wave] || 5
-    const waveB = WAVE_SORT_ORDER[b.engagement_wave] || 5
-    if (waveA !== waveB) return waveA - waveB
+    // Default sort: group order → rank → signal_count desc
+    const groupA = GROUP_SORT_ORDER[a.outreach_group] || 5
+    const groupB = GROUP_SORT_ORDER[b.outreach_group] || 5
+    if (groupA !== groupB) return groupA - groupB
     const rankA = a.outreach_rank ?? 9999
     const rankB = b.outreach_rank ?? 9999
     if (rankA !== rankB) return rankA - rankB
@@ -361,8 +366,11 @@ function ProspectTable() {
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('outreach_rank')}>
                 Rank <SortIcon column="outreach_rank" />
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-36 cursor-pointer" onClick={() => handleSort('engagement_wave')}>
-                Wave <SortIcon column="engagement_wave" />
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-36 cursor-pointer" onClick={() => handleSort('outreach_group')}>
+                Group <SortIcon column="outreach_group" />
+              </th>
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('prospect_status')}>
+                Status <SortIcon column="prospect_status" />
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer" onClick={() => handleSort('company')}>
                 Company <SortIcon column="company" />
@@ -399,7 +407,7 @@ function ProspectTable() {
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={12} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
                   {prospects.length === 0
                     ? 'No prospects loaded. Run the seed script or import from Excel.'
                     : 'No prospects match the current filters.'}
@@ -436,29 +444,34 @@ function ProspectTable() {
                     )}
                   </td>
 
-                  {/* Wave - dropdown editable */}
+                  {/* Group - dropdown editable */}
                   <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                     <select
-                      value={p.engagement_wave || 'Unassigned'}
-                      onChange={(e) => updateProspect(p.id, 'engagement_wave', e.target.value)}
+                      value={p.outreach_group || 'Unassigned'}
+                      onChange={(e) => updateProspect(p.id, 'outreach_group', e.target.value)}
                       className="text-xs font-medium rounded-full px-2 py-1 border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                       style={{
                         backgroundColor: {
-                          'Wave 1': '#dcfce7', 'Wave 2': '#dbeafe', 'Time-Sensitive': '#fef3c7',
+                          'Group 1': '#dcfce7', 'Group 2': '#dbeafe', 'Time-Sensitive': '#fef3c7',
                           'Infrastructure': '#f3e8ff', 'Unassigned': '#f3f4f6',
-                        }[p.engagement_wave || 'Unassigned'],
+                        }[p.outreach_group || 'Unassigned'],
                         color: {
-                          'Wave 1': '#15803d', 'Wave 2': '#1d4ed8', 'Time-Sensitive': '#b45309',
+                          'Group 1': '#15803d', 'Group 2': '#1d4ed8', 'Time-Sensitive': '#b45309',
                           'Infrastructure': '#7e22ce', 'Unassigned': '#6b7280',
-                        }[p.engagement_wave || 'Unassigned'],
+                        }[p.outreach_group || 'Unassigned'],
                         borderColor: {
-                          'Wave 1': '#86efac', 'Wave 2': '#93c5fd', 'Time-Sensitive': '#fcd34d',
+                          'Group 1': '#86efac', 'Group 2': '#93c5fd', 'Time-Sensitive': '#fcd34d',
                           'Infrastructure': '#c4b5fd', 'Unassigned': '#d1d5db',
-                        }[p.engagement_wave || 'Unassigned'],
+                        }[p.outreach_group || 'Unassigned'],
                       }}
                     >
-                      {WAVE_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                      {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
                     </select>
+                  </td>
+
+                  {/* Status */}
+                  <td className="px-3 py-2.5">
+                    <StatusBadge status={p.prospect_status} />
                   </td>
 
                   {/* Company */}

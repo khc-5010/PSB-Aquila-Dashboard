@@ -19,8 +19,8 @@ src/
 ├── components/
 │   ├── ui/              # Reusable UI components (Button, Card, Modal, etc.)
 │   ├── pipeline/        # Kanban board, columns, opportunity cards
-│   ├── prospects/       # Prospect pipeline table, detail panel, filters, wave badges, analytics charts
-│   │   ├── charts/      # Chart components: WaveSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
+│   ├── prospects/       # Prospect pipeline table, detail panel, filters, outreach group badges, status badges, analytics charts
+│   │   ├── charts/      # Chart components: GroupSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
 │   │   ├── AddCompanyModal.jsx    # Single-company add form (POST /api/prospects)
 │   │   └── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
@@ -177,7 +177,8 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
   - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg`, `key_certifications`
   - Relationships: `ownership_type`, `recent_ma`, `cwp_contacts`, `psb_connection_notes`
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
-  - Dashboard-managed (editable): `engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`
+  - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
+  - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
   - Timestamps: `created_at`, `updated_at`
 
 ## Prospect Pipeline Architecture
@@ -186,23 +187,32 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 - `GET /api/prospects` — List all (with optional filter query params)
 - `GET /api/prospects?id=X` — Get single prospect
 - `POST /api/prospects` — Create new prospect
-- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`engagement_wave`, `outreach_rank`, `wave_notes`, `last_edited_by`)
+- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`)
 - `PATCH /api/prospects?id=X` — Update prospect fields
 - `GET /api/prospects?action=analytics` — Aggregated analytics data for charts (accepts same filter params as list endpoint)
 
 ### Frontend Components
-- `ProspectTable` — Main sortable table with inline-editable rank and wave columns
-- `ProspectFilters` — Filter bar with preset buttons (Wave 1, Wave 2, Time-Sensitive, Medical Molders, Converter+Tooling, Tier 1 Local)
-- `ProspectDetail` — Right slide-out panel (follows OpportunityDetail pattern) with all 29 fields in sections
-- `WaveBadge` — Colored badge: Wave 1=green, Wave 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
+- `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
+- `ProspectFilters` — Filter bar with preset buttons (Group 1, Group 2, Time-Sensitive, Medical Molders, Converter+Tooling, Tier 1 Local, Warm Leads, Ready for Research) + dropdown filters for group, category, priority, geography, and status
+- `ProspectDetail` — Right slide-out panel (follows OpportunityDetail pattern) with all fields in sections; status and outreach group are editable
+- `OutreachGroupBadge` — Colored badge: Group 1=green, Group 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
+- `StatusBadge` — Prospect lifecycle badge: Identified=gray, Prioritized=blue, Research Complete=amber, Outreach Ready=green, Converted=purple, Nurture=gray italic
 - `AddCompanyModal` — Form modal for adding a single company (company name required, primary fields + collapsible "More Details" section). POSTs to `/api/prospects`.
-- `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `engagement_wave`, `outreach_rank`, `wave_notes`, or `last_edited_by` so the server preserves existing user-edited values.
+- `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `outreach_group`, `outreach_rank`, `group_notes`, or `last_edited_by` so the server preserves existing user-edited values.
 
-### Wave Pre-Assignments
-Wave 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation Plastics Corp, Erie Molded Plastics
+### Outreach Group Pre-Assignments
+Group 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation Plastics Corp, Erie Molded Plastics
 Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastics (PE acquisition)
-Wave 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
+Group 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
 Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumont Technologies
+
+### Prospect Status Lifecycle
+- **Identified** — Default for new/imported companies
+- **Prioritized** — Company has been reviewed and ranked for outreach
+- **Research Complete** — Background research finished
+- **Outreach Ready** — Ready for initial contact
+- **Converted** — Moved to opportunity pipeline
+- **Nurture** — Not ready now, maintain relationship
 
 ### CWP Warm Lead Visuals
 - **CWP heat thresholds**: 0=gray, 1-4=amber, 5-9=warm badge (amber bg), 10-19=hot (orange bg), 20+=very hot (red bg)
@@ -216,7 +226,7 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - Export button in the sub-view toggle header area of ProspectTable
 
 ### Sub-View Toggle Pattern
-The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (wave cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
+The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
 
 ### Seed/Import
 - SQL migration: `scripts/create-prospect-table.sql`
