@@ -200,6 +200,17 @@ Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastic
 Wave 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
 Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumont Technologies
 
+### CWP Warm Lead Visuals
+- **CWP heat thresholds**: 0=gray, 1-4=amber, 5-9=warm badge (amber bg), 10-19=hot (orange bg), 20+=very hot (red bg)
+- Companies with CWP >= 5 show a colored dot next to company name in the table
+- `warm_leads` preset filter: shows only companies with `cwp_contacts >= 5`
+- ProspectDetail "PSB Relationship" section auto-opens when `cwp_contacts >= 5` and shows a warmth indicator banner
+
+### Export Functionality
+- Client-side CSV generation from the in-memory prospects array (no API call)
+- Two options: "Export filtered" (respects current filters) and "Export all" (full dataset)
+- Export button in the sub-view toggle header area of ProspectTable
+
 ### Sub-View Toggle Pattern
 The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (wave cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
 

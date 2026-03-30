@@ -28,6 +28,47 @@ function displayValue(val) {
   return val
 }
 
+function cwpHeatClass(count) {
+  if (!count || count === 0) return 'text-gray-400'
+  if (count < 5) return 'text-amber-600'
+  if (count < 10) return 'font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded'
+  if (count < 20) return 'font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded'
+  return 'font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded'
+}
+
+function exportToCSV(data, filename) {
+  const columns = [
+    'company', 'also_known_as', 'category', 'in_house_tooling',
+    'city', 'state', 'geography_tier', 'source_report', 'priority',
+    'employees_approx', 'year_founded', 'years_in_business',
+    'revenue_known', 'revenue_est_m', 'press_count',
+    'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
+    'key_certifications', 'ownership_type', 'recent_ma',
+    'cwp_contacts', 'psb_connection_notes',
+    'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
+    'engagement_wave', 'outreach_rank', 'wave_notes', 'website'
+  ]
+
+  const headers = columns.map(c => c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
+  const rows = data.map(row => columns.map(col => {
+    const val = row[col]
+    if (val === null || val === undefined) return ''
+    const str = String(val)
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"`
+      : str
+  }))
+
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function ProspectTable() {
   const { user } = useAuth()
   const [prospects, setProspects] = useState([])
@@ -41,6 +82,7 @@ function ProspectTable() {
   const [editingRank, setEditingRank] = useState(null)
   const [editingRankValue, setEditingRankValue] = useState('')
   const [subView, setSubView] = useState('table') // 'table' | 'charts'
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   // Fetch prospects
   useEffect(() => {
@@ -93,6 +135,9 @@ function ProspectTable() {
     if (filters.preset === 'medical') {
       const isMolder = p.category === 'Converter+Tooling' || p.category === 'Converter'
       if (!isMolder || p.medical_device_mfg !== 'Yes') return false
+    }
+    if (filters.preset === 'warm_leads') {
+      if ((p.cwp_contacts ?? 0) < 5) return false
     }
     if (filters.wave !== 'All' && p.engagement_wave !== filters.wave) return false
     if (filters.category !== 'All' && p.category !== filters.category) return false
@@ -196,37 +241,71 @@ function ProspectTable() {
     <div className="flex flex-col h-[calc(100vh-4rem-3rem)]">
       {/* Sub-view toggle + Filters */}
       <div className="bg-white border-b border-gray-200 px-6 pt-3 pb-0">
-        <div className="flex items-center gap-1 mb-0">
-          <button
-            onClick={() => setSubView('table')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
-              subView === 'table'
-                ? 'bg-white text-[#041E42] border-gray-200'
-                : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18M3 6h18" />
+        <div className="flex items-center justify-between mb-0">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSubView('table')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+                subView === 'table'
+                  ? 'bg-white text-[#041E42] border-gray-200'
+                  : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18M3 6h18" />
+                </svg>
+                Table
+              </span>
+            </button>
+            <button
+              onClick={() => setSubView('charts')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+                subView === 'charts'
+                  ? 'bg-white text-[#041E42] border-gray-200'
+                  : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Charts
+              </span>
+            </button>
+          </div>
+
+          {/* Export button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              Table
-            </span>
-          </button>
-          <button
-            onClick={() => setSubView('charts')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
-              subView === 'charts'
-                ? 'bg-white text-[#041E42] border-gray-200'
-                : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              Charts
-            </span>
-          </button>
+              Export
+            </button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 w-44">
+                  <button
+                    onClick={() => { exportToCSV(filtered, `prospects-filtered-${new Date().toISOString().slice(0,10)}.csv`); setShowExportMenu(false) }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Export filtered ({filtered.length})
+                  </button>
+                  <button
+                    onClick={() => { exportToCSV(prospects, `prospects-all-${new Date().toISOString().slice(0,10)}.csv`); setShowExportMenu(false) }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Export all ({prospects.length})
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -353,10 +432,18 @@ function ProspectTable() {
 
                   {/* Company */}
                   <td className="px-3 py-2.5">
-                    <span className="text-sm font-medium text-gray-900">{p.company}</span>
-                    {p.also_known_as && (
-                      <span className="text-xs text-gray-400 ml-1">({p.also_known_as})</span>
-                    )}
+                    <div className="flex items-center">
+                      {(p.cwp_contacts ?? 0) >= 5 && (
+                        <span className={`inline-block w-2 h-2 rounded-full mr-1.5 flex-shrink-0 ${
+                          (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-500' :
+                          (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-500' : 'bg-amber-400'
+                        }`} title={`${p.cwp_contacts} CWP contacts`} />
+                      )}
+                      <span className="text-sm font-medium text-gray-900">{p.company}</span>
+                      {p.also_known_as && (
+                        <span className="text-xs text-gray-400 ml-1">({p.also_known_as})</span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Category */}
@@ -409,7 +496,7 @@ function ProspectTable() {
 
                   {/* CWP Contacts */}
                   <td className="px-3 py-2.5 text-center">
-                    <span className={`text-sm ${(p.cwp_contacts ?? 0) >= 5 ? 'font-semibold text-green-700' : 'text-gray-700'}`}>
+                    <span className={`text-sm ${cwpHeatClass(p.cwp_contacts ?? 0)}`}>
                       {displayValue(p.cwp_contacts)}
                     </span>
                   </td>

@@ -12,6 +12,7 @@ const PRESETS = [
   { label: 'Medical Molders', filter: { preset: 'medical' } },
   { label: 'Converter+Tooling', filter: { category: 'Converter+Tooling' } },
   { label: 'Tier 1 Local', filter: { geo: 'Tier 1' } },
+  { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
 ]
 
 function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount }) {
@@ -20,6 +21,8 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
   const handlePreset = (preset) => {
     if (preset.filter.preset === 'medical') {
       onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: 'medical' })
+    } else if (preset.filter.preset === 'warm_leads') {
+      onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: 'warm_leads' })
     } else {
       const newFilters = { wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: null }
       if (preset.filter.wave) newFilters.wave = preset.filter.wave
@@ -41,6 +44,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
 
   const isActivePreset = (preset) => {
     if (preset.filter.preset === 'medical') return filters.preset === 'medical'
+    if (preset.filter.preset === 'warm_leads') return filters.preset === 'warm_leads'
     if (preset.filter.wave) return filters.wave === preset.filter.wave
     if (preset.filter.category) return filters.category === preset.filter.category
     if (preset.filter.geo) return filters.geo === preset.filter.geo

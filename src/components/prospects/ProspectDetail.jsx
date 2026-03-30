@@ -237,7 +237,22 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
           </Section>
 
           {/* PSB Relationship */}
-          <Section title="PSB Relationship" defaultOpen={false}>
+          <Section title="PSB Relationship" defaultOpen={(p.cwp_contacts ?? 0) >= 5}>
+            {(p.cwp_contacts ?? 0) > 0 && (
+              <div className={`mb-3 px-3 py-2 rounded-lg text-sm ${
+                (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-50 text-red-800 border border-red-200' :
+                (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-50 text-orange-800 border border-orange-200' :
+                (p.cwp_contacts ?? 0) >= 5  ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                'bg-gray-50 text-gray-600 border border-gray-200'
+              }`}>
+                <span className="font-semibold">{p.cwp_contacts} CWP contacts</span>
+                {' — '}
+                {(p.cwp_contacts ?? 0) >= 20 ? 'Very strong existing relationship' :
+                 (p.cwp_contacts ?? 0) >= 10 ? 'Strong existing relationship' :
+                 (p.cwp_contacts ?? 0) >= 5  ? 'Warm lead — existing relationship' :
+                 'Some PSB connection'}
+              </div>
+            )}
             <dl className="space-y-3">
               <Field label="CWP Contacts" value={p.cwp_contacts} />
               <Field label="PSB Connection Notes" value={p.psb_connection_notes} />
