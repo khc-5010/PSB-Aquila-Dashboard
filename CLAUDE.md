@@ -190,6 +190,9 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 - `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`)
 - `PATCH /api/prospects?id=X` — Update prospect fields
 - `GET /api/prospects?action=analytics` — Aggregated analytics data for charts (accepts same filter params as list endpoint)
+- `GET /api/prospects?action=attachments&id=X` — List attachments for a prospect
+- `POST /api/prospects?action=attach` — Create attachment + auto-advance status
+- `DELETE /api/prospects?action=delete-attachment&attachmentId=X` — Delete attachment
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
@@ -227,6 +230,19 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 
 ### Sub-View Toggle Pattern
 The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
+
+### Research Workflow & Attachments
+- **Deep research prompt template** lives at `public/prompts/deep-research-template.md` with `{{variable}}` placeholders injected from prospect data at render time
+- **ResearchPromptModal** (`src/components/prospects/ResearchPromptModal.jsx`) — fetches template, injects prospect data, copies to clipboard
+- **AttachResearchModal** (`src/components/prospects/AttachResearchModal.jsx`) — paste markdown, preview, save as attachment
+- **ResearchBriefPanel** (`src/components/prospects/ResearchBriefPanel.jsx`) — renders saved research brief as collapsible accordion sections, parsed by `## ` headers
+- **Attachment API routes** (all in `api/prospects.js`):
+  - `GET ?action=attachments&id=X` — list attachments for a prospect
+  - `POST ?action=attach` — create attachment (body: `{ prospect_id, attachment_type, title, content, created_by }`)
+  - `DELETE ?action=delete-attachment&attachmentId=X` — remove attachment
+- **Status auto-advancement**: Saving a `research_brief` attachment auto-sets `prospect_status` to `'Outreach Ready'` if current status is `Identified`, `Prioritized`, or `Research Complete`. Does NOT overwrite `Converted` or `Nurture`.
+- **Database table**: `prospect_attachments` (id, prospect_id, attachment_type, title, content, created_by, created_at)
+- **Markdown rendering**: Uses `react-markdown` package (safe by default, no `dangerouslySetInnerHTML`)
 
 ### Seed/Import
 - SQL migration: `scripts/create-prospect-table.sql`
