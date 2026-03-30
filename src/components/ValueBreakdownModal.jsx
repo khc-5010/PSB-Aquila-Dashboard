@@ -15,12 +15,11 @@ const formatValue = (value) => {
  */
 const getStageInfo = (stageId) => {
   const stageColors = {
-    lead: 'bg-gray-100 text-gray-700',
-    qualified: 'bg-blue-100 text-blue-700',
-    proposal: 'bg-yellow-100 text-yellow-800',
-    negotiation: 'bg-orange-100 text-orange-700',
+    channel_routing: 'bg-teal-100 text-teal-700',
+    client_readiness: 'bg-amber-100 text-amber-700',
+    project_setup: 'bg-purple-100 text-purple-700',
     active: 'bg-green-100 text-green-700',
-    complete: 'bg-purple-100 text-purple-700',
+    complete: 'bg-gray-100 text-gray-700',
   }
   const stage = STAGES.find(s => s.id === stageId)
   return {

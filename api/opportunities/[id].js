@@ -8,8 +8,13 @@ import { neon } from '@neondatabase/serverless'
  * POST /api/opportunities/[id]?action=dismiss&ruleId=X   — dismiss an alert
  */
 
-// Map database project_type values to display-style values used in communication_rules
+// Map project_type values to display-style values used in communication_rules
 const PROJECT_TYPE_MAP = {
+  'Pilot Project': 'Pilot Project',
+  'Research Agreement': 'Research Agreement',
+  'Senior Design': 'Senior Design',
+  'Strategic Membership': 'Strategic Membership',
+  // Legacy mappings
   'tbd': 'TBD',
   'research': 'Research Agreement',
   'senior_design': 'Senior Design',
@@ -139,6 +144,7 @@ export default async function handler(req, res) {
       next_action: 'next_action',
       outcome: 'outcome',
       closed_at: 'closed_at',
+      source_prospect_id: 'source_prospect_id',
     }
 
     const setClauses = []

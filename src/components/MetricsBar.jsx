@@ -25,11 +25,11 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
     .filter(opp => opp.stage !== 'complete')
     .reduce((sum, opp) => sum + (opp.est_value || 0), 0)
 
-  // Need Action: opportunities with next_action set AND in lead/qualified stage
+  // Need Action: opportunities with next_action set AND in early pipeline stages
   const needAction = opportunities.filter(opp =>
     opp.next_action &&
     opp.next_action.trim() !== '' &&
-    (opp.stage === 'lead' || opp.stage === 'qualified')
+    (opp.stage === 'channel_routing' || opp.stage === 'client_readiness')
   ).length
 
   // Active Projects: count where stage is 'active'

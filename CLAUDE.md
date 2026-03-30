@@ -22,7 +22,8 @@ src/
 │   ├── prospects/       # Prospect pipeline table, detail panel, filters, outreach group badges, status badges, analytics charts
 │   │   ├── charts/      # Chart components: GroupSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
 │   │   ├── AddCompanyModal.jsx    # Single-company add form (POST /api/prospects)
-│   │   └── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
+│   │   ├── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
+│   │   └── ConvertToOpportunityModal.jsx  # Promote prospect → pipeline opportunity
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -78,25 +79,51 @@ vercel --prod            # Deploy to production
 
 Partnership opportunities for the **Industrial AI Alliance**—a collaboration between PSB (university), Aquila (AI company), and Industry Partners. Each opportunity represents a potential project with a company.
 
-### Pipeline Stages
+### Alliance Client Journey (Pipeline Stages)
 
-1. **Lead** - Initial contact or interest identified
-2. **Qualified** - Confirmed fit, scope being discussed
-3. **Proposal** - Formal proposal submitted
-4. **Negotiation** - Contract/terms being finalized
-5. **Active** - Project in progress
-6. **Complete** - Project delivered (archive)
+The pipeline maps to Stages 3-5 of the Alliance Client Journey (Stages 1-2 are handled in the Prospects tab):
 
-### Project Types & Stakeholder Routing
+1. **Channel Routing** (`channel_routing`) — Discovery meeting, determine project type and fit. 2-4 weeks. Gate: channel selected, stakeholders notified.
+2. **Client Readiness** (`client_readiness`) — Client completes AI Readiness Modules (governance, data prep, internal alignment). 4-8 weeks. Gate: client passes readiness checklist.
+3. **Project Setup** (`project_setup`) — SOW development, faculty matching, contract processing. 4-8 weeks. Gate: SOW signed, faculty/students assigned.
+4. **Active** (`active`) — Project executing, solution scaling. 6-18 months. Gate: solution validated, data contributed to ontology.
+5. **Complete** (`complete`) — Project delivered, marketplace listing approved. Gate: deliverables accepted, relationship preserved.
+
+Stage constants defined in `src/constants/pipeline.js`.
+
+### Project Types
+
+| Project Type | Lead | Notes |
+|--------------|------|-------|
+| **Pilot Project** | Aquila-Led | Quick-start engagement |
+| **Research Agreement** | Faculty-Led | Alicyn Rhoades (VC Research), Jennifer Surrena (contracts). 4-6 week processing time |
+| **Senior Design** | Student-Led | Dean Lewis (dal16@psu.edu). **Aug 15 deadline** for fall semester |
+| **Strategic Membership** | Partner Access | Amy Bridger for partnership structure |
+
+Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'`, `'Strategic Membership'`
+
+### Prospect-to-Pipeline Conversion
+
+- **Promote to Pipeline** button appears on ProspectDetail when `prospect_status` is `'Outreach Ready'` or `'Converted'`
+- Opens `ConvertToOpportunityModal` with company name pre-filled, project type and owner (dynamic from users table) required
+- Creates opportunity with `source_prospect_id` linking back to the prospect, stage defaults to `'channel_routing'`
+- Prospect status auto-updates to `'Converted'` (one prospect can generate multiple opportunities)
+- `conversion_count` subquery included in prospects GET API response
+- Purple badge on ProspectTable shows count of active opportunities per prospect
+
+### No Fit Off-Ramp
+
+- "No Fit" button on pipeline cards in Channel Routing stage
+- Deletes the opportunity and sets the source prospect's status to `'Nurture'`
+- Nurture prospects can be re-promoted later
+
+### Stakeholder Routing
 
 | Project Type | Primary PSB Contact | Notes |
 |--------------|---------------------|-------|
 | **Research Agreement** | Alicyn Rhoades (VC Research), Jennifer Surrena (contracts) | 4-6 week processing time |
-| **Senior Design / Capstone** | Dean Lewis (dal16@psu.edu) | **Aug 15 deadline** for fall semester |
-| **Consulting Engagement** | Aquila-led | Amy Bridger for partnership structure |
-| **Workforce Training** | TBD | Program-specific routing |
-| **Alliance Membership** | Amy Bridger | Revenue model discussions |
-| **Does Not Fit** | N/A | Archive with reason |
+| **Senior Design** | Dean Lewis (dal16@psu.edu) | **Aug 15 deadline** for fall semester |
+| **Strategic Membership** | Amy Bridger | Revenue model discussions |
 
 ### Critical Constraints
 
@@ -123,13 +150,14 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
   - `company_name` - Company/organization name
   - `description` - Opportunity description
   - `project_type` - Type classification (Research Agreement, Senior Design, etc.)
-  - `stage` - Pipeline stage (lead, qualified, proposal, negotiation, active, complete)
+  - `stage` - Pipeline stage (channel_routing, client_readiness, project_setup, active, complete)
   - `owner` - Assigned team member (Kyle, Duane, Steve)
   - `estimated_value` - Estimated deal value
   - `source` - Lead source
   - `psb_relationship` - Existing PSB relationship
   - `next_action` - Next action to take
   - `outcome` - Deal outcome (won, lost, abandoned) - set when closed
+  - `source_prospect_id` (FK → prospect_companies.id) - Links to source prospect if converted from Prospects tab
   - `closed_at` - Timestamp when opportunity was closed
   - `created_at`, `updated_at` - Timestamps
 
