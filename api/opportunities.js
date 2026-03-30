@@ -53,5 +53,25 @@ export default async function handler(req, res) {
     }
   }
 
+  // DELETE - Clear all opportunities and related records
+  if (req.method === 'DELETE') {
+    try {
+      // Delete from child tables first (activities & stage_transitions don't cascade)
+      await sql`DELETE FROM activities`
+      await sql`DELETE FROM stage_transitions`
+      // dismissed_alerts has ON DELETE CASCADE, but clean up explicitly too
+      await sql`DELETE FROM dismissed_alerts`
+      const result = await sql`DELETE FROM opportunities RETURNING id`
+      return res.status(200).json({
+        success: true,
+        deleted: result.length,
+        message: `Deleted ${result.length} opportunities and all related records`,
+      })
+    } catch (error) {
+      console.error('Error deleting opportunities:', error)
+      return res.status(500).json({ error: error.message })
+    }
+  }
+
   return res.status(405).json({ error: 'Method not allowed' })
 }
