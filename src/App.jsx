@@ -13,7 +13,6 @@ import OpportunityCard from './components/pipeline/OpportunityCard'
 import DroppableColumn, { columnColors, defaultColors } from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
-import AddOpportunityModal from './components/AddOpportunityModal'
 import ValueBreakdownModal from './components/ValueBreakdownModal'
 import ActionSummaryModal from './components/ActionSummaryModal'
 import ActiveProjectsModal from './components/ActiveProjectsModal'
@@ -39,7 +38,6 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
-  const [showAddModal, setShowAddModal] = useState(false)
   const [metricsModal, setMetricsModal] = useState(null) // 'value' | 'action' | 'active' | null
   const [activeId, setActiveId] = useState(null)
   const [activeView, setActiveView] = useState('pipeline') // 'pipeline' | 'analytics' | 'prospects'
@@ -97,11 +95,6 @@ function App() {
 
   const handleCloseDetail = () => {
     setSelectedOpportunity(null)
-  }
-
-  const handleOpportunityCreated = (newOpp) => {
-    setOpportunities((prev) => [...prev, newOpp])
-    setShowAddModal(false)
   }
 
   const handleMetricsSelect = (opp) => {
@@ -195,7 +188,6 @@ function App() {
       {/* Header */}
       <Header
         dbStatus={dbStatus}
-        onAddOpportunity={() => setShowAddModal(true)}
         activeView={activeView}
         onViewChange={setActiveView}
       />
@@ -279,14 +271,6 @@ function App() {
             onClose={handleCloseDetail}
             onUpdate={handleOpportunityUpdate}
           />
-
-          {/* Add Opportunity Modal */}
-          {showAddModal && (
-            <AddOpportunityModal
-              onClose={() => setShowAddModal(false)}
-              onCreated={handleOpportunityCreated}
-            />
-          )}
 
           {/* Metrics Modals */}
           {metricsModal === 'value' && (

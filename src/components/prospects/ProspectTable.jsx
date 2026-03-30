@@ -5,6 +5,8 @@ import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
 import WaveBadge from './WaveBadge'
+import AddCompanyModal from './AddCompanyModal'
+import BulkImportModal from './BulkImportModal'
 
 const WAVE_OPTIONS = ['Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
@@ -83,6 +85,8 @@ function ProspectTable() {
   const [editingRankValue, setEditingRankValue] = useState('')
   const [subView, setSubView] = useState('table') // 'table' | 'charts'
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Fetch prospects
   useEffect(() => {
@@ -129,6 +133,17 @@ function ProspectTable() {
       fetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
     }
   }, [selectedProspect, user])
+
+  const refreshProspects = useCallback(() => {
+    setLoading(true)
+    fetch('/api/prospects')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then(data => { setProspects(data); setLoading(false) })
+      .catch(err => { setError(err.message); setLoading(false) })
+  }, [])
 
   // Filter logic
   const filtered = prospects.filter(p => {
@@ -275,7 +290,22 @@ function ProspectTable() {
             </button>
           </div>
 
-          {/* Export button */}
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-3 py-1.5 text-xs font-medium bg-[#041E42] text-white rounded-lg hover:bg-[#041E42]/90 flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Add Company
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              Import
+            </button>
           <div className="relative">
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -305,6 +335,7 @@ function ProspectTable() {
                 </div>
               </>
             )}
+          </div>
           </div>
         </div>
       </div>
@@ -527,6 +558,9 @@ function ProspectTable() {
       />
       </>
       )}
+
+      {showAddModal && <AddCompanyModal onClose={() => setShowAddModal(false)} onSuccess={refreshProspects} />}
+      {showImportModal && <BulkImportModal onClose={() => setShowImportModal(false)} onSuccess={refreshProspects} />}
     </div>
   )
 }
