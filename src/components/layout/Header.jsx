@@ -43,6 +43,16 @@ function Header({ dbStatus, activeView, onViewChange }) {
             {/* Navigation Tabs */}
             <div className="ml-6 flex bg-white/10 rounded-lg p-1">
               <button
+                onClick={() => onViewChange('prospects')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  activeView === 'prospects'
+                    ? 'bg-white text-[#041E42]'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                Prospects
+              </button>
+              <button
                 onClick={() => onViewChange('pipeline')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                   activeView === 'pipeline'
@@ -61,16 +71,6 @@ function Header({ dbStatus, activeView, onViewChange }) {
                 }`}
               >
                 Analytics
-              </button>
-              <button
-                onClick={() => onViewChange('prospects')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activeView === 'prospects'
-                    ? 'bg-white text-[#041E42]'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                Prospects
               </button>
             </div>
           </div>
