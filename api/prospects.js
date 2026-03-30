@@ -15,6 +15,21 @@ export default async function handler(req, res) {
 
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
+    // Attachments for a prospect
+    if (action === 'attachments' && id) {
+      try {
+        const attachments = await sql`
+          SELECT * FROM prospect_attachments
+          WHERE prospect_id = ${id}
+          ORDER BY created_at DESC
+        `
+        return res.status(200).json(attachments)
+      } catch (error) {
+        console.error('Error fetching attachments:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Analytics aggregation
     if (action === 'analytics') {
       try {
@@ -252,8 +267,59 @@ export default async function handler(req, res) {
     }
   }
 
+  // ─── DELETE ─────────────────────────────────────────────
+  if (req.method === 'DELETE') {
+    if (action === 'delete-attachment') {
+      const { attachmentId } = req.query
+      if (!attachmentId) {
+        return res.status(400).json({ error: 'attachmentId query param is required' })
+      }
+      try {
+        await sql`DELETE FROM prospect_attachments WHERE id = ${attachmentId}`
+        return res.status(200).json({ deleted: true })
+      } catch (error) {
+        console.error('Error deleting attachment:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+    return res.status(400).json({ error: 'Unknown DELETE action' })
+  }
+
   // ─── POST ──────────────────────────────────────────────
   if (req.method === 'POST') {
+    // Attach content to a prospect
+    if (action === 'attach') {
+      try {
+        const { prospect_id, attachment_type, title, content, created_by } = req.body
+        if (!prospect_id || !content) {
+          return res.status(400).json({ error: 'prospect_id and content are required' })
+        }
+
+        const result = await sql`
+          INSERT INTO prospect_attachments (prospect_id, attachment_type, title, content, created_by)
+          VALUES (${prospect_id}, ${attachment_type || 'research_brief'}, ${title || null}, ${content}, ${created_by || null})
+          RETURNING *
+        `
+
+        // Auto-advance status if research_brief
+        if ((attachment_type || 'research_brief') === 'research_brief') {
+          await sql`
+            UPDATE prospect_companies
+            SET prospect_status = 'Outreach Ready',
+                last_edited_by = ${created_by || null},
+                updated_at = NOW()
+            WHERE id = ${prospect_id}
+              AND prospect_status IN ('Identified', 'Prioritized', 'Research Complete')
+          `
+        }
+
+        return res.status(201).json(result[0])
+      } catch (error) {
+        console.error('Error creating attachment:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // One-time seed: POST /api/prospects?action=seed
     if (action === 'seed') {
       try {

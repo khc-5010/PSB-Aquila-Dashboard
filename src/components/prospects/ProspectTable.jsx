@@ -568,6 +568,7 @@ function ProspectTable() {
         prospect={selectedProspect}
         onClose={() => setSelectedProspect(null)}
         onUpdate={updateProspect}
+        onRefresh={refreshProspects}
       />
       </>
       )}

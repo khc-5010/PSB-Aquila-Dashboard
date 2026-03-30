@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
+import ResearchPromptModal from './ResearchPromptModal'
+import AttachResearchModal from './AttachResearchModal'
+import ResearchBriefPanel from './ResearchBriefPanel'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -97,10 +100,42 @@ function EditableField({ label, value, onSave, multiline = false }) {
   )
 }
 
-function ProspectDetail({ prospect, onClose, onUpdate }) {
+function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
+  const [showPromptModal, setShowPromptModal] = useState(false)
+  const [showAttachModal, setShowAttachModal] = useState(false)
+  const [attachments, setAttachments] = useState([])
+
+  const fetchAttachments = useCallback(async () => {
+    if (!prospect?.id) return
+    try {
+      const res = await fetch(`/api/prospects?action=attachments&id=${prospect.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAttachments(data)
+      }
+    } catch (err) {
+      console.error('Error fetching attachments:', err)
+    }
+  }, [prospect?.id])
+
+  useEffect(() => {
+    fetchAttachments()
+  }, [fetchAttachments])
+
   if (!prospect) return null
 
   const p = prospect
+  const researchBrief = attachments.find(a => a.attachment_type === 'research_brief')
+
+  function handleBriefSaved() {
+    fetchAttachments()
+    if (onRefresh) onRefresh()
+  }
+
+  function handleDeleteBrief() {
+    fetchAttachments()
+    if (onRefresh) onRefresh()
+  }
 
   return (
     <>
@@ -277,6 +312,39 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
             </dl>
           </Section>
 
+          {/* Research Brief */}
+          <div className="border-t border-gray-200">
+            {researchBrief ? (
+              <Section title="Research Brief" defaultOpen={true}>
+                <ResearchBriefPanel
+                  attachment={researchBrief}
+                  onDelete={handleDeleteBrief}
+                />
+              </Section>
+            ) : (
+              <div className="px-5 py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-700">Research Brief</h3>
+                  <span className="text-xs text-gray-400">No research attached</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPromptModal(true)}
+                    className="px-3 py-1.5 text-xs font-medium bg-[#041E42] text-white rounded-lg hover:bg-[#041E42]/90"
+                  >
+                    Generate Research Prompt
+                  </button>
+                  <button
+                    onClick={() => setShowAttachModal(true)}
+                    className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Attach Research Brief
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Meta */}
           <div className="px-5 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100">
             <div className="flex justify-between">
@@ -285,6 +353,21 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
             </div>
           </div>
         </div>
+
+        {/* Modals */}
+        {showPromptModal && (
+          <ResearchPromptModal
+            prospect={p}
+            onClose={() => setShowPromptModal(false)}
+          />
+        )}
+        {showAttachModal && (
+          <AttachResearchModal
+            prospect={p}
+            onClose={() => setShowAttachModal(false)}
+            onSaved={handleBriefSaved}
+          />
+        )}
       </div>
     </>
   )
