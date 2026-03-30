@@ -5,7 +5,7 @@
  *   node scripts/seed-prospects.js
  *
  * If public/PSB_Aquila_Alliance_Consolidated_Pipeline.xlsx exists, imports from it.
- * Otherwise, seeds the known wave-assigned companies from the spec.
+ * Otherwise, seeds the known group-assigned companies from the spec.
  *
  * Requires DATABASE_URL environment variable.
  */
@@ -56,9 +56,9 @@ const EXCEL_TO_DB = {
   'Notes': 'notes',
 }
 
-// Wave pre-assignments from spec
-const WAVE_ASSIGNMENTS = {
-  'Wave 1': [
+// Group pre-assignments from spec
+const GROUP_ASSIGNMENTS = {
+  'Group 1': [
     { company: 'Matrix Tool, Inc.', rank: 1 },
     { company: 'X-Cell Tool & Mold', rank: 2 },
     { company: 'C&J Industries, Inc.', rank: 3 },
@@ -69,7 +69,7 @@ const WAVE_ASSIGNMENTS = {
     { company: 'Currier Plastics' },
     { company: 'Allegheny Performance Plastics' },
   ],
-  'Wave 2': [
+  'Group 2': [
     { company: 'Venture Plastics' },
     { company: 'Ferriot Inc.' },
     { company: 'Accudyn Products' },
@@ -115,19 +115,19 @@ function fuzzyMatch(a, b) {
   return normalize(a) === normalize(b) || normalize(a).includes(normalize(b)) || normalize(b).includes(normalize(a))
 }
 
-function getWaveAssignment(companyName) {
-  for (const [wave, companies] of Object.entries(WAVE_ASSIGNMENTS)) {
+function getGroupAssignment(companyName) {
+  for (const [group, companies] of Object.entries(GROUP_ASSIGNMENTS)) {
     for (const entry of companies) {
       if (fuzzyMatch(companyName, entry.company)) {
-        return { engagement_wave: wave, outreach_rank: entry.rank || null }
+        return { outreach_group: group, outreach_rank: entry.rank || null }
       }
     }
   }
-  return { engagement_wave: 'Unassigned', outreach_rank: null }
+  return { outreach_group: 'Unassigned', outreach_rank: null }
 }
 
 async function insertProspect(row) {
-  const { engagement_wave, outreach_rank } = getWaveAssignment(row.company || '')
+  const { outreach_group, outreach_rank } = getGroupAssignment(row.company || '')
 
   await sql`
     INSERT INTO prospect_companies (
@@ -137,7 +137,7 @@ async function insertProspect(row) {
       press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
       key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
       engagement_type, suggested_next_step, legacy_data_potential, notes,
-      engagement_wave, outreach_rank
+      outreach_group, outreach_rank
     ) VALUES (
       ${row.company}, ${row.also_known_as}, ${row.website}, ${row.category}, ${row.in_house_tooling},
       ${row.city}, ${row.state}, ${row.geography_tier}, ${row.source_report}, ${row.priority},
@@ -145,7 +145,7 @@ async function insertProspect(row) {
       ${row.press_count}, ${row.signal_count}, ${row.top_signal}, ${row.rjg_cavity_pressure}, ${row.medical_device_mfg},
       ${row.key_certifications}, ${row.ownership_type}, ${row.recent_ma}, ${row.cwp_contacts}, ${row.psb_connection_notes},
       ${row.engagement_type}, ${row.suggested_next_step}, ${row.legacy_data_potential}, ${row.notes},
-      ${engagement_wave}, ${outreach_rank}
+      ${outreach_group}, ${outreach_rank}
     )
   `
 }
@@ -192,10 +192,10 @@ async function seedFromExcel(filePath) {
 }
 
 async function seedKnownCompanies() {
-  console.log('Excel file not found. Seeding known wave-assigned companies...')
+  console.log('Excel file not found. Seeding known group-assigned companies...')
 
   const knownCompanies = [
-    // Wave 1
+    // Group 1
     { company: 'Matrix Tool, Inc.', city: 'Fairview', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY' },
     { company: 'X-Cell Tool & Mold', city: 'Fairview', state: 'PA', category: 'Mold Maker', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY' },
     { company: 'C&J Industries, Inc.', city: 'Meadville', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY' },
@@ -204,7 +204,7 @@ async function seedKnownCompanies() {
     // Time-Sensitive
     { company: 'Currier Plastics', city: 'Auburn', state: 'NY', category: 'Converter', geography_tier: 'Tier 2', priority: 'HIGH PRIORITY', notes: 'PE acquisition Sept 2025 — inside optimal window NOW' },
     { company: 'Allegheny Performance Plastics', city: 'Meadville', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', notes: 'PE acquisition Oct 2025' },
-    // Wave 2
+    // Group 2
     { company: 'Venture Plastics', category: 'Converter', priority: 'QUALIFIED' },
     { company: 'Ferriot Inc.', category: 'Converter+Tooling', priority: 'QUALIFIED' },
     { company: 'Accudyn Products', category: 'Converter', priority: 'QUALIFIED' },
@@ -245,7 +245,7 @@ async function seedKnownCompanies() {
     inserted++
   }
 
-  console.log(`Inserted ${inserted} known companies with wave assignments`)
+  console.log(`Inserted ${inserted} known companies with group assignments`)
 }
 
 async function main() {

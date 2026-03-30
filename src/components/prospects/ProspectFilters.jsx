@@ -1,18 +1,20 @@
 import { useState } from 'react'
 
-const WAVE_OPTIONS = ['All', 'Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const CATEGORY_OPTIONS = ['All', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
 const GEO_OPTIONS = ['All', 'Tier 1', 'Tier 2', 'Infrastructure']
+const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 const PRESETS = [
-  { label: 'Wave 1', filter: { wave: 'Wave 1' } },
-  { label: 'Wave 2', filter: { wave: 'Wave 2' } },
-  { label: 'Time-Sensitive', filter: { wave: 'Time-Sensitive' } },
+  { label: 'Group 1', filter: { group: 'Group 1' } },
+  { label: 'Group 2', filter: { group: 'Group 2' } },
+  { label: 'Time-Sensitive', filter: { group: 'Time-Sensitive' } },
   { label: 'Medical Molders', filter: { preset: 'medical' } },
   { label: 'Converter+Tooling', filter: { category: 'Converter+Tooling' } },
   { label: 'Tier 1 Local', filter: { geo: 'Tier 1' } },
   { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
+  { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },
 ]
 
 function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount }) {
@@ -20,12 +22,14 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
 
   const handlePreset = (preset) => {
     if (preset.filter.preset === 'medical') {
-      onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: 'medical' })
+      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'medical' })
     } else if (preset.filter.preset === 'warm_leads') {
-      onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: 'warm_leads' })
+      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'warm_leads' })
+    } else if (preset.filter.preset === 'ready_for_research') {
+      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'ready_for_research' })
     } else {
-      const newFilters = { wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: null }
-      if (preset.filter.wave) newFilters.wave = preset.filter.wave
+      const newFilters = { group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null }
+      if (preset.filter.group) newFilters.group = preset.filter.group
       if (preset.filter.category) newFilters.category = preset.filter.category
       if (preset.filter.geo) newFilters.geo = preset.filter.geo
       onFilterChange(newFilters)
@@ -34,7 +38,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
 
   const handleClear = () => {
     setSearchText('')
-    onFilterChange({ wave: 'All', category: 'All', priority: 'All', geo: 'All', search: '', preset: null })
+    onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
   }
 
   const handleSearch = (value) => {
@@ -45,14 +49,15 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
   const isActivePreset = (preset) => {
     if (preset.filter.preset === 'medical') return filters.preset === 'medical'
     if (preset.filter.preset === 'warm_leads') return filters.preset === 'warm_leads'
-    if (preset.filter.wave) return filters.wave === preset.filter.wave
+    if (preset.filter.preset === 'ready_for_research') return filters.preset === 'ready_for_research'
+    if (preset.filter.group) return filters.group === preset.filter.group
     if (preset.filter.category) return filters.category === preset.filter.category
     if (preset.filter.geo) return filters.geo === preset.filter.geo
     return false
   }
 
-  const hasActiveFilters = filters.wave !== 'All' || filters.category !== 'All' ||
-    filters.priority !== 'All' || filters.geo !== 'All' || filters.search || filters.preset
+  const hasActiveFilters = filters.group !== 'All' || filters.category !== 'All' ||
+    filters.priority !== 'All' || filters.geo !== 'All' || filters.status !== 'All' || filters.search || filters.preset
 
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-4 space-y-3">
@@ -108,11 +113,11 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
         <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Filters:</label>
 
         <select
-          value={filters.wave}
-          onChange={(e) => onFilterChange({ ...filters, wave: e.target.value, preset: null })}
+          value={filters.group}
+          onChange={(e) => onFilterChange({ ...filters, group: e.target.value, preset: null })}
           className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
         >
-          {WAVE_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Waves' : o}</option>)}
+          {GROUP_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Groups' : o}</option>)}
         </select>
 
         <select
@@ -137,6 +142,14 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
           className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
         >
           {GEO_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Geographies' : o}</option>)}
+        </select>
+
+        <select
+          value={filters.status}
+          onChange={(e) => onFilterChange({ ...filters, status: e.target.value, preset: null })}
+          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
+        >
+          {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Statuses' : o}</option>)}
         </select>
       </div>
     </div>

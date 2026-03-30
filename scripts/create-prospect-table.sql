@@ -43,11 +43,14 @@ CREATE TABLE IF NOT EXISTS prospect_companies (
   legacy_data_potential TEXT,
   notes TEXT,
 
-  -- NEW dashboard-managed fields (editable by Brett/team)
-  engagement_wave TEXT DEFAULT 'Unassigned',  -- Wave 1, Wave 2, Infrastructure, Time-Sensitive, Unassigned
-  outreach_rank INTEGER,                       -- Manual priority: 1, 2, 3...
-  wave_notes TEXT,                             -- Notes specific to prioritization decisions
-  last_edited_by TEXT,                         -- Track who changed what
+  -- Dashboard-managed fields (editable by Brett/team)
+  outreach_group TEXT DEFAULT 'Unassigned',  -- Group 1, Group 2, Infrastructure, Time-Sensitive, Unassigned
+  outreach_rank INTEGER,                      -- Manual priority: 1, 2, 3...
+  group_notes TEXT,                           -- Notes specific to prioritization decisions
+  last_edited_by TEXT,                        -- Track who changed what
+
+  -- Prospect lifecycle status
+  prospect_status TEXT DEFAULT 'Identified',  -- Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS prospect_companies (
 CREATE INDEX IF NOT EXISTS idx_prospect_category ON prospect_companies(category);
 CREATE INDEX IF NOT EXISTS idx_prospect_priority ON prospect_companies(priority);
 CREATE INDEX IF NOT EXISTS idx_prospect_geography ON prospect_companies(geography_tier);
-CREATE INDEX IF NOT EXISTS idx_prospect_wave ON prospect_companies(engagement_wave);
+CREATE INDEX IF NOT EXISTS idx_prospect_group ON prospect_companies(outreach_group);
 CREATE INDEX IF NOT EXISTS idx_prospect_rank ON prospect_companies(outreach_rank);
 CREATE INDEX IF NOT EXISTS idx_prospect_medical ON prospect_companies(medical_device_mfg);
+CREATE INDEX IF NOT EXISTS idx_prospect_status ON prospect_companies(prospect_status);

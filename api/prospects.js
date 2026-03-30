@@ -18,15 +18,15 @@ export default async function handler(req, res) {
     // Analytics aggregation
     if (action === 'analytics') {
       try {
-        const { category, priority, geography_tier, engagement_wave, medical_device_mfg } = req.query
+        const { category, priority, geography_tier, outreach_group, medical_device_mfg } = req.query
 
         // Build WHERE clause from filters
         const conditions = []
         const params = []
 
-        if (engagement_wave) {
-          params.push(engagement_wave)
-          conditions.push(`engagement_wave = $${params.length}`)
+        if (outreach_group) {
+          params.push(outreach_group)
+          conditions.push(`outreach_group = $${params.length}`)
         }
         if (category) {
           params.push(category)
@@ -49,20 +49,20 @@ export default async function handler(req, res) {
 
         // Run all aggregation queries in parallel
         const [
-          waveCounts,
+          groupCounts,
           categoryCounts,
           geoCounts,
           signalData,
           readinessData,
           ownershipData,
-          waveTopCompanies,
+          groupTopCompanies,
           recentMA,
         ] = await Promise.all([
-          // Wave summary counts
+          // Group summary counts
           sql.query(
-            `SELECT engagement_wave, COUNT(*)::int AS count
+            `SELECT outreach_group, COUNT(*)::int AS count
              FROM prospect_companies ${whereClause}
-             GROUP BY engagement_wave ORDER BY count DESC`,
+             GROUP BY outreach_group ORDER BY count DESC`,
             params
           ),
           // Category breakdown
@@ -82,7 +82,7 @@ export default async function handler(req, res) {
           // Signal analysis (scatter data)
           sql.query(
             `SELECT id, company, signal_count, cwp_contacts, press_count,
-                    revenue_est_m, engagement_wave, medical_device_mfg
+                    revenue_est_m, outreach_group, medical_device_mfg
              FROM prospect_companies ${whereClause}
              ORDER BY signal_count DESC NULLS LAST`,
             params
@@ -101,17 +101,17 @@ export default async function handler(req, res) {
              GROUP BY ownership_type ORDER BY count DESC`,
             params
           ),
-          // Top company per wave (by signal_count)
+          // Top company per group (by signal_count)
           sql.query(
-            `SELECT DISTINCT ON (engagement_wave)
-               engagement_wave, company, signal_count, outreach_rank
+            `SELECT DISTINCT ON (outreach_group)
+               outreach_group, company, signal_count, outreach_rank
              FROM prospect_companies ${whereClause}
-             ORDER BY engagement_wave, outreach_rank ASC NULLS LAST, signal_count DESC NULLS LAST`,
+             ORDER BY outreach_group, outreach_rank ASC NULLS LAST, signal_count DESC NULLS LAST`,
             params
           ),
           // Recent M&A companies
           sql.query(
-            `SELECT id, company, ownership_type, recent_ma, engagement_wave
+            `SELECT id, company, ownership_type, recent_ma, outreach_group
              FROM prospect_companies
              ${whereClause ? whereClause + ' AND' : 'WHERE'} recent_ma IS NOT NULL AND recent_ma != ''
              ORDER BY company`,
@@ -148,8 +148,8 @@ export default async function handler(req, res) {
         readinessGoldCompanies = goldResult.map(r => r.company)
 
         return res.status(200).json({
-          waves: waveCounts,
-          waveTopCompanies: waveTopCompanies,
+          groups: groupCounts,
+          groupTopCompanies: groupTopCompanies,
           categories: categoryCounts,
           geography: geoCounts,
           signals: signalData,
@@ -180,17 +180,17 @@ export default async function handler(req, res) {
 
     // List all with optional filters
     try {
-      const { category, priority, geography_tier, engagement_wave, medical_device_mfg } = req.query
+      const { category, priority, geography_tier, outreach_group, medical_device_mfg, prospect_status } = req.query
 
       let prospects
 
-      if (category || priority || geography_tier || engagement_wave || medical_device_mfg) {
+      if (category || priority || geography_tier || outreach_group || medical_device_mfg || prospect_status) {
         const conditions = []
         const params = []
 
-        if (engagement_wave) {
-          params.push(engagement_wave)
-          conditions.push(`engagement_wave = $${params.length}`)
+        if (outreach_group) {
+          params.push(outreach_group)
+          conditions.push(`outreach_group = $${params.length}`)
         }
         if (category) {
           params.push(category)
@@ -208,16 +208,20 @@ export default async function handler(req, res) {
           params.push(medical_device_mfg)
           conditions.push(`medical_device_mfg = $${params.length}`)
         }
+        if (prospect_status) {
+          params.push(prospect_status)
+          conditions.push(`prospect_status = $${params.length}`)
+        }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
         const queryText = `
           SELECT * FROM prospect_companies
           ${whereClause}
           ORDER BY
-            CASE engagement_wave
-              WHEN 'Wave 1' THEN 1
+            CASE outreach_group
+              WHEN 'Group 1' THEN 1
               WHEN 'Time-Sensitive' THEN 2
-              WHEN 'Wave 2' THEN 3
+              WHEN 'Group 2' THEN 3
               WHEN 'Infrastructure' THEN 4
               ELSE 5
             END,
@@ -229,10 +233,10 @@ export default async function handler(req, res) {
         prospects = await sql`
           SELECT * FROM prospect_companies
           ORDER BY
-            CASE engagement_wave
-              WHEN 'Wave 1' THEN 1
+            CASE outreach_group
+              WHEN 'Group 1' THEN 1
               WHEN 'Time-Sensitive' THEN 2
-              WHEN 'Wave 2' THEN 3
+              WHEN 'Group 2' THEN 3
               WHEN 'Infrastructure' THEN 4
               ELSE 5
             END,
@@ -263,29 +267,29 @@ export default async function handler(req, res) {
         }
 
         const companies = [
-          // Wave 1 (ranked 1-5)
-          { company: 'Matrix Tool, Inc.', city: 'Fairview', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 1 },
-          { company: 'X-Cell Tool & Mold', city: 'Fairview', state: 'PA', category: 'Mold Maker', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 2 },
-          { company: 'C&J Industries, Inc.', city: 'Meadville', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 3 },
-          { company: 'Automation Plastics Corp', city: 'Aurora', state: 'OH', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 4 },
-          { company: 'Erie Molded Plastics', city: 'Erie', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Wave 1', outreach_rank: 5 },
+          // Group 1 (ranked 1-5)
+          { company: 'Matrix Tool, Inc.', city: 'Fairview', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Group 1', outreach_rank: 1 },
+          { company: 'X-Cell Tool & Mold', city: 'Fairview', state: 'PA', category: 'Mold Maker', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Group 1', outreach_rank: 2 },
+          { company: 'C&J Industries, Inc.', city: 'Meadville', state: 'PA', category: 'Converter+Tooling', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Group 1', outreach_rank: 3 },
+          { company: 'Automation Plastics Corp', city: 'Aurora', state: 'OH', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Group 1', outreach_rank: 4 },
+          { company: 'Erie Molded Plastics', city: 'Erie', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Group 1', outreach_rank: 5 },
           // Time-Sensitive
-          { company: 'Currier Plastics', city: 'Auburn', state: 'NY', category: 'Converter', geography_tier: 'Tier 2', priority: 'HIGH PRIORITY', engagement_wave: 'Time-Sensitive', notes: 'PE acquisition Sept 2025 — inside optimal window NOW' },
-          { company: 'Allegheny Performance Plastics', city: 'Meadville', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', engagement_wave: 'Time-Sensitive', notes: 'PE acquisition Oct 2025' },
-          // Wave 2
-          { company: 'Venture Plastics', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'Ferriot Inc.', category: 'Converter+Tooling', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'Accudyn Products', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'Caplugs/Protective Industries', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'TTMP/PRISM Plastics', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'Adler Industrial Solutions', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
-          { company: 'Essentra Components', category: 'Converter', priority: 'QUALIFIED', engagement_wave: 'Wave 2' },
+          { company: 'Currier Plastics', city: 'Auburn', state: 'NY', category: 'Converter', geography_tier: 'Tier 2', priority: 'HIGH PRIORITY', outreach_group: 'Time-Sensitive', notes: 'PE acquisition Sept 2025 — inside optimal window NOW' },
+          { company: 'Allegheny Performance Plastics', city: 'Meadville', state: 'PA', category: 'Converter', geography_tier: 'Tier 1', priority: 'HIGH PRIORITY', outreach_group: 'Time-Sensitive', notes: 'PE acquisition Oct 2025' },
+          // Group 2
+          { company: 'Venture Plastics', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'Ferriot Inc.', category: 'Converter+Tooling', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'Accudyn Products', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'Caplugs/Protective Industries', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'TTMP/PRISM Plastics', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'Adler Industrial Solutions', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
+          { company: 'Essentra Components', category: 'Converter', priority: 'QUALIFIED', outreach_group: 'Group 2' },
           // Infrastructure
-          { company: 'RJG Inc.', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
-          { company: 'DME Company', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
-          { company: 'Husky Technologies', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
-          { company: 'Mold-Masters', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
-          { company: 'Beaumont Technologies', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', engagement_wave: 'Infrastructure' },
+          { company: 'RJG Inc.', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', outreach_group: 'Infrastructure' },
+          { company: 'DME Company', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', outreach_group: 'Infrastructure' },
+          { company: 'Husky Technologies', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', outreach_group: 'Infrastructure' },
+          { company: 'Mold-Masters', category: 'Hot Runner Systems', priority: 'STRATEGIC PARTNER', outreach_group: 'Infrastructure' },
+          { company: 'Beaumont Technologies', category: 'Knowledge Sector', priority: 'STRATEGIC PARTNER', outreach_group: 'Infrastructure' },
         ]
 
         let inserted = 0
@@ -293,11 +297,11 @@ export default async function handler(req, res) {
           await sql`
             INSERT INTO prospect_companies (
               company, city, state, category, geography_tier, priority,
-              engagement_wave, outreach_rank, notes
+              outreach_group, outreach_rank, notes
             ) VALUES (
               ${c.company}, ${c.city || null}, ${c.state || null}, ${c.category || null},
               ${c.geography_tier || null}, ${c.priority || null},
-              ${c.engagement_wave || 'Unassigned'}, ${c.outreach_rank || null}, ${c.notes || null}
+              ${c.outreach_group || 'Unassigned'}, ${c.outreach_rank || null}, ${c.notes || null}
             )
           `
           inserted++
@@ -332,7 +336,7 @@ export default async function handler(req, res) {
 
           // Check if company already exists (case-insensitive)
           const existing = await sql`
-            SELECT id, engagement_wave, outreach_rank, wave_notes, last_edited_by
+            SELECT id, outreach_group, outreach_rank, group_notes, last_edited_by
             FROM prospect_companies
             WHERE LOWER(TRIM(company)) = LOWER(${company})
             LIMIT 1
@@ -382,7 +386,7 @@ export default async function handler(req, res) {
                 press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
                 key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
                 engagement_type, suggested_next_step, legacy_data_potential, notes,
-                engagement_wave, outreach_rank
+                outreach_group, outreach_rank
               ) VALUES (
                 ${company}, ${p.also_known_as || null}, ${p.website || null}, ${p.category || null}, ${p.in_house_tooling || null},
                 ${p.city || null}, ${p.state || null}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
@@ -426,7 +430,7 @@ export default async function handler(req, res) {
           press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
           key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
           engagement_type, suggested_next_step, legacy_data_potential, notes,
-          engagement_wave, outreach_rank, wave_notes, last_edited_by
+          outreach_group, outreach_rank, group_notes, last_edited_by
         ) VALUES (
           ${company.trim()}, ${b.also_known_as || null}, ${b.website || null}, ${b.category || null}, ${b.in_house_tooling || null},
           ${b.city || null}, ${b.state || null}, ${b.geography_tier || null}, ${b.source_report || null}, ${b.priority || null},
@@ -434,7 +438,7 @@ export default async function handler(req, res) {
           ${b.press_count || null}, ${b.signal_count || null}, ${b.top_signal || null}, ${b.rjg_cavity_pressure || null}, ${b.medical_device_mfg || null},
           ${b.key_certifications || null}, ${b.ownership_type || null}, ${b.recent_ma || null}, ${b.cwp_contacts || null}, ${b.psb_connection_notes || null},
           ${b.engagement_type || null}, ${b.suggested_next_step || null}, ${b.legacy_data_potential || null}, ${b.notes || null},
-          ${b.engagement_wave || 'Unassigned'}, ${b.outreach_rank || null}, ${b.wave_notes || null}, ${b.last_edited_by || null}
+          ${b.outreach_group || 'Unassigned'}, ${b.outreach_rank || null}, ${b.group_notes || null}, ${b.last_edited_by || null}
         )
         RETURNING *
       `
@@ -459,7 +463,7 @@ export default async function handler(req, res) {
       'press_count', 'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
       'key_certifications', 'ownership_type', 'recent_ma', 'cwp_contacts', 'psb_connection_notes',
       'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
-      'engagement_wave', 'outreach_rank', 'wave_notes', 'last_edited_by',
+      'outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by', 'prospect_status',
     ]
 
     const setClauses = []

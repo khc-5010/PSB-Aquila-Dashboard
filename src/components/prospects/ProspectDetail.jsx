@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 
-import WaveBadge from './WaveBadge'
+import OutreachGroupBadge from './OutreachGroupBadge'
+import StatusBadge from './StatusBadge'
 
-const WAVE_OPTIONS = ['Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 function displayValue(val) {
   if (val === null || val === undefined || val === '') return '\u2014'
@@ -114,12 +116,15 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
         <div className="flex-shrink-0 bg-[#041E42] px-5 py-4">
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
+                <StatusBadge status={p.prospect_status} />
+              </div>
               {p.also_known_as && (
                 <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
               )}
               <div className="flex items-center gap-2 mt-2">
-                <WaveBadge wave={p.engagement_wave} />
+                <OutreachGroupBadge group={p.outreach_group} />
                 {p.outreach_rank && (
                   <span className="text-white/70 text-sm">Rank #{p.outreach_rank}</span>
                 )}
@@ -142,14 +147,27 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
           <Section title="Engagement Planning" defaultOpen={true}>
             <div className="space-y-3">
               <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Wave</dt>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Group</dt>
                 <dd className="mt-0.5">
                   <select
-                    value={p.engagement_wave || 'Unassigned'}
-                    onChange={(e) => onUpdate(p.id, 'engagement_wave', e.target.value)}
+                    value={p.outreach_group || 'Unassigned'}
+                    onChange={(e) => onUpdate(p.id, 'outreach_group', e.target.value)}
                     className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                   >
-                    {WAVE_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                    {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                  </select>
+                </dd>
+              </div>
+
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</dt>
+                <dd className="mt-0.5">
+                  <select
+                    value={p.prospect_status || 'Identified'}
+                    onChange={(e) => onUpdate(p.id, 'prospect_status', e.target.value)}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                  >
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </dd>
               </div>
@@ -179,9 +197,9 @@ function ProspectDetail({ prospect, onClose, onUpdate }) {
               />
 
               <EditableField
-                label="Wave Notes"
-                value={p.wave_notes}
-                onSave={(val) => onUpdate(p.id, 'wave_notes', val)}
+                label="Group Notes"
+                value={p.group_notes}
+                onSave={(val) => onUpdate(p.id, 'group_notes', val)}
                 multiline
               />
 

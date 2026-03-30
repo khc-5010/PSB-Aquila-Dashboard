@@ -4,14 +4,14 @@ import { useAuth } from '../../context/AuthContext'
 const CATEGORY_OPTIONS = ['', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
 const GEO_OPTIONS = ['', 'Tier 1', 'Tier 2', 'Infrastructure']
-const WAVE_OPTIONS = ['Unassigned', 'Wave 1', 'Wave 2', 'Time-Sensitive', 'Infrastructure']
+const GROUP_OPTIONS = ['Unassigned', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure']
 const TOOLING_OPTIONS = ['', 'Yes', 'No', 'N/A']
 
 function AddCompanyModal({ onClose, onSuccess }) {
   const { user } = useAuth()
   const [form, setForm] = useState({
     company: '', category: '', city: '', state: '', priority: '',
-    geography_tier: '', website: '', notes: '', engagement_wave: 'Unassigned',
+    geography_tier: '', website: '', notes: '', outreach_group: 'Unassigned',
     also_known_as: '', in_house_tooling: '', employees_approx: '', year_founded: '',
     revenue_est_m: '', ownership_type: '', source_report: '', engagement_type: '',
     suggested_next_step: '', cwp_contacts: '', psb_connection_notes: '',
@@ -130,9 +130,9 @@ function AddCompanyModal({ onClose, onSuccess }) {
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Engagement Wave</label>
-                <select value={form.engagement_wave} onChange={(e) => handleChange('engagement_wave', e.target.value)} className={inputClass}>
-                  {WAVE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                <label className={labelClass}>Outreach Group</label>
+                <select value={form.outreach_group} onChange={(e) => handleChange('outreach_group', e.target.value)} className={inputClass}>
+                  {GROUP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
             </div>
