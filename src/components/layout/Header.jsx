@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
 
-function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
+function Header({ dbStatus, activeView, onViewChange }) {
   const { user, logout, authFetch } = useAuth()
   const [showAdmin, setShowAdmin] = useState(false)
   const [showChangePin, setShowChangePin] = useState(false)
@@ -77,15 +77,6 @@ function Header({ dbStatus, onAddOpportunity, activeView, onViewChange }) {
 
           {/* Right side - Actions and user */}
           <div className="flex items-center gap-4">
-            {activeView === 'pipeline' && (
-              <button
-                onClick={onAddOpportunity}
-                className="px-4 py-2 text-sm font-medium text-white bg-white/20 rounded-lg hover:bg-white/30 transition-colors border border-white/30"
-              >
-                + Add Opportunity
-              </button>
-            )}
-
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
               dbStatus === 'connected'
                 ? 'bg-green-500/20 text-green-200'

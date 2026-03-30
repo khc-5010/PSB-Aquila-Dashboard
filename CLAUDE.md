@@ -20,7 +20,9 @@ src/
 │   ├── ui/              # Reusable UI components (Button, Card, Modal, etc.)
 │   ├── pipeline/        # Kanban board, columns, opportunity cards
 │   ├── prospects/       # Prospect pipeline table, detail panel, filters, wave badges, analytics charts
-│   │   └── charts/      # Chart components: WaveSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
+│   │   ├── charts/      # Chart components: WaveSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
+│   │   ├── AddCompanyModal.jsx    # Single-company add form (POST /api/prospects)
+│   │   └── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -193,6 +195,8 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 - `ProspectFilters` — Filter bar with preset buttons (Wave 1, Wave 2, Time-Sensitive, Medical Molders, Converter+Tooling, Tier 1 Local)
 - `ProspectDetail` — Right slide-out panel (follows OpportunityDetail pattern) with all 29 fields in sections
 - `WaveBadge` — Colored badge: Wave 1=green, Wave 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
+- `AddCompanyModal` — Form modal for adding a single company (company name required, primary fields + collapsible "More Details" section). POSTs to `/api/prospects`.
+- `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `engagement_wave`, `outreach_rank`, `wave_notes`, or `last_edited_by` so the server preserves existing user-edited values.
 
 ### Wave Pre-Assignments
 Wave 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation Plastics Corp, Erie Molded Plastics
