@@ -243,7 +243,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       aquilaLead: owner,
       industryLead: 'TBD',
       psbContact: 'TBD',
-      researchLead: opportunity?.project_type === 'research' ? 'Alicyn Rhoades' : 'TBD',
+      researchLead: opportunity?.project_type === 'Research Agreement' ? 'Alicyn Rhoades' : 'TBD',
     }
   }
 
@@ -463,8 +463,8 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
             </div>
           </div>
 
-          {/* Outcome Actions - Show for active/negotiation stages without outcome */}
-          {['active', 'negotiation'].includes(opportunity.stage) && !opportunity.outcome && (
+          {/* Outcome Actions - Show for active/complete stages without outcome */}
+          {['active', 'project_setup'].includes(opportunity.stage) && !opportunity.outcome && (
             <div className="px-6 py-5 border-b border-gray-100 bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 Close Opportunity

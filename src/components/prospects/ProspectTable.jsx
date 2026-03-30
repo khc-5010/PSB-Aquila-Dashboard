@@ -487,6 +487,11 @@ function ProspectTable() {
                       {p.also_known_as && (
                         <span className="text-xs text-gray-400 ml-1">({p.also_known_as})</span>
                       )}
+                      {(p.conversion_count ?? 0) > 0 && (
+                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
+                          {p.conversion_count}
+                        </span>
+                      )}
                     </div>
                   </td>
 

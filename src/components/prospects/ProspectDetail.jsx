@@ -5,6 +5,7 @@ import StatusBadge from './StatusBadge'
 import ResearchPromptModal from './ResearchPromptModal'
 import AttachResearchModal from './AttachResearchModal'
 import ResearchBriefPanel from './ResearchBriefPanel'
+import ConvertToOpportunityModal from './ConvertToOpportunityModal'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -103,6 +104,7 @@ function EditableField({ label, value, onSave, multiline = false }) {
 function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [showAttachModal, setShowAttachModal] = useState(false)
+  const [showConvertModal, setShowConvertModal] = useState(false)
   const [attachments, setAttachments] = useState([])
 
   const fetchAttachments = useCallback(async () => {
@@ -175,6 +177,24 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
             </button>
           </div>
         </div>
+
+        {/* Promote to Pipeline button */}
+        {(p.prospect_status === 'Outreach Ready' || p.prospect_status === 'Converted') && (
+          <div className="flex-shrink-0 px-5 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
+            <button
+              onClick={() => setShowConvertModal(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#041E42] rounded-lg hover:bg-[#041E42]/90 transition-colors shadow-sm"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              Promote to Pipeline
+              {p.prospect_status === 'Converted' && (
+                <span className="text-xs text-white/60 ml-1">(add another)</span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
@@ -366,6 +386,15 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
             prospect={p}
             onClose={() => setShowAttachModal(false)}
             onSaved={handleBriefSaved}
+          />
+        )}
+        {showConvertModal && (
+          <ConvertToOpportunityModal
+            prospect={p}
+            onClose={() => setShowConvertModal(false)}
+            onSuccess={() => {
+              if (onRefresh) onRefresh()
+            }}
           />
         )}
       </div>

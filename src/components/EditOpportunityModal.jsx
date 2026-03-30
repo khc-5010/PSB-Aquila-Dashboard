@@ -5,8 +5,8 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
     company_name: '',
     description: '',
-    project_type: 'tbd',
-    stage: 'lead',
+    project_type: '',
+    stage: 'channel_routing',
     owner: '',
     est_value: '',
     source: '',
@@ -22,8 +22,8 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       setFormData({
         company_name: opportunity.company_name || '',
         description: opportunity.description || '',
-        project_type: opportunity.project_type || 'tbd',
-        stage: opportunity.stage || 'lead',
+        project_type: opportunity.project_type || '',
+        stage: opportunity.stage || 'channel_routing',
         owner: opportunity.owner || '',
         est_value: opportunity.est_value ? String(opportunity.est_value) : '',
         source: opportunity.source || '',

@@ -182,7 +182,12 @@ export default async function handler(req, res) {
     // Single prospect by ID
     if (id) {
       try {
-        const result = await sql`SELECT * FROM prospect_companies WHERE id = ${id}`
+        const result = await sql`
+          SELECT p.*,
+            (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+          FROM prospect_companies p
+          WHERE p.id = ${id}
+        `
         if (!result || result.length === 0) {
           return res.status(404).json({ error: 'Prospect not found' })
         }
@@ -230,33 +235,37 @@ export default async function handler(req, res) {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
         const queryText = `
-          SELECT * FROM prospect_companies
+          SELECT p.*,
+            (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+          FROM prospect_companies p
           ${whereClause}
           ORDER BY
-            CASE outreach_group
+            CASE p.outreach_group
               WHEN 'Group 1' THEN 1
               WHEN 'Time-Sensitive' THEN 2
               WHEN 'Group 2' THEN 3
               WHEN 'Infrastructure' THEN 4
               ELSE 5
             END,
-            outreach_rank ASC NULLS LAST,
-            signal_count DESC NULLS LAST
+            p.outreach_rank ASC NULLS LAST,
+            p.signal_count DESC NULLS LAST
         `
         prospects = await sql.query(queryText, params)
       } else {
         prospects = await sql`
-          SELECT * FROM prospect_companies
+          SELECT p.*,
+            (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+          FROM prospect_companies p
           ORDER BY
-            CASE outreach_group
+            CASE p.outreach_group
               WHEN 'Group 1' THEN 1
               WHEN 'Time-Sensitive' THEN 2
               WHEN 'Group 2' THEN 3
               WHEN 'Infrastructure' THEN 4
               ELSE 5
             END,
-            outreach_rank ASC NULLS LAST,
-            signal_count DESC NULLS LAST
+            p.outreach_rank ASC NULLS LAST,
+            p.signal_count DESC NULLS LAST
         `
       }
 
