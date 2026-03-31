@@ -25,6 +25,8 @@ const EXCEL_TO_DB = {
   'key certifications': 'key_certifications',
   'ownership type': 'ownership_type',
   'recent m&a': 'recent_ma',
+  'parent company': 'parent_company',
+  'decision location': 'decision_location',
   'cwp contacts': 'cwp_contacts',
   'psb connection notes': 'psb_connection_notes',
   'engagement type': 'engagement_type',

@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS prospect_companies (
   -- Relationship data
   ownership_type TEXT,
   recent_ma TEXT,
+  -- Acquisition context (Brett's naming convention, March 2026)
+  parent_company TEXT,          -- Holding company or acquiring entity (null if independent)
+  decision_location TEXT,       -- City/State where engagement decisions are made (null if same as operations)
   cwp_contacts INTEGER,
   psb_connection_notes TEXT,
 
@@ -64,3 +67,4 @@ CREATE INDEX IF NOT EXISTS idx_prospect_group ON prospect_companies(outreach_gro
 CREATE INDEX IF NOT EXISTS idx_prospect_rank ON prospect_companies(outreach_rank);
 CREATE INDEX IF NOT EXISTS idx_prospect_medical ON prospect_companies(medical_device_mfg);
 CREATE INDEX IF NOT EXISTS idx_prospect_status ON prospect_companies(prospect_status);
+CREATE INDEX IF NOT EXISTS idx_prospect_parent ON prospect_companies(parent_company);

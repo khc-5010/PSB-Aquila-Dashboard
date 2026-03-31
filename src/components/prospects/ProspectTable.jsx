@@ -46,7 +46,7 @@ function exportToCSV(data, filename) {
     'employees_approx', 'year_founded', 'years_in_business',
     'revenue_known', 'revenue_est_m', 'press_count',
     'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
-    'key_certifications', 'ownership_type', 'recent_ma',
+    'key_certifications', 'ownership_type', 'recent_ma', 'parent_company', 'decision_location',
     'cwp_contacts', 'psb_connection_notes',
     'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
     'outreach_group', 'outreach_rank', 'group_notes', 'prospect_status', 'website'
@@ -483,10 +483,12 @@ function ProspectTable() {
                           (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-500' : 'bg-amber-400'
                         }`} title={`${p.cwp_contacts} CWP contacts`} />
                       )}
-                      <span className="text-sm font-medium text-gray-900">{p.company}</span>
-                      {p.also_known_as && (
-                        <span className="text-xs text-gray-400 ml-1">({p.also_known_as})</span>
-                      )}
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-gray-900">{p.company}</span>
+                        {p.also_known_as && (
+                          <div className="text-xs text-gray-400 italic">fka {p.also_known_as}</div>
+                        )}
+                      </div>
                       {(p.conversion_count ?? 0) > 0 && (
                         <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
                           {p.conversion_count}
