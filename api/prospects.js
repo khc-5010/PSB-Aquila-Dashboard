@@ -443,6 +443,8 @@ export default async function handler(req, res) {
                 key_certifications = COALESCE(${p.key_certifications || null}, key_certifications),
                 ownership_type = COALESCE(${p.ownership_type || null}, ownership_type),
                 recent_ma = COALESCE(${p.recent_ma || null}, recent_ma),
+                parent_company = COALESCE(${p.parent_company || null}, parent_company),
+                decision_location = COALESCE(${p.decision_location || null}, decision_location),
                 cwp_contacts = COALESCE(${p.cwp_contacts || null}, cwp_contacts),
                 psb_connection_notes = COALESCE(${p.psb_connection_notes || null}, psb_connection_notes),
                 engagement_type = COALESCE(${p.engagement_type || null}, engagement_type),
@@ -459,7 +461,8 @@ export default async function handler(req, res) {
                 city, state, geography_tier, source_report, priority,
                 employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
                 press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
-                key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
+                key_certifications, ownership_type, recent_ma, parent_company, decision_location,
+                cwp_contacts, psb_connection_notes,
                 engagement_type, suggested_next_step, legacy_data_potential, notes,
                 outreach_group, outreach_rank
               ) VALUES (
@@ -467,7 +470,8 @@ export default async function handler(req, res) {
                 ${p.city || null}, ${p.state || null}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
                 ${p.employees_approx || null}, ${p.year_founded || null}, ${p.years_in_business || null}, ${p.revenue_known || null}, ${p.revenue_est_m || null},
                 ${p.press_count || null}, ${p.signal_count || null}, ${p.top_signal || null}, ${p.rjg_cavity_pressure || null}, ${p.medical_device_mfg || null},
-                ${p.key_certifications || null}, ${p.ownership_type || null}, ${p.recent_ma || null}, ${p.cwp_contacts || null}, ${p.psb_connection_notes || null},
+                ${p.key_certifications || null}, ${p.ownership_type || null}, ${p.recent_ma || null}, ${p.parent_company || null}, ${p.decision_location || null},
+                ${p.cwp_contacts || null}, ${p.psb_connection_notes || null},
                 ${p.engagement_type || null}, ${p.suggested_next_step || null}, ${p.legacy_data_potential || null}, ${p.notes || null},
                 'Unassigned', ${null}
               )
@@ -503,7 +507,8 @@ export default async function handler(req, res) {
           city, state, geography_tier, source_report, priority,
           employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
           press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
-          key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
+          key_certifications, ownership_type, recent_ma, parent_company, decision_location,
+          cwp_contacts, psb_connection_notes,
           engagement_type, suggested_next_step, legacy_data_potential, notes,
           outreach_group, outreach_rank, group_notes, last_edited_by
         ) VALUES (
@@ -511,7 +516,8 @@ export default async function handler(req, res) {
           ${b.city || null}, ${b.state || null}, ${b.geography_tier || null}, ${b.source_report || null}, ${b.priority || null},
           ${b.employees_approx || null}, ${b.year_founded || null}, ${b.years_in_business || null}, ${b.revenue_known || null}, ${b.revenue_est_m || null},
           ${b.press_count || null}, ${b.signal_count || null}, ${b.top_signal || null}, ${b.rjg_cavity_pressure || null}, ${b.medical_device_mfg || null},
-          ${b.key_certifications || null}, ${b.ownership_type || null}, ${b.recent_ma || null}, ${b.cwp_contacts || null}, ${b.psb_connection_notes || null},
+          ${b.key_certifications || null}, ${b.ownership_type || null}, ${b.recent_ma || null}, ${b.parent_company || null}, ${b.decision_location || null},
+          ${b.cwp_contacts || null}, ${b.psb_connection_notes || null},
           ${b.engagement_type || null}, ${b.suggested_next_step || null}, ${b.legacy_data_potential || null}, ${b.notes || null},
           ${b.outreach_group || 'Unassigned'}, ${b.outreach_rank || null}, ${b.group_notes || null}, ${b.last_edited_by || null}
         )
@@ -539,6 +545,7 @@ export default async function handler(req, res) {
       'key_certifications', 'ownership_type', 'recent_ma', 'cwp_contacts', 'psb_connection_notes',
       'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
       'outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by', 'prospect_status',
+      'parent_company', 'decision_location',
     ]
 
     const setClauses = []

@@ -283,6 +283,16 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
               <Field label="Priority" value={p.priority} />
               <Field label="Ownership Type" value={p.ownership_type} />
               <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
+              <EditableField
+                label="Parent Company"
+                value={p.parent_company}
+                onSave={(val) => onUpdate(p.id, 'parent_company', val)}
+              />
+              <EditableField
+                label="Decision Location"
+                value={p.decision_location}
+                onSave={(val) => onUpdate(p.id, 'decision_location', val)}
+              />
             </dl>
           </Section>
 

@@ -13,7 +13,8 @@ function AddCompanyModal({ onClose, onSuccess }) {
     company: '', category: '', city: '', state: '', priority: '',
     geography_tier: '', website: '', notes: '', outreach_group: 'Unassigned',
     also_known_as: '', in_house_tooling: '', employees_approx: '', year_founded: '',
-    revenue_est_m: '', ownership_type: '', source_report: '', engagement_type: '',
+    revenue_est_m: '', ownership_type: '', parent_company: '', decision_location: '',
+    source_report: '', engagement_type: '',
     suggested_next_step: '', cwp_contacts: '', psb_connection_notes: '',
   })
   const [showMore, setShowMore] = useState(false)
@@ -187,6 +188,14 @@ function AddCompanyModal({ onClose, onSuccess }) {
                   <div>
                     <label className={labelClass}>Ownership Type</label>
                     <input type="text" value={form.ownership_type} onChange={(e) => handleChange('ownership_type', e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Parent Company</label>
+                    <input type="text" value={form.parent_company} onChange={(e) => handleChange('parent_company', e.target.value)} className={inputClass} placeholder="Holding/acquiring entity" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Decision Location</label>
+                    <input type="text" value={form.decision_location} onChange={(e) => handleChange('decision_location', e.target.value)} className={inputClass} placeholder="City, ST" />
                   </div>
                   <div>
                     <label className={labelClass}>Source Report</label>

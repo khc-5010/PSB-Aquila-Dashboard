@@ -203,7 +203,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `geography_tier`, `source_report`, `priority`
   - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`
   - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg`, `key_certifications`
-  - Relationships: `ownership_type`, `recent_ma`, `cwp_contacts`, `psb_connection_notes`
+  - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
   - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture

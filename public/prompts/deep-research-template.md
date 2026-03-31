@@ -26,6 +26,8 @@ The following intelligence was generated through a signal-based scoring framewor
 | **Medical Device Mfg** | {{medical_device_mfg}} |
 | **Key Certifications** | {{key_certifications}} |
 | **Ownership** | {{ownership_type}} — Recent M&A: {{recent_ma}} |
+| **Parent Company** | {{parent_company}} |
+| **Decision Location** | {{decision_location}} |
 | **CWP Contacts** | {{cwp_contacts}} — Notes: {{psb_connection_notes}} |
 | **Engagement Type** | {{engagement_type}} |
 | **Legacy Data Potential** | {{legacy_data_potential}} |
