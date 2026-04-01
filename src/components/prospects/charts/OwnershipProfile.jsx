@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Chart as ChartJS,
   ArcElement,
@@ -13,7 +14,49 @@ const OWNERSHIP_COLORS = [
   '#0d9488', '#f59e0b', '#ec4899', '#9ca3af',
 ]
 
+const TOP_N = 8
+
+const OWNERSHIP_PARENT_RULES = [
+  { prefix: 'Family/Founder', parent: 'Family/Founder' },
+  { prefix: 'Family-owned', parent: 'Family/Founder' },
+  { prefix: 'PE-Backed', parent: 'PE-Backed' },
+  { prefix: 'Corporate/Strategic', parent: 'Corporate/Strategic' },
+  { prefix: 'PE ', parent: 'PE' },
+  { exact: 'PE', parent: 'PE' },
+  { prefix: 'Private', parent: 'Private' },
+  { prefix: 'Privately', parent: 'Private' },
+  { prefix: 'ESOP', parent: 'ESOP' },
+  { prefix: 'Public', parent: 'Public' },
+  { prefix: 'Subsidiary', parent: 'Subsidiary' },
+  { prefix: 'Owner-operated', parent: 'Private' },
+  { prefix: 'Foreign', parent: 'Other' },
+  { prefix: 'Acquired', parent: 'Other' },
+]
+
+function getParentOwnership(type) {
+  for (const rule of OWNERSHIP_PARENT_RULES) {
+    if (rule.exact && type === rule.exact) return rule.parent
+    if (rule.prefix && (type === rule.prefix || type.startsWith(rule.prefix))) return rule.parent
+  }
+  return 'Other'
+}
+
+function groupByParent(rawData) {
+  const map = {}
+  for (const row of rawData) {
+    const parent = getParentOwnership(row.ownership_type)
+    if (!map[parent]) {
+      map[parent] = { parent, count: 0, children: [] }
+    }
+    map[parent].count += row.count
+    map[parent].children.push({ ownership_type: row.ownership_type, count: row.count })
+  }
+  return Object.values(map).sort((a, b) => b.count - a.count)
+}
+
 function OwnershipProfile({ ownership, recentMA, loading }) {
+  const [expanded, setExpanded] = useState(false)
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
@@ -25,11 +68,11 @@ function OwnershipProfile({ ownership, recentMA, loading }) {
     )
   }
 
-  const data = (ownership || []).filter(o => o.ownership_type)
-  const total = data.reduce((s, r) => s + r.count, 0)
+  const rawData = (ownership || []).filter(o => o.ownership_type)
+  const total = rawData.reduce((s, r) => s + r.count, 0)
   const maList = recentMA || []
 
-  if (data.length === 0 && maList.length === 0) {
+  if (rawData.length === 0 && maList.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Ownership & Investment</h3>
@@ -40,12 +83,38 @@ function OwnershipProfile({ ownership, recentMA, loading }) {
     )
   }
 
+  const grouped = groupByParent(rawData)
+
+  // Build display data for chart: top N with overflow into "Other"
+  let displayData
+  if (grouped.length > TOP_N) {
+    const top = grouped.slice(0, TOP_N)
+    const rest = grouped.slice(TOP_N)
+    const otherCount = rest.reduce((s, g) => s + g.count, 0)
+    const otherChildren = rest.flatMap(g => g.children)
+    // Check if there's already an "Other" in top
+    const existingOther = top.find(g => g.parent === 'Other')
+    if (existingOther) {
+      existingOther.count += otherCount
+      existingOther.children = [...existingOther.children, ...otherChildren]
+      existingOther.isOverflow = true
+      displayData = top
+    } else {
+      displayData = [
+        ...top,
+        { parent: 'Other', count: otherCount, children: otherChildren, isOverflow: true },
+      ]
+    }
+  } else {
+    displayData = grouped
+  }
+
   const chartData = {
-    labels: data.map(r => r.ownership_type),
+    labels: displayData.map(g => g.parent),
     datasets: [
       {
-        data: data.map(r => r.count),
-        backgroundColor: data.map((_, i) => OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length]),
+        data: displayData.map(g => g.count),
+        backgroundColor: displayData.map((_, i) => OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length]),
         borderWidth: 0,
         hoverOffset: 4,
       },
@@ -69,11 +138,15 @@ function OwnershipProfile({ ownership, recentMA, loading }) {
     },
   }
 
+  const showToggle = grouped.length > TOP_N
+  // For legend: show all groups when expanded, otherwise just displayData
+  const legendData = expanded ? grouped : displayData
+
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ownership & Investment</h3>
       <div className="flex gap-6">
-        {data.length > 0 && (
+        {rawData.length > 0 && (
           <>
             <div className="relative w-40 h-40 flex-shrink-0">
               <Doughnut data={chartData} options={options} />
@@ -87,19 +160,43 @@ function OwnershipProfile({ ownership, recentMA, loading }) {
 
             <div className="flex-1 flex flex-col justify-center">
               <div className="space-y-1.5">
-                {data.map((row, i) => (
-                  <div key={row.ownership_type} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-2.5 h-2.5 rounded-full"
-                        style={{ backgroundColor: OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length] }}
-                      />
-                      <span className="text-xs text-gray-600">{row.ownership_type}</span>
+                {legendData.map((group, i) => (
+                  <div key={group.parent}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: OWNERSHIP_COLORS[i % OWNERSHIP_COLORS.length] }}
+                        />
+                        <span className={`text-xs ${expanded ? 'font-semibold text-gray-700' : 'text-gray-600'}`}>
+                          {group.parent}
+                        </span>
+                      </div>
+                      <span className="text-xs font-semibold text-gray-900">{group.count}</span>
                     </div>
-                    <span className="text-xs font-semibold text-gray-900">{row.count}</span>
+                    {expanded && group.children.length > 1 && (
+                      <div className="ml-4">
+                        {group.children
+                          .sort((a, b) => b.count - a.count)
+                          .map(child => (
+                            <div key={child.ownership_type} className="text-xs text-gray-500 pl-5">
+                              · {child.ownership_type} — {child.count}
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
+
+              {showToggle && (
+                <button
+                  onClick={() => setExpanded(e => !e)}
+                  className="text-xs text-blue-600 hover:text-blue-800 cursor-pointer mt-2 flex items-center gap-1"
+                >
+                  {expanded ? 'Show less \u25B4' : 'Show all \u25BE'}
+                </button>
+              )}
             </div>
           </>
         )}
