@@ -179,6 +179,11 @@ function ProspectTable() {
       let bVal = b[sortConfig.key]
       if (aVal === null || aVal === undefined) aVal = ''
       if (bVal === null || bVal === undefined) bVal = ''
+      // Composite sort: state sorts by "STATE, City" so states group together
+      if (sortConfig.key === 'state') {
+        aVal = `${a.state || ''}, ${a.city || ''}`
+        bVal = `${b.state || ''}, ${b.city || ''}`
+      }
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal
       }
@@ -378,8 +383,8 @@ function ProspectTable() {
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-36 cursor-pointer" onClick={() => handleSort('category')}>
                 Category <SortIcon column="category" />
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-32 cursor-pointer" onClick={() => handleSort('city')}>
-                Location <SortIcon column="city" />
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-32 cursor-pointer" onClick={() => handleSort('state')}>
+                Location <SortIcon column="state" />
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('priority')}>
                 Priority <SortIcon column="priority" />
