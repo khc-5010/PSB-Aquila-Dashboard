@@ -45,7 +45,25 @@ function parseSections(markdown) {
   if (sections.length === 0) {
     return [{ title: 'Report Content', content: markdown.trim() }]
   }
-  return sections
+
+  // Merge date-only section headers into the following section
+  const datePattern = /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}$/i
+  const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/
+  const merged = []
+  for (let i = 0; i < sections.length; i++) {
+    const title = sections[i].title.trim()
+    if (datePattern.test(title) || isoDatePattern.test(title)) {
+      if (i + 1 < sections.length) {
+        const datePrefix = `*Report date: ${title}*\n\n`
+        sections[i + 1].content = datePrefix + (sections[i].content ? sections[i].content + '\n\n' : '') + sections[i + 1].content
+      } else {
+        merged.push(sections[i])
+      }
+    } else {
+      merged.push(sections[i])
+    }
+  }
+  return merged.length > 0 ? merged : sections
 }
 
 function SectionAccordion({ title, content, defaultOpen = true }) {

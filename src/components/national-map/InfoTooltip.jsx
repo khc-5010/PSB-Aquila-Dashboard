@@ -28,7 +28,7 @@ export default function InfoTooltip({ text }) {
       {show && (
         <span
           role="tooltip"
-          className={`absolute z-50 left-1/2 -translate-x-1/2 max-w-[250px] px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-normal leading-relaxed pointer-events-none ${
+          className={`absolute z-50 left-1/2 -translate-x-1/2 min-w-[200px] w-max max-w-[250px] px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-normal break-words leading-relaxed pointer-events-none ${
             above ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
           }`}
         >
