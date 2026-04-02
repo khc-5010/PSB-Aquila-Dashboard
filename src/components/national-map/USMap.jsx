@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { US_STATES } from '../../data/us-states'
+import { FRESHNESS_THRESHOLDS, getFreshnessInfo } from './StateReportSection'
 
 function getMetricValue(data, metric) {
   if (!data) return 0
@@ -32,7 +33,20 @@ function getColor(value, min, max, hasData) {
   }
 }
 
-function USMap({ stateData, activeMetric, selectedState, onStateHover, onStateClick, onMouseMove }) {
+const FRESHNESS_COLORS = {
+  green: '#16A34A',  // Fresh (<30 days)
+  yellow: '#EAB308', // Aging (30-90 days)
+  red: '#DC2626',    // Stale (>90 days)
+  gray: '#E5E7EB',   // No report
+}
+
+function getFreshnessColor(reportMeta) {
+  if (!reportMeta?.researched_at) return FRESHNESS_COLORS.gray
+  const info = getFreshnessInfo(reportMeta.researched_at)
+  return FRESHNESS_COLORS[info.color] || FRESHNESS_COLORS.gray
+}
+
+function USMap({ stateData, reportMeta, activeMetric, selectedState, onStateHover, onStateClick, onMouseMove }) {
   const [hoveredState, setHoveredState] = useState(null)
 
   // Compute min/max for the active metric across states with data
@@ -62,7 +76,9 @@ function USMap({ stateData, activeMetric, selectedState, onStateHover, onStateCl
         const data = stateData[state.id]
         const hasData = data?.prospect_count > 0
         const value = getMetricValue(data, activeMetric)
-        const fill = getColor(value, minVal, maxVal, hasData)
+        const fill = activeMetric === 'freshness'
+          ? getFreshnessColor(reportMeta?.[state.id])
+          : getColor(value, minVal, maxVal, hasData)
         const isHovered = hoveredState === state.id
         const isSelected = selectedState === state.id
 
