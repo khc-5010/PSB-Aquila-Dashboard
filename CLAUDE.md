@@ -24,9 +24,18 @@ src/
 │   │   ├── AddCompanyModal.jsx    # Single-company add form (POST /api/prospects)
 │   │   ├── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
 │   │   └── ConvertToOpportunityModal.jsx  # Promote prospect → pipeline opportunity
+│   ├── national-map/    # National Map tab: interactive US state choropleth
+│   │   ├── NationalMap.jsx       # Main container (data fetch, metric selector, map, legend, detail panel)
+│   │   ├── USMap.jsx             # SVG map component (state paths, hover/click, color fills)
+│   │   ├── StateTooltip.jsx      # Cursor-following tooltip on state hover
+│   │   ├── StateDetailPanel.jsx  # Right slide-out panel on state click
+│   │   ├── MapMetricSelector.jsx # Pill buttons for switching color metric
+│   │   └── MapLegend.jsx         # Color scale legend
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
+├── data/
+│   └── us-states.js     # Static SVG path data for all 50 US states + DC (viewBox 960×600)
 ├── lib/
 │   ├── db.js            # Database connection and queries
 │   ├── api.js           # API client functions
@@ -346,6 +355,45 @@ VITE_API_URL=            # API base URL (if separate backend)
 - Route internally using HTTP method + `req.query` params (`?id=X`, `?action=import`)
 - Current function count: **10** (target: ≤ 12, Vercel Hobby limit)
 - Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`, `auth.js`
+
+## National Map Feature (Phase 1)
+
+### Overview
+Interactive SVG choropleth map of the United States. Each state colored by a selectable metric, derived from `prospect_companies` data grouped by state. No new database tables — purely read-only against existing data.
+
+### Components
+- **Directory**: `src/components/national-map/`
+- **NationalMap.jsx** — Main container: fetches data, manages metric/hover/selection state, composes all sub-components
+- **USMap.jsx** — SVG `<path>` rendering for all 50 states + DC with hover/click handlers and metric-based color fills
+- **StateTooltip.jsx** — Floating tooltip near cursor showing state summary (prospect count, top category, signal avg, CWP total)
+- **StateDetailPanel.jsx** — Right slide-out panel (follows ProspectDetail pattern) with summary stats, category breakdown, priority bar, top companies table, and "Coming Soon" placeholders for Phases 2-6
+- **MapMetricSelector.jsx** — Array-driven pill buttons for switching color metric. Extensible: add new metrics by appending to the `METRICS` array
+- **MapLegend.jsx** — Color gradient scale with min/max labels, updates on metric change
+
+### API Endpoint
+`GET /api/prospects?action=state-stats` — Added inside existing `api/prospects.js` (no new serverless function). Returns per-state aggregations keyed by 2-letter abbreviation:
+- `prospect_count`, `categories` (top 3), `avg_signal`, `cwp_total`, `priorities` breakdown, `top_companies` (top 3)
+- `_totals` key with pipeline-wide aggregates
+
+### Static Data
+`src/data/us-states.js` — SVG path data for all 50 states + DC. ViewBox `0 0 960 600`. Alaska/Hawaii repositioned as insets. Exports `US_STATES` array and `STATE_ABBR_TO_NAME` lookup.
+
+### Metrics (Phase 1)
+| Key | Label | Description |
+|-----|-------|-------------|
+| `prospect_count` | Prospect Count | Number of companies per state (default) |
+| `avg_signal` | Signal Strength | Average signal_count per state |
+| `cwp_total` | CWP Density | Total CWP contacts per state |
+| `priority_mix` | Priority Mix | Proportion of HIGH PRIORITY prospects |
+
+### Color Palette
+- No data: `#E5E7EB` (gray-200)
+- Data gradient: light blue (`#93C5FD`) → blue (`#2563EB`) → navy (`#041E42`)
+- Selected state: amber stroke (`#F59E0B`)
+
+### Phase Roadmap
+- **Phase 1** (current): Map + state stats + detail panel with "Coming Soon" placeholders
+- **Phases 2-6** (future): State Research Reports, Prompt Builder, Ontology Summary — will replace the "Coming Soon" cards in StateDetailPanel
 
 ## Notes
 
