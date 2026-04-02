@@ -444,12 +444,57 @@ When saving a new report for a state that already has one: old report gets `is_c
 ### Phase Roadmap
 - **Phase 1** (complete): Map + state stats + detail panel
 - **Phase 2** (complete): State research reports + freshness tracking + upload modal
-- **Phase 3** (future): Prompt Builder — "Run State Research" button in StateReportSection
+- **Phase 3** (complete): State Prompt Builder + Training Wheels (contextual help)
 - **Phases 4-6** (future): Ontology tables, extraction, visualization
+
+### State Prompt Builder (Phase 3)
+
+**Template**: `public/prompts/state-research-template.md`
+- Two-section structure: Parameter Header (with `{{variables}}`) + Core Alliance Client Prospecting Prompt below the `---` separator
+- The core prompt content (~4,000 words) is sacred — the builder only modifies the parameter header. Everything below the `---` is the "digital Brett" research framework and must not be altered
+- Exception: the Geographic Prioritization section within the core prompt uses `{{state_name}}` and `{{state_code}}` variables for state-specific tier logic
+- Template variables: `state_name`, `state_code`, `research_date`, `requested_by`, `existing_count`, `existing_companies_list`, `focus_instructions`, `min_employees`, `cwp_instructions`, `geo_notes`
+
+**StatePromptBuilderModal** (`src/components/national-map/StatePromptBuilderModal.jsx`)
+- Follows ResearchPromptModal pattern: fetch template from `/prompts/`, cache after first load, inject variables via regex, copy to clipboard
+- Parameter controls: state selector, industry focus checkboxes, minimum employee count, CWP cross-reference toggle, exclude existing companies toggle
+- Two-panel layout: parameters (left/top) + prompt preview (right/bottom)
+- Fetches full prospect list from `GET /api/prospects` for client-side state filtering (exclusion list)
+- Word count indicator in footer
+- Entry points: "Run State Research" button in StateDetailPanel and StateReportSection
+
+### Training Wheels (Phase 3)
+
+**InfoTooltip** (`src/components/national-map/InfoTooltip.jsx`)
+- Reusable `ⓘ` icon with hover tooltip (14px, gray-400, darker on hover)
+- Tooltip: absolute positioned, max-width 250px, bg-gray-900, text-white, text-xs
+- Auto-flips above/below based on viewport position
+- Usage: `<InfoTooltip text="Description text here" />`
+- To add tooltips elsewhere, import and place inline next to any label
+
+**Orientation Card** (in `NationalMap.jsx`)
+- Collapsible intro card at top of map view (blue-50 background, navy border-l-4)
+- Collapses to "ⓘ About this view" link when dismissed
+- Collapse state persisted in `localStorage` key `national-map-orientation-dismissed`
+- This is the ONE localStorage usage for UI preference (not application data)
+
+**Dynamic Subtitles** (in `NationalMap.jsx`)
+- Subtitle below "National Map" header adapts based on active metric
+- Computed from already-fetched state-stats and report metadata — no new API calls
+- Each metric has a custom subtitle format (counts, ranges, freshness breakdown)
+
+**Section Descriptions** (in `StateDetailPanel.jsx`)
+- One-line gray descriptions (`text-xs text-gray-400 mb-1`) above each section in the state detail panel
+- Subtle enough not to clutter, visible enough to orient new users
+
+**Metric Tooltips** (in `MapMetricSelector.jsx`)
+- InfoTooltip placed inside each metric pill button with `ml-1` spacing
+- Each metric has a descriptive tooltip explaining what it measures
 
 ### Ontology (Future — Phase 4+)
 - **Taxonomy reference document**: `docs/plastics-manufacturing-ontology-v1.md` — defines entity types, relationship types, and a starter population extracted from state research reports. Created collaboratively with Duane and Brett. This document is the schema source for future ontology database tables.
 - Phases 4-6 will add ontology tables, extraction from research briefs, and ontology visualization on the National Map.
+- The "Coming Soon: Ontology Summary" placeholder in StateDetailPanel will be replaced in Phase 4.
 
 ## Notes
 
