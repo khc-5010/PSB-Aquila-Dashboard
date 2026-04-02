@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import InfoTooltip from '../national-map/InfoTooltip'
 
 const SECTION_HEADERS = [
   'Pain Points & Opportunities',
@@ -58,7 +59,7 @@ function SectionAccordion({ title, content, defaultOpen = true }) {
   )
 }
 
-export default function ResearchBriefPanel({ attachment, onDelete }) {
+export default function ResearchBriefPanel({ attachment, onDelete, onExtractOntology, onImportOntology }) {
   const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -116,6 +117,31 @@ export default function ResearchBriefPanel({ attachment, onDelete }) {
           >
             {copied ? 'Copied!' : 'Copy Raw Markdown'}
           </button>
+          <span className="text-gray-300">|</span>
+          {onExtractOntology && (
+            <>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={onExtractOntology}
+                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+              >
+                Extract Ontology
+              </button>
+              <InfoTooltip text="Generate a prompt to extract entities and relationships from this brief for the knowledge graph." />
+            </>
+          )}
+          {onImportOntology && (
+            <>
+              <span className="text-gray-300">|</span>
+              <button
+                onClick={onImportOntology}
+                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+              >
+                Import Extraction
+              </button>
+              <InfoTooltip text="Import JSON output from an ontology extraction session into the knowledge graph." />
+            </>
+          )}
           <span className="text-gray-300">|</span>
           <button
             onClick={handleDelete}
