@@ -403,7 +403,19 @@ export default async function handler(req, res) {
     // Analytics aggregation
     if (action === 'analytics') {
       try {
-        const { category, priority, geography_tier, outreach_group, medical_device_mfg } = req.query
+        const { category, priority, geography_tier, corridor, outreach_group, medical_device_mfg } = req.query
+
+        // Corridor-to-states mapping for filtering
+        const CORRIDOR_TO_STATES = {
+          'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
+          'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
+          'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
+          'Gulf / Resin Belt': ['TX','LA','OK','AR'],
+          'Upper Midwest Medical': ['MN'],
+          'West Coast': ['CA','OR','WA'],
+          'Mountain / Central': ['CO','AZ','UT','NV','NM','ID','MT','WY','ND','SD','NE','KS','IA','MO'],
+          'Non-Contiguous': ['AK','HI'],
+        }
 
         // Build WHERE clause from filters
         const conditions = []
@@ -424,6 +436,16 @@ export default async function handler(req, res) {
         if (geography_tier) {
           params.push(geography_tier)
           conditions.push(`geography_tier = $${params.length}`)
+        }
+        if (corridor) {
+          const states = CORRIDOR_TO_STATES[corridor]
+          if (states) {
+            const placeholders = states.map((s, i) => `$${params.length + i + 1}`).join(',')
+            params.push(...states)
+            conditions.push(`state IN (${placeholders})`)
+          } else if (corridor === 'Unknown') {
+            conditions.push(`(state IS NULL OR state = '')`)
+          }
         }
         if (medical_device_mfg) {
           params.push(medical_device_mfg)
@@ -457,11 +479,23 @@ export default async function handler(req, res) {
              GROUP BY category ORDER BY count DESC`,
             params
           ),
-          // Geography distribution
+          // Manufacturing corridors (derived from state)
           sql.query(
-            `SELECT geography_tier, COUNT(*)::int AS count
+            `SELECT
+               CASE
+                 WHEN state IN ('MI','OH','IN','IL','WI') THEN 'Great Lakes Auto'
+                 WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC') THEN 'Northeast Tool'
+                 WHEN state IN ('NC','GA','FL','TN','SC','VA','AL','MS','KY') THEN 'Southeast Growth'
+                 WHEN state IN ('TX','LA','OK','AR') THEN 'Gulf / Resin Belt'
+                 WHEN state = 'MN' THEN 'Upper Midwest Medical'
+                 WHEN state IN ('CA','OR','WA') THEN 'West Coast'
+                 WHEN state IN ('AK','HI') THEN 'Non-Contiguous'
+                 WHEN state IS NOT NULL AND state != '' THEN 'Mountain / Central'
+                 ELSE 'Unknown'
+               END as corridor,
+               COUNT(*)::int AS count
              FROM prospect_companies ${whereClause}
-             GROUP BY geography_tier ORDER BY count DESC`,
+             GROUP BY corridor ORDER BY count DESC`,
             params
           ),
           // Signal analysis (scatter data)
@@ -536,7 +570,7 @@ export default async function handler(req, res) {
           groups: groupCounts,
           groupTopCompanies: groupTopCompanies,
           categories: categoryCounts,
-          geography: geoCounts,
+          corridors: geoCounts,
           signals: signalData,
           readiness: readinessGrouped,
           readinessGoldCompanies,
@@ -570,11 +604,23 @@ export default async function handler(req, res) {
 
     // List all with optional filters
     try {
-      const { category, priority, geography_tier, outreach_group, medical_device_mfg, prospect_status } = req.query
+      const { category, priority, geography_tier, corridor: listCorridor, outreach_group, medical_device_mfg, prospect_status } = req.query
+
+      // Corridor-to-states mapping for list filtering
+      const CORRIDOR_TO_STATES_LIST = {
+        'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
+        'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
+        'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
+        'Gulf / Resin Belt': ['TX','LA','OK','AR'],
+        'Upper Midwest Medical': ['MN'],
+        'West Coast': ['CA','OR','WA'],
+        'Mountain / Central': ['CO','AZ','UT','NV','NM','ID','MT','WY','ND','SD','NE','KS','IA','MO'],
+        'Non-Contiguous': ['AK','HI'],
+      }
 
       let prospects
 
-      if (category || priority || geography_tier || outreach_group || medical_device_mfg || prospect_status) {
+      if (category || priority || geography_tier || listCorridor || outreach_group || medical_device_mfg || prospect_status) {
         const conditions = []
         const params = []
 
@@ -593,6 +639,16 @@ export default async function handler(req, res) {
         if (geography_tier) {
           params.push(geography_tier)
           conditions.push(`geography_tier = $${params.length}`)
+        }
+        if (listCorridor) {
+          const states = CORRIDOR_TO_STATES_LIST[listCorridor]
+          if (states) {
+            const placeholders = states.map((s, i) => `$${params.length + i + 1}`).join(',')
+            params.push(...states)
+            conditions.push(`state IN (${placeholders})`)
+          } else if (listCorridor === 'Unknown') {
+            conditions.push(`(state IS NULL OR state = '')`)
+          }
         }
         if (medical_device_mfg) {
           params.push(medical_device_mfg)

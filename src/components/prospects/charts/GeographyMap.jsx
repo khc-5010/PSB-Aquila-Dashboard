@@ -8,14 +8,19 @@ import { Doughnut } from 'react-chartjs-2'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
-const GEO_COLORS = {
-  'Tier 1': '#041E42',
-  'Tier 2': '#2563eb',
-  'Tier 3': '#f59e0b',
-  'Infrastructure': '#7c3aed',
+const CORRIDOR_COLORS = {
+  'Great Lakes Auto':       '#041E42',
+  'Northeast Tool':         '#2563EB',
+  'Southeast Growth':       '#16A34A',
+  'Gulf / Resin Belt':      '#DC2626',
+  'Upper Midwest Medical':  '#7C3AED',
+  'West Coast':             '#F59E0B',
+  'Mountain / Central':     '#6B7280',
+  'Non-Contiguous':         '#9CA3AF',
+  'Unknown':                '#D1D5DB',
 }
 
-function GeographyMap({ geography, loading, onGeoClick }) {
+function GeographyMap({ corridors, loading, onGeoClick }) {
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
@@ -27,13 +32,13 @@ function GeographyMap({ geography, loading, onGeoClick }) {
     )
   }
 
-  const data = (geography || []).filter(g => g.geography_tier)
+  const data = (corridors || []).filter(c => c.corridor && c.count > 0)
   const total = data.reduce((s, r) => s + r.count, 0)
 
   if (data.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Geography Distribution</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Manufacturing Corridors</h3>
         <div className="flex items-center justify-center h-48 text-gray-400">
           <p className="text-sm">No data available</p>
         </div>
@@ -42,11 +47,11 @@ function GeographyMap({ geography, loading, onGeoClick }) {
   }
 
   const chartData = {
-    labels: data.map(r => r.geography_tier),
+    labels: data.map(r => r.corridor),
     datasets: [
       {
         data: data.map(r => r.count),
-        backgroundColor: data.map(r => GEO_COLORS[r.geography_tier] || '#9CA3AF'),
+        backgroundColor: data.map(r => CORRIDOR_COLORS[r.corridor] || '#9CA3AF'),
         borderWidth: 0,
         hoverOffset: 4,
       },
@@ -60,7 +65,7 @@ function GeographyMap({ geography, loading, onGeoClick }) {
     onClick: (_, elements) => {
       if (elements.length > 0 && onGeoClick) {
         const idx = elements[0].index
-        onGeoClick(data[idx].geography_tier)
+        onGeoClick(data[idx].corridor)
       }
     },
     plugins: {
@@ -78,7 +83,7 @@ function GeographyMap({ geography, loading, onGeoClick }) {
 
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Geography Distribution</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Manufacturing Corridors</h3>
       <div className="flex gap-6">
         <div className="relative w-48 h-48 flex-shrink-0">
           <Doughnut data={chartData} options={options} />
@@ -96,16 +101,16 @@ function GeographyMap({ geography, loading, onGeoClick }) {
               const pct = Math.round((row.count / total) * 100)
               return (
                 <button
-                  key={row.geography_tier}
-                  onClick={() => onGeoClick?.(row.geography_tier)}
+                  key={row.corridor}
+                  onClick={() => onGeoClick?.(row.corridor)}
                   className="flex items-center justify-between w-full text-left hover:bg-gray-50 rounded-lg px-2 py-1 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: GEO_COLORS[row.geography_tier] || '#9CA3AF' }}
+                      style={{ backgroundColor: CORRIDOR_COLORS[row.corridor] || '#9CA3AF' }}
                     />
-                    <span className="text-sm text-gray-700">{row.geography_tier}</span>
+                    <span className="text-sm text-gray-700">{row.corridor}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900">{row.count}</span>

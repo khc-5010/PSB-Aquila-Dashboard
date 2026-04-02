@@ -280,8 +280,30 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - Two options: "Export filtered" (respects current filters) and "Export all" (full dataset)
 - Export button in the sub-view toggle header area of ProspectTable
 
+### Manufacturing Corridors (replaced Geography Tiers)
+The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from the `state` column at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.
+
+**State → Corridor Mapping:**
+| Corridor | States |
+|----------|--------|
+| **Great Lakes Auto** | MI, OH, IN, IL, WI |
+| **Northeast Tool** | PA, NY, CT, NJ, MA, NH, VT, ME, RI, DC |
+| **Southeast Growth** | NC, GA, FL, TN, SC, VA, AL, MS, KY |
+| **Gulf / Resin Belt** | TX, LA, OK, AR |
+| **Upper Midwest Medical** | MN |
+| **West Coast** | CA, OR, WA |
+| **Mountain / Central** | CO, AZ, UT, NV, NM, ID, MT, WY, ND, SD, NE, KS, IA, MO |
+| **Non-Contiguous** | AK, HI |
+
+**Corridor Colors:**
+- Great Lakes Auto: `#041E42` (navy), Northeast Tool: `#2563EB` (blue), Southeast Growth: `#16A34A` (green), Gulf / Resin Belt: `#DC2626` (red), Upper Midwest Medical: `#7C3AED` (purple), West Coast: `#F59E0B` (amber), Mountain / Central: `#6B7280` (gray), Non-Contiguous: `#9CA3AF` (light gray), Unknown: `#D1D5DB`
+
+**Filter preset:** "Home Turf" → filters to Northeast Tool corridor (was "Tier 1 Local")
+
+**Implementation:** Corridors are computed from `state` via SQL CASE expression in the analytics endpoint and a JS lookup map in ProspectTable for client-side filtering. The `corridor` query param maps to `WHERE state IN (...)` clauses. The mapping is defined in three places: `api/prospects.js` (analytics + list endpoints), `src/components/prospects/ProspectTable.jsx` (client-side filter), and `src/components/prospects/charts/GeographyMap.jsx` (colors).
+
 ### Sub-View Toggle Pattern
-The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Tier 1," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, geography segments) updates the shared filter state, affecting both table and chart views.
+The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state, affecting both table and chart views.
 
 ### Research Workflow & Attachments
 - **Deep research prompt template** lives at `public/prompts/deep-research-template.md` with `{{variable}}` placeholders injected from prospect data at render time

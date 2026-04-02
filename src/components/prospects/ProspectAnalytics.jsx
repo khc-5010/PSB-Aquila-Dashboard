@@ -20,7 +20,7 @@ function ProspectAnalytics({ filters, onFilterChange }) {
     const params = new URLSearchParams({ action: 'analytics' })
     if (filters.group && filters.group !== 'All') params.set('outreach_group', filters.group)
     if (filters.category && filters.category !== 'All') params.set('category', filters.category)
-    if (filters.geo && filters.geo !== 'All') params.set('geography_tier', filters.geo)
+    if (filters.geo && filters.geo !== 'All') params.set('corridor', filters.geo)
     if (filters.priority && filters.priority !== 'All') params.set('priority', filters.priority)
     if (filters.preset === 'medical') params.set('medical_device_mfg', 'Yes')
 
@@ -82,7 +82,7 @@ function ProspectAnalytics({ filters, onFilterChange }) {
         </div>
         <div className="col-span-12 lg:col-span-6">
           <GeographyMap
-            geography={data?.geography}
+            corridors={data?.corridors}
             loading={loading}
             onGeoClick={handleGeoClick}
           />
