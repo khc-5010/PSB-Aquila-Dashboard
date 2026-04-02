@@ -286,6 +286,27 @@ export default async function handler(req, res) {
       }
     }
 
+    // All ontology entities grouped by type (for extraction prompt deduplication)
+    if (action === 'ontology-existing-entities') {
+      try {
+        const rows = await sql`
+          SELECT et.name AS type_name, e.name AS entity_name
+          FROM ontology_entities e
+          JOIN ontology_entity_types et ON et.id = e.type_id
+          ORDER BY et.name, e.name
+        `
+        const grouped = {}
+        for (const row of rows) {
+          if (!grouped[row.type_name]) grouped[row.type_name] = []
+          grouped[row.type_name].push(row.entity_name)
+        }
+        return res.status(200).json(grouped)
+      } catch (error) {
+        console.error('Error fetching ontology existing entities:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attachments for a prospect
     if (action === 'attachments' && id) {
       try {
@@ -700,6 +721,132 @@ export default async function handler(req, res) {
         })
       } catch (error) {
         console.error('Error rebuilding ontology Layer 1:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Ontology: Layer 2 import from extraction ───
+    if (action === 'import-ontology-extraction') {
+      try {
+        const { prospect_id, entities, relationships } = req.body
+
+        // Validate required fields
+        if (!prospect_id) {
+          return res.status(400).json({ error: 'prospect_id is required' })
+        }
+        if (!Array.isArray(entities) || entities.length === 0) {
+          return res.status(400).json({ error: 'entities must be a non-empty array' })
+        }
+        if (!Array.isArray(relationships)) {
+          return res.status(400).json({ error: 'relationships must be an array' })
+        }
+
+        // Look up prospect
+        const prospectRows = await sql`SELECT id, company, source_report FROM prospect_companies WHERE id = ${prospect_id}`
+        if (prospectRows.length === 0) {
+          return res.status(404).json({ error: 'Prospect not found' })
+        }
+        const prospect = prospectRows[0]
+
+        // Load entity type and relationship type lookups
+        const [entityTypes, relTypes] = await Promise.all([
+          sql`SELECT id, name FROM ontology_entity_types`,
+          sql`SELECT id, name FROM ontology_relationship_types`,
+        ])
+        const typeMap = {}
+        for (const t of entityTypes) typeMap[t.name] = t.id
+        const relMap = {}
+        for (const r of relTypes) relMap[r.name] = r.id
+
+        // Find or create the Company entity for this prospect
+        let companyEntityRows = await sql`
+          SELECT id FROM ontology_entities
+          WHERE prospect_company_id = ${prospect_id} AND type_id = ${typeMap['Company']}
+          LIMIT 1
+        `
+        let companyEntityId
+        if (companyEntityRows.length > 0) {
+          companyEntityId = companyEntityRows[0].id
+        } else {
+          // Create Company entity if it doesn't exist (Layer 1 not yet run)
+          const created = await sql`
+            INSERT INTO ontology_entities (type_id, name, prospect_company_id, source, confidence, layer)
+            VALUES (${typeMap['Company']}, ${prospect.company}, ${prospect_id}, ${prospect.source_report}, 'Confirmed', 2)
+            ON CONFLICT (type_id, name) DO UPDATE SET
+              prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id),
+              updated_at = NOW()
+            RETURNING id
+          `
+          companyEntityId = created[0].id
+        }
+
+        let entitiesCreated = 0
+        let entitiesUpdated = 0
+        let relationshipsCreated = 0
+        let relationshipsSkipped = 0
+
+        // Map to track entity name → id for relationship resolution
+        const entityIdMap = {}
+        entityIdMap[prospect.company] = companyEntityId
+
+        // Process entities
+        for (const e of entities) {
+          const entityTypeId = typeMap[e.type]
+          if (!entityTypeId) continue // skip unknown types
+
+          const name = (e.name || '').trim().replace(/\s+/g, ' ')
+          if (!name) continue
+
+          const result = await sql`
+            INSERT INTO ontology_entities (type_id, name, source, confidence, layer)
+            VALUES (${entityTypeId}, ${name}, ${prospect.source_report}, ${e.confidence || 'Confirmed'}, 2)
+            ON CONFLICT (type_id, name) DO UPDATE SET
+              updated_at = NOW(),
+              layer = GREATEST(ontology_entities.layer, 2)
+            RETURNING id, (xmax = 0) AS inserted
+          `
+          const entityId = result[0]?.id
+          if (entityId) {
+            entityIdMap[name] = entityId
+            if (result[0].inserted) {
+              entitiesCreated++
+            } else {
+              entitiesUpdated++
+            }
+          }
+        }
+
+        // Process relationships
+        for (const r of relationships) {
+          const relTypeId = relMap[r.relationship_type]
+          if (!relTypeId) { relationshipsSkipped++; continue }
+
+          // Resolve subject: use company entity for company name, otherwise look up
+          const subjectId = entityIdMap[r.subject] || companyEntityId
+          const objectId = entityIdMap[r.object]
+          if (!objectId) { relationshipsSkipped++; continue }
+
+          const result = await sql`
+            INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
+            VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${prospect.source_report}, ${r.confidence || 'Confirmed'}, 2)
+            ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
+          `
+          // neon returns affected rows info via result
+          if (result.count > 0) {
+            relationshipsCreated++
+          } else {
+            relationshipsSkipped++
+          }
+        }
+
+        return res.status(200).json({
+          entities_created: entitiesCreated,
+          entities_updated: entitiesUpdated,
+          relationships_created: relationshipsCreated,
+          relationships_skipped: relationshipsSkipped,
+        })
+      } catch (error) {
+        console.error('Error importing ontology extraction:', error)
         return res.status(500).json({ error: error.message })
       }
     }

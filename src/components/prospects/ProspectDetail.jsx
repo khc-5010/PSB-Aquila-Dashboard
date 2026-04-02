@@ -6,6 +6,8 @@ import ResearchPromptModal from './ResearchPromptModal'
 import AttachResearchModal from './AttachResearchModal'
 import ResearchBriefPanel from './ResearchBriefPanel'
 import ConvertToOpportunityModal from './ConvertToOpportunityModal'
+import ExtractionPromptModal from './ExtractionPromptModal'
+import ImportOntologyModal from './ImportOntologyModal'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -105,6 +107,8 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
+  const [showExtractionModal, setShowExtractionModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [attachments, setAttachments] = useState([])
 
   const fetchAttachments = useCallback(async () => {
@@ -349,6 +353,8 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
                 <ResearchBriefPanel
                   attachment={researchBrief}
                   onDelete={handleDeleteBrief}
+                  onExtractOntology={() => setShowExtractionModal(true)}
+                  onImportOntology={() => setShowImportModal(true)}
                 />
               </Section>
             ) : (
@@ -403,6 +409,22 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
             prospect={p}
             onClose={() => setShowConvertModal(false)}
             onSuccess={() => {
+              if (onRefresh) onRefresh()
+            }}
+          />
+        )}
+        {showExtractionModal && researchBrief && (
+          <ExtractionPromptModal
+            prospect={p}
+            attachment={researchBrief}
+            onClose={() => setShowExtractionModal(false)}
+          />
+        )}
+        {showImportModal && (
+          <ImportOntologyModal
+            prospect={p}
+            onClose={() => setShowImportModal(false)}
+            onImported={() => {
               if (onRefresh) onRefresh()
             }}
           />

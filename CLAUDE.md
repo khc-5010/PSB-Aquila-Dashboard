@@ -505,7 +505,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 
 #### Layer 1 vs Layer 2
 - **Layer 1 (auto-derived):** Reads structured `prospect_companies` columns and generates entities + relationships automatically. Zero manual effort.
-- **Layer 2 (Phase 5, future):** Will extract richer data from research brief narrative text via AI.
+- **Layer 2 (Research-extracted):** Extracts richer data from research brief narrative text via a manual prompt-copy-paste workflow. See "Layer 2 Ontology Extraction" section below.
 
 #### Layer 1 Field-to-Entity Mapping
 | Prospect Field | Entity Type | Relationship |
@@ -534,8 +534,37 @@ SQL migration: `scripts/create-ontology-tables.sql`
 - Fetches data via `ontology-state-summary` endpoint
 - Includes InfoTooltip on all section headers
 
+#### Layer 2 Ontology Extraction (Phase 5)
+
+**Manual workflow** for extracting entities and relationships from research brief narrative text:
+
+1. Open a prospect with a saved research brief in ProspectDetail
+2. Click "Extract Ontology" in the brief metadata row → ExtractionPromptModal opens
+3. Modal fetches the extraction template from `/prompts/ontology-extraction-template.md`, injects prospect data + brief content + existing entities (for deduplication), displays assembled prompt
+4. User copies prompt to clipboard, runs in a separate Claude session (web search off)
+5. Claude returns structured JSON with entities + relationships
+6. User clicks "Import Extraction" → ImportOntologyModal opens
+7. Paste JSON → "Parse & Preview" shows entities/relationships tables with confidence levels
+8. "Import" saves Layer 2 data to the same ontology tables (layer = 2)
+
+**Extraction Template**: `public/prompts/ontology-extraction-template.md`
+- Variables: `{{company}}`, `{{id}}`, `{{category}}`, `{{state}}`, `{{source_report}}`, `{{brief_content}}`, `{{existing_entities}}`
+- This is a technical utility template (iterable), unlike the sacred deep research template
+
+**UI Components**:
+- `ResearchBriefPanel.jsx` — "Extract Ontology" and "Import Extraction" buttons in metadata row (only visible when a brief exists)
+- `ExtractionPromptModal.jsx` — Follows ResearchPromptModal pattern: fetch template, inject variables, copy to clipboard, word count
+- `ImportOntologyModal.jsx` — Two-step: paste JSON → preview & confirm → save. Validates JSON structure, entity types, relationship types before import.
+
+**API Endpoints** (both in `api/prospects.js`):
+- `GET /api/prospects?action=ontology-existing-entities` — All entities grouped by type name (for deduplication in extraction prompt)
+- `POST /api/prospects?action=import-ontology-extraction` — Import extracted JSON. Body: `{ prospect_id, entities[], relationships[] }`. UPSERTs entities (ON CONFLICT updates timestamp), inserts relationships (ON CONFLICT DO NOTHING). Returns `{ entities_created, entities_updated, relationships_created, relationships_skipped }`.
+
+**Layer 2 coexistence with Layer 1**: Same ontology tables, distinguished by `layer` column (1 vs 2). Layer 1 rebuild does NOT delete Layer 2 data. Entity UPSERT uses `GREATEST(layer, 2)` to preserve the higher layer marker. Relationships use DO NOTHING on conflict so Layer 1 and Layer 2 don't create duplicates.
+
+**Entity types extracted by Layer 2**: Technology / Software, Equipment Brand, Quality Method, Material, Market Vertical, Manufacturing Process, Workforce Capability, Company (acquirers/partners)
+
 #### Phase Roadmap
-- **Phase 5 (future):** Layer 2 extraction from research briefs
 - **Phase 6 (future):** Ontology Density as a National Map metric
 
 ## Notes
