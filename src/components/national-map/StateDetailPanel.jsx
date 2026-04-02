@@ -1,4 +1,30 @@
-function StateDetailPanel({ stateId, stateName, data, onClose }) {
+import { useState, useEffect } from 'react'
+import StateReportSection from './StateReportSection'
+
+function StateDetailPanel({ stateId, stateName, data, onClose, onReportChanged }) {
+  const [report, setReport] = useState(null)
+  const [reportLoading, setReportLoading] = useState(false)
+
+  // Fetch full report when state changes
+  useEffect(() => {
+    if (!stateId) return
+    setReportLoading(true)
+    setReport(null)
+    fetch(`/api/prospects?action=state-report&state=${stateId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { setReport(data); setReportLoading(false) })
+      .catch(() => setReportLoading(false))
+  }, [stateId])
+
+  function handleReportSaved() {
+    // Re-fetch the report
+    fetch(`/api/prospects?action=state-report&state=${stateId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setReport(data))
+    // Notify parent to refresh freshness data
+    if (onReportChanged) onReportChanged()
+  }
+
   if (!stateId) return null
 
   const hasData = data && data.prospect_count > 0
@@ -161,12 +187,29 @@ function StateDetailPanel({ stateId, stateName, data, onClose }) {
                 </div>
               )}
 
+              {/* State Research Report */}
+              {reportLoading ? (
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Research Report</h3>
+                  <div className="flex items-center justify-center py-6">
+                    <div className="w-5 h-5 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin" />
+                  </div>
+                </div>
+              ) : (
+                <StateReportSection
+                  stateCode={stateId}
+                  stateName={stateName}
+                  report={report}
+                  currentProspectCount={data?.prospect_count || 0}
+                  onReportSaved={handleReportSaved}
+                />
+              )}
+
               {/* Coming Soon Placeholders */}
               <div className="px-5 py-4">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Coming Soon</h3>
                 <div className="space-y-3">
                   {[
-                    { title: 'State Research Report', desc: 'AI-generated analysis of industry landscape and opportunities' },
                     { title: 'Prompt Builder', desc: 'Generate targeted research prompts for this state' },
                     { title: 'Ontology Summary', desc: 'Industry knowledge graph connections and insights' },
                   ].map((item) => (

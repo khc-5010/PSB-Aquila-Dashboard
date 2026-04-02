@@ -10,6 +10,7 @@ import { US_STATES } from '../../data/us-states'
 function NationalMap() {
   const [stateData, setStateData] = useState({})
   const [totals, setTotals] = useState(null)
+  const [reportMeta, setReportMeta] = useState({}) // keyed by state_code
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeMetric, setActiveMetric] = useState('prospect_count')
@@ -17,22 +18,38 @@ function NationalMap() {
   const [selectedState, setSelectedState] = useState(null)
   const [selectedStateName, setSelectedStateName] = useState(null)
 
-  // Fetch state stats on mount
+  function fetchReportMeta() {
+    fetch('/api/prospects?action=state-reports')
+      .then(res => res.ok ? res.json() : [])
+      .then(reports => {
+        const lookup = {}
+        for (const r of reports) lookup[r.state_code] = r
+        setReportMeta(lookup)
+      })
+      .catch(() => {})
+  }
+
+  // Fetch state stats and report metadata on mount
   useEffect(() => {
     setLoading(true)
-    fetch('/api/prospects?action=state-stats')
-      .then(res => {
+    Promise.all([
+      fetch('/api/prospects?action=state-stats').then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
-      })
-      .then(data => {
-        const { _totals, ...states } = data
+      }),
+      fetch('/api/prospects?action=state-reports').then(res => res.ok ? res.json() : []),
+    ])
+      .then(([statsData, reports]) => {
+        const { _totals, ...states } = statsData
         setStateData(states)
         setTotals(_totals)
+        const lookup = {}
+        for (const r of reports) lookup[r.state_code] = r
+        setReportMeta(lookup)
         setLoading(false)
       })
       .catch(err => {
-        console.error('Error fetching state stats:', err)
+        console.error('Error fetching map data:', err)
         setError(err.message)
         setLoading(false)
       })
@@ -60,9 +77,11 @@ function NationalMap() {
     setSelectedStateName(null)
   }, [])
 
-  // Compute min/max for legend
+  // Compute min/max for legend (not used for freshness metric)
   const statesWithData = US_STATES.filter(s => stateData[s.id]?.prospect_count > 0)
-  const values = statesWithData.map(s => getMetricValue(stateData[s.id], activeMetric))
+  const values = activeMetric !== 'freshness'
+    ? statesWithData.map(s => getMetricValue(stateData[s.id], activeMetric))
+    : []
   const minVal = values.length > 0 ? Math.min(...values) : 0
   const maxVal = values.length > 0 ? Math.max(...values) : 0
 
@@ -98,6 +117,7 @@ function NationalMap() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <USMap
               stateData={stateData}
+              reportMeta={reportMeta}
               activeMetric={activeMetric}
               selectedState={selectedState}
               onStateHover={handleStateHover}
@@ -119,6 +139,8 @@ function NationalMap() {
           stateName={tooltip.stateName}
           stateId={tooltip.stateId}
           data={tooltip.data}
+          reportMeta={reportMeta[tooltip.stateId] || null}
+          activeMetric={activeMetric}
           position={tooltip.position}
         />
       )}
@@ -130,6 +152,7 @@ function NationalMap() {
           stateName={selectedStateName}
           data={stateData[selectedState] || null}
           onClose={handleCloseDetail}
+          onReportChanged={fetchReportMeta}
         />
       )}
     </div>

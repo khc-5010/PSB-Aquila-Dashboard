@@ -218,6 +218,21 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
   - Timestamps: `created_at`, `updated_at`
 
+### State Research Tables
+
+- **`state_research_reports`** - State-level research reports for National Map
+  - `id` (SERIAL, PK)
+  - `state_code` (TEXT) — 2-letter abbreviation (PA, OH, TX, etc.)
+  - `state_name` (TEXT) — Full name
+  - `title` (TEXT) — Report title
+  - `content` (TEXT) — Full markdown content (3,000-10,000+ words)
+  - `parameters_used` (JSONB) — Future use
+  - `prospect_count_at_time` (INTEGER) — Snapshot at save time
+  - `researched_at` (TIMESTAMPTZ) — When research was conducted (user-specified)
+  - `researched_by` (TEXT), `uploaded_at` (TIMESTAMPTZ), `uploaded_by` (TEXT)
+  - `is_current` (BOOLEAN) — Soft-archive: only one current report per state (enforced by unique partial index)
+  - `created_at` (TIMESTAMPTZ)
+
 ## Prospect Pipeline Architecture
 
 ### API Routes (consolidated — single file per feature)
@@ -356,44 +371,85 @@ VITE_API_URL=            # API base URL (if separate backend)
 - Current function count: **10** (target: ≤ 12, Vercel Hobby limit)
 - Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`, `auth.js`
 
-## National Map Feature (Phase 1)
+## National Map Feature
 
 ### Overview
-Interactive SVG choropleth map of the United States. Each state colored by a selectable metric, derived from `prospect_companies` data grouped by state. No new database tables — purely read-only against existing data.
+Interactive SVG choropleth map of the United States. Each state colored by a selectable metric, derived from `prospect_companies` data grouped by state.
 
 ### Components
 - **Directory**: `src/components/national-map/`
-- **NationalMap.jsx** — Main container: fetches data, manages metric/hover/selection state, composes all sub-components
-- **USMap.jsx** — SVG `<path>` rendering for all 50 states + DC with hover/click handlers and metric-based color fills
-- **StateTooltip.jsx** — Floating tooltip near cursor showing state summary (prospect count, top category, signal avg, CWP total)
-- **StateDetailPanel.jsx** — Right slide-out panel (follows ProspectDetail pattern) with summary stats, category breakdown, priority bar, top companies table, and "Coming Soon" placeholders for Phases 2-6
-- **MapMetricSelector.jsx** — Array-driven pill buttons for switching color metric. Extensible: add new metrics by appending to the `METRICS` array
-- **MapLegend.jsx** — Color gradient scale with min/max labels, updates on metric change
+- **NationalMap.jsx** — Main container: fetches state-stats + report metadata on mount, manages metric/hover/selection state, composes all sub-components
+- **USMap.jsx** — SVG `<path>` rendering for all 50 states + DC with hover/click handlers and metric-based color fills (including freshness semantic colors)
+- **StateTooltip.jsx** — Floating tooltip near cursor showing state summary; shows freshness info when Research Freshness metric is active
+- **StateDetailPanel.jsx** — Right slide-out panel with summary stats, category breakdown, priority bar, top companies, research report section, and "Coming Soon" placeholders for Prompt Builder and Ontology Summary
+- **StateReportSection.jsx** — Research report viewer with collapsible accordion sections, freshness badge, "new prospects since report" indicator, copy/expand-all controls, and upload button
+- **UploadStateReportModal.jsx** — Modal for uploading state research reports via paste (textarea) or file upload (drag-and-drop .md/.txt). State selector, research date picker, title field, preview mode. Max 500KB file size.
+- **MapMetricSelector.jsx** — Array-driven pill buttons for switching color metric (5 metrics including Research Freshness)
+- **MapLegend.jsx** — Color gradient scale for standard metrics; categorical legend (green/yellow/red/gray) for freshness metric
 
-### API Endpoint
-`GET /api/prospects?action=state-stats` — Added inside existing `api/prospects.js` (no new serverless function). Returns per-state aggregations keyed by 2-letter abbreviation:
-- `prospect_count`, `categories` (top 3), `avg_signal`, `cwp_total`, `priorities` breakdown, `top_companies` (top 3)
-- `_totals` key with pipeline-wide aggregates
+### API Endpoints (all inside `api/prospects.js` — no new serverless functions)
+- `GET /api/prospects?action=state-stats` — Per-state aggregations keyed by 2-letter abbreviation: `prospect_count`, `categories` (top 3), `avg_signal`, `cwp_total`, `priorities` breakdown, `top_companies` (top 3), plus `_totals` key
+- `GET /api/prospects?action=state-reports` — List all current reports (metadata only, no content). Returns array of `{ id, state_code, state_name, title, researched_at, researched_by, uploaded_at, uploaded_by, prospect_count_at_time }`
+- `GET /api/prospects?action=state-report&state=XX` — Get full report for a state (includes content). Returns single object or null.
+- `POST /api/prospects?action=save-state-report` — Save/replace a state report. Body: `{ state_code, state_name, title, content, researched_at, researched_by, uploaded_by }`. Auto-computes `prospect_count_at_time`. Archives existing current report (sets `is_current = false`), inserts new with `is_current = true`.
+
+### Database: `state_research_reports` Table
+```sql
+state_research_reports (
+  id SERIAL PRIMARY KEY,
+  state_code TEXT NOT NULL,           -- 2-letter abbreviation
+  state_name TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,              -- Full markdown (can be 3,000-10,000+ words)
+  parameters_used JSONB,             -- Future use
+  prospect_count_at_time INTEGER,    -- Snapshot of prospect count at save time
+  researched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  researched_by TEXT,
+  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  uploaded_by TEXT,
+  is_current BOOLEAN DEFAULT TRUE,   -- Soft-archive pattern
+  created_at TIMESTAMPTZ DEFAULT NOW()
+)
+-- Unique partial index: only one current report per state
+-- CREATE UNIQUE INDEX idx_state_reports_one_current ON state_research_reports(state_code) WHERE is_current = TRUE;
+```
+
+### Report Replacement Flow
+When saving a new report for a state that already has one: old report gets `is_current = false` (archived, not deleted), new one inserted with `is_current = true`. The unique partial index enforces only one current report per state. Future UI could show report history.
 
 ### Static Data
 `src/data/us-states.js` — SVG path data for all 50 states + DC. ViewBox `0 0 960 600`. Alaska/Hawaii repositioned as insets. Exports `US_STATES` array and `STATE_ABBR_TO_NAME` lookup.
 
-### Metrics (Phase 1)
+### Metrics
 | Key | Label | Description |
 |-----|-------|-------------|
 | `prospect_count` | Prospect Count | Number of companies per state (default) |
 | `avg_signal` | Signal Strength | Average signal_count per state |
 | `cwp_total` | CWP Density | Total CWP contacts per state |
 | `priority_mix` | Priority Mix | Proportion of HIGH PRIORITY prospects |
+| `freshness` | Research Freshness | How recently each state was researched (semantic color scale) |
 
 ### Color Palette
 - No data: `#E5E7EB` (gray-200)
-- Data gradient: light blue (`#93C5FD`) → blue (`#2563EB`) → navy (`#041E42`)
+- Data gradient (standard metrics): light blue (`#93C5FD`) → blue (`#2563EB`) → navy (`#041E42`)
+- Freshness metric: green (`#16A34A`, <30d) → yellow (`#EAB308`, 30-90d) → red (`#DC2626`, >90d) → gray (`#E5E7EB`, no report)
 - Selected state: amber stroke (`#F59E0B`)
 
+### Freshness Thresholds (configurable in `StateReportSection.jsx`)
+- **Fresh** (green): < 30 days since `researched_at`
+- **Aging** (yellow): 30–90 days
+- **Stale** (red): > 90 days
+- **No Report** (gray): no current report exists
+
 ### Phase Roadmap
-- **Phase 1** (current): Map + state stats + detail panel with "Coming Soon" placeholders
-- **Phases 2-6** (future): State Research Reports, Prompt Builder, Ontology Summary — will replace the "Coming Soon" cards in StateDetailPanel
+- **Phase 1** (complete): Map + state stats + detail panel
+- **Phase 2** (complete): State research reports + freshness tracking + upload modal
+- **Phase 3** (future): Prompt Builder — "Run State Research" button in StateReportSection
+- **Phases 4-6** (future): Ontology tables, extraction, visualization
+
+### Ontology (Future — Phase 4+)
+- **Taxonomy reference document**: `docs/plastics-manufacturing-ontology-v1.md` — defines entity types, relationship types, and a starter population extracted from state research reports. Created collaboratively with Duane and Brett. This document is the schema source for future ontology database tables.
+- Phases 4-6 will add ontology tables, extraction from research briefs, and ontology visualization on the National Map.
 
 ## Notes
 

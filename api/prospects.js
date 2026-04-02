@@ -115,6 +115,45 @@ export default async function handler(req, res) {
       }
     }
 
+    // List all current state research reports (metadata only, no content)
+    if (action === 'state-reports') {
+      try {
+        const reports = await sql`
+          SELECT id, state_code, state_name, title, researched_at, researched_by,
+                 uploaded_at, uploaded_by, prospect_count_at_time
+          FROM state_research_reports
+          WHERE is_current = TRUE
+          ORDER BY state_name ASC
+        `
+        return res.status(200).json(reports)
+      } catch (error) {
+        console.error('Error fetching state reports:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // Get full report for a single state (includes content)
+    if (action === 'state-report') {
+      const stateCode = req.query.state
+      if (!stateCode) {
+        return res.status(400).json({ error: 'state query param is required' })
+      }
+      try {
+        const result = await sql`
+          SELECT * FROM state_research_reports
+          WHERE state_code = ${stateCode.toUpperCase()} AND is_current = TRUE
+          LIMIT 1
+        `
+        if (!result || result.length === 0) {
+          return res.status(200).json(null)
+        }
+        return res.status(200).json(result[0])
+      } catch (error) {
+        console.error('Error fetching state report:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attachments for a prospect
     if (action === 'attachments' && id) {
       try {
@@ -396,6 +435,56 @@ export default async function handler(req, res) {
 
   // ─── POST ──────────────────────────────────────────────
   if (req.method === 'POST') {
+    // Save/replace a state research report
+    if (action === 'save-state-report') {
+      try {
+        const { state_code, state_name, title, content, researched_at, researched_by, uploaded_by } = req.body
+        if (!state_code || !content) {
+          return res.status(400).json({ error: 'state_code and content are required' })
+        }
+
+        // Auto-compute prospect count for this state
+        const countResult = await sql`
+          SELECT COUNT(*)::int AS count FROM prospect_companies
+          WHERE UPPER(state) = ${state_code.toUpperCase()}
+        `
+        const prospectCount = countResult[0]?.count || 0
+
+        // Archive existing current report for this state
+        await sql`
+          UPDATE state_research_reports
+          SET is_current = false
+          WHERE state_code = ${state_code.toUpperCase()} AND is_current = true
+        `
+
+        // Insert new report
+        const result = await sql`
+          INSERT INTO state_research_reports (
+            state_code, state_name, title, content,
+            researched_at, researched_by, uploaded_by,
+            prospect_count_at_time, is_current
+          ) VALUES (
+            ${state_code.toUpperCase()},
+            ${state_name || state_code},
+            ${title || `Alliance Prospect Report — ${state_name || state_code}`},
+            ${content},
+            ${researched_at || new Date().toISOString()},
+            ${researched_by || null},
+            ${uploaded_by || 'Unknown'},
+            ${prospectCount},
+            true
+          )
+          RETURNING id, state_code, state_name, title, researched_at, researched_by,
+                    uploaded_at, uploaded_by, prospect_count_at_time
+        `
+
+        return res.status(201).json(result[0])
+      } catch (error) {
+        console.error('Error saving state report:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attach content to a prospect
     if (action === 'attach') {
       try {

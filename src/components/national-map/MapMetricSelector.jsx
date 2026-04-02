@@ -3,6 +3,7 @@ const METRICS = [
   { key: 'avg_signal', label: 'Signal Strength', description: 'Average signal count per state' },
   { key: 'cwp_total', label: 'CWP Density', description: 'Total CWP contacts per state' },
   { key: 'priority_mix', label: 'Priority Mix', description: 'Proportion of HIGH PRIORITY prospects' },
+  { key: 'freshness', label: 'Research Freshness', description: 'How recently each state was researched' },
 ]
 
 function MapMetricSelector({ activeMetric, onMetricChange }) {
