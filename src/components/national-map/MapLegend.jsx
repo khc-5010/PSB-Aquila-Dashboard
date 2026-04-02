@@ -32,6 +32,7 @@ function MapLegend({ activeMetric, minValue, maxValue }) {
   const formatVal = (v) => {
     if (v === null || v === undefined) return '0'
     if (activeMetric === 'avg_signal') return v.toFixed(1)
+    if (activeMetric === 'ontology_density') return v.toFixed(1)
     if (activeMetric === 'priority_mix') return `${Math.round(v * 100)}%`
     return String(Math.round(v))
   }

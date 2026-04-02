@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import InfoTooltip from './InfoTooltip'
 
-function OntologySummary({ stateCode }) {
+function OntologySummary({ stateCode, ontologyDensity }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -152,6 +152,92 @@ function OntologySummary({ stateCode }) {
           )}
         </div>
       )}
+
+      {/* Layer Breakdown Bar */}
+      {(() => {
+        const l1 = ontologyDensity?.layer1_relationships || 0
+        const l2 = ontologyDensity?.layer2_relationships || 0
+        const total = l1 + l2
+        if (total === 0) return null
+
+        const l1Pct = (l1 / total) * 100
+        const l2Pct = (l2 / total) * 100
+
+        return (
+          <div className="mt-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-xs font-medium text-gray-600">Layer Breakdown</p>
+              <InfoTooltip text="Layer 1 relationships come from structured prospect fields (certifications, RJG status, etc.). Layer 2 comes from deep research brief extraction — richer intelligence from narrative text." />
+            </div>
+            <div className="flex h-2.5 rounded-full overflow-hidden mb-2">
+              {l1 > 0 && (
+                <div
+                  className="bg-blue-300 transition-all"
+                  style={{ width: `${l1Pct}%` }}
+                  title={`Layer 1: ${l1}`}
+                />
+              )}
+              {l2 > 0 && (
+                <div
+                  className="bg-[#041E42] transition-all"
+                  style={{ width: `${l2Pct}%` }}
+                  title={`Layer 2: ${l2}`}
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-blue-300" />
+                <span>Layer 1: {l1} auto-derived</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#041E42]" />
+                <span>Layer 2: {l2} extracted</span>
+              </div>
+            </div>
+            {l2 === 0 && (
+              <p className="text-xs text-gray-400 italic mt-1.5">Run ontology extraction on research briefs to add Layer 2 depth.</p>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* Entity Type Distribution */}
+      {data.entity_counts && Object.keys(data.entity_counts).length > 0 && (() => {
+        const entries = Object.entries(data.entity_counts)
+          .filter(([, count]) => count > 0)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 6)
+        if (entries.length === 0) return null
+        const maxCount = entries[0][1]
+
+        return (
+          <div className="mt-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <p className="text-xs font-medium text-gray-600">Entity Type Distribution</p>
+              <InfoTooltip text="Distribution of knowledge graph entity types for prospects in this state. More diverse types indicate broader intelligence coverage." />
+            </div>
+            <div className="space-y-1.5">
+              {entries.map(([typeName, count]) => (
+                <div key={typeName} className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-xs text-gray-700 truncate">{typeName}</span>
+                      <span className="text-xs font-medium text-[#041E42] ml-2 flex-shrink-0">{count}</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#041E42] rounded-full transition-all"
+                        style={{ width: `${(count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

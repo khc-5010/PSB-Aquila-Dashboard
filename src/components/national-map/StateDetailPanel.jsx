@@ -3,7 +3,7 @@ import StateReportSection from './StateReportSection'
 import StatePromptBuilderModal from './StatePromptBuilderModal'
 import OntologySummary from './OntologySummary'
 
-function StateDetailPanel({ stateId, stateName, data, onClose, onReportChanged }) {
+function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, onReportChanged }) {
   const [report, setReport] = useState(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [showPromptBuilder, setShowPromptBuilder] = useState(false)
@@ -229,7 +229,7 @@ function StateDetailPanel({ stateId, stateName, data, onClose, onReportChanged }
 
               {/* Ontology Summary */}
               <div className="border-t border-gray-100">
-                <OntologySummary stateCode={stateId} />
+                <OntologySummary stateCode={stateId} ontologyDensity={ontologyDensity} />
               </div>
             </>
           )}

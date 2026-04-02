@@ -68,7 +68,7 @@ function OrientationCard() {
   )
 }
 
-function buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta) {
+function buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta, ontologyDensityData) {
   if (!totals) return null
 
   const statesWithData = Object.keys(stateData).filter(k => stateData[k]?.prospect_count > 0)
@@ -123,6 +123,15 @@ function buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta) {
       return `${reportCodes.length} states researched \u00b7 ${fresh} fresh \u00b7 ${aging} aging \u00b7 ${stale} stale \u00b7 ${never} never researched`
     }
 
+    case 'ontology_density': {
+      if (!ontologyDensityData?._totals) return 'No ontology data \u2014 run Layer 1 rebuild to populate'
+      const t = ontologyDensityData._totals
+      if (t.total_relationships === 0) return 'No ontology data \u2014 run Layer 1 rebuild to populate'
+      const totalProspects = Object.values(stateData).reduce((s, d) => s + (d?.prospect_count || 0), 0)
+      const avgDensity = totalProspects > 0 ? (t.total_relationships / totalProspects).toFixed(1) : '0.0'
+      return `${t.total_entities} entities, ${t.total_relationships} relationships across ${t.states_with_ontology} states \u00b7 Avg density: ${avgDensity} per prospect`
+    }
+
     default:
       return `${totals.total_prospects} prospects across ${totals.states_covered} states`
   }
@@ -132,6 +141,7 @@ function NationalMap() {
   const [stateData, setStateData] = useState({})
   const [totals, setTotals] = useState(null)
   const [reportMeta, setReportMeta] = useState({}) // keyed by state_code
+  const [ontologyDensity, setOntologyDensity] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [activeMetric, setActiveMetric] = useState('prospect_count')
@@ -159,11 +169,22 @@ function NationalMap() {
         return res.json()
       }),
       fetch('/api/prospects?action=state-reports').then(res => res.ok ? res.json() : []),
+      fetch('/api/prospects?action=ontology-density-by-state').then(res => res.ok ? res.json() : {}),
     ])
-      .then(([statsData, reports]) => {
+      .then(([statsData, reports, ontDensity]) => {
         const { _totals, ...states } = statsData
+
+        // Merge ontology density into state data
+        for (const code of Object.keys(states)) {
+          const od = ontDensity[code]
+          states[code].ontology_density = od?.density || 0
+          states[code].ontology_entity_count = od?.entity_count || 0
+          states[code].ontology_relationship_count = od?.relationship_count || 0
+        }
+
         setStateData(states)
         setTotals(_totals)
+        setOntologyDensity(ontDensity)
         const lookup = {}
         for (const r of reports) lookup[r.state_code] = r
         setReportMeta(lookup)
@@ -206,7 +227,7 @@ function NationalMap() {
   const minVal = values.length > 0 ? Math.min(...values) : 0
   const maxVal = values.length > 0 ? Math.max(...values) : 0
 
-  const subtitle = buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta)
+  const subtitle = buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta, ontologyDensity)
 
   return (
     <div className="px-6 py-4 pb-16">
@@ -275,6 +296,7 @@ function NationalMap() {
           stateId={selectedState}
           stateName={selectedStateName}
           data={stateData[selectedState] || null}
+          ontologyDensity={ontologyDensity[selectedState] || null}
           onClose={handleCloseDetail}
           onReportChanged={fetchReportMeta}
         />
