@@ -3,7 +3,7 @@ import { useState } from 'react'
 const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const CATEGORY_OPTIONS = ['All', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
-const GEO_OPTIONS = ['All', 'Tier 1', 'Tier 2', 'Tier 3', 'Infrastructure']
+const GEO_OPTIONS = ['All', 'Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
 const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 const PRESETS = [
@@ -12,7 +12,7 @@ const PRESETS = [
   { label: 'Time-Sensitive', filter: { group: 'Time-Sensitive' } },
   { label: 'Medical Molders', filter: { preset: 'medical' } },
   { label: 'Converter+Tooling', filter: { category: 'Converter+Tooling' } },
-  { label: 'Tier 1 Local', filter: { geo: 'Tier 1' } },
+  { label: 'Home Turf', filter: { geo: 'Northeast Tool' } },
   { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
   { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },
 ]
@@ -141,7 +141,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
           onChange={(e) => onFilterChange({ ...filters, geo: e.target.value, preset: null })}
           className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
         >
-          {GEO_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Geographies' : o}</option>)}
+          {GEO_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Corridors' : o}</option>)}
         </select>
 
         <select

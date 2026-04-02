@@ -11,6 +11,26 @@ import BulkImportModal from './BulkImportModal'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
+const STATE_TO_CORRIDOR = {
+  'MI': 'Great Lakes Auto', 'OH': 'Great Lakes Auto', 'IN': 'Great Lakes Auto',
+  'IL': 'Great Lakes Auto', 'WI': 'Great Lakes Auto',
+  'PA': 'Northeast Tool', 'NY': 'Northeast Tool', 'CT': 'Northeast Tool',
+  'NJ': 'Northeast Tool', 'MA': 'Northeast Tool', 'NH': 'Northeast Tool',
+  'VT': 'Northeast Tool', 'ME': 'Northeast Tool', 'RI': 'Northeast Tool', 'DC': 'Northeast Tool',
+  'NC': 'Southeast Growth', 'GA': 'Southeast Growth', 'FL': 'Southeast Growth',
+  'TN': 'Southeast Growth', 'SC': 'Southeast Growth', 'VA': 'Southeast Growth',
+  'AL': 'Southeast Growth', 'MS': 'Southeast Growth', 'KY': 'Southeast Growth',
+  'TX': 'Gulf / Resin Belt', 'LA': 'Gulf / Resin Belt', 'OK': 'Gulf / Resin Belt', 'AR': 'Gulf / Resin Belt',
+  'MN': 'Upper Midwest Medical',
+  'CA': 'West Coast', 'OR': 'West Coast', 'WA': 'West Coast',
+  'CO': 'Mountain / Central', 'AZ': 'Mountain / Central', 'UT': 'Mountain / Central',
+  'NV': 'Mountain / Central', 'NM': 'Mountain / Central', 'ID': 'Mountain / Central',
+  'MT': 'Mountain / Central', 'WY': 'Mountain / Central', 'ND': 'Mountain / Central',
+  'SD': 'Mountain / Central', 'NE': 'Mountain / Central', 'KS': 'Mountain / Central',
+  'IA': 'Mountain / Central', 'MO': 'Mountain / Central',
+  'AK': 'Non-Contiguous', 'HI': 'Non-Contiguous',
+}
+
 const GROUP_SORT_ORDER = {
   'Group 1': 1,
   'Time-Sensitive': 2,
@@ -161,7 +181,10 @@ function ProspectTable() {
     if (filters.group !== 'All' && p.outreach_group !== filters.group) return false
     if (filters.category !== 'All' && p.category !== filters.category) return false
     if (filters.priority !== 'All' && p.priority !== filters.priority) return false
-    if (filters.geo !== 'All' && p.geography_tier !== filters.geo) return false
+    if (filters.geo !== 'All') {
+      const corridor = p.state ? (STATE_TO_CORRIDOR[p.state] || 'Mountain / Central') : 'Unknown'
+      if (corridor !== filters.geo) return false
+    }
     if (filters.status !== 'All' && p.prospect_status !== filters.status) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
