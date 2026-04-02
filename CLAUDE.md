@@ -491,10 +491,52 @@ When saving a new report for a state that already has one: old report gets `is_c
 - InfoTooltip placed inside each metric pill button with `ml-1` spacing
 - Each metric has a descriptive tooltip explaining what it measures
 
-### Ontology (Future — Phase 4+)
-- **Taxonomy reference document**: `docs/plastics-manufacturing-ontology-v1.md` — defines entity types, relationship types, and a starter population extracted from state research reports. Created collaboratively with Duane and Brett. This document is the schema source for future ontology database tables.
-- Phases 4-6 will add ontology tables, extraction from research briefs, and ontology visualization on the National Map.
-- The "Coming Soon: Ontology Summary" placeholder in StateDetailPanel will be replaced in Phase 4.
+### Ontology System (Phase 4 — Active)
+
+**Taxonomy reference document**: `docs/plastics-manufacturing-ontology-v1.md` — defines entity types, relationship types, and a starter population extracted from state research reports. Created collaboratively with Duane and Brett.
+
+#### Database Tables (4 tables)
+- **`ontology_entity_types`** — Taxonomy classes (Company, Certification, Technology / Software, Manufacturing Process, etc.). 12 seeded types.
+- **`ontology_entities`** — Specific instances (ISO 9001, RJG Cavity Pressure Monitoring, Medical Devices, etc.). Links to `prospect_companies` via `prospect_company_id` FK for Company-type entities.
+- **`ontology_relationship_types`** — Verbs connecting entities (holds_certification, uses_technology, subsidiary_of, etc.). 23 seeded types with domain/range constraints and inverse names.
+- **`ontology_relationships`** — Actual edges (Company X → holds_certification → ISO 9001). UNIQUE on (type_id, subject_entity_id, object_entity_id).
+
+SQL migration: `scripts/create-ontology-tables.sql`
+
+#### Layer 1 vs Layer 2
+- **Layer 1 (auto-derived):** Reads structured `prospect_companies` columns and generates entities + relationships automatically. Zero manual effort.
+- **Layer 2 (Phase 5, future):** Will extract richer data from research brief narrative text via AI.
+
+#### Layer 1 Field-to-Entity Mapping
+| Prospect Field | Entity Type | Relationship |
+|---------------|-------------|--------------|
+| `key_certifications` (comma-separated) | Certification | holds_certification |
+| `rjg_cavity_pressure` (Yes/confirmed/Likely) | Technology / Software ("RJG Cavity Pressure Monitoring") | uses_technology |
+| `medical_device_mfg` (Yes) | Market Vertical ("Medical Devices") | serves_market |
+| `ownership_type` | Ownership Structure | has_ownership_structure |
+| `parent_company` | Company | subsidiary_of |
+| `category`, `in_house_tooling` | — | Stored as attributes on Company entity |
+
+#### API Endpoints (all in `api/prospects.js`)
+- `POST /api/prospects?action=rebuild-ontology-layer1` — Clears all Layer 1 entities/relationships, reads all prospects, regenerates. Idempotent. Returns `{ entities_created, relationships_created, prospects_processed, duration_ms }`.
+- `GET /api/prospects?action=ontology-stats` — Aggregate stats: entity counts by type, relationship counts by type, layer breakdown, last rebuilt timestamp.
+- `GET /api/prospects?action=ontology-state-summary&state=XX` — State-level breakdown: top certifications, technologies, ownership mix, medical/RJG counts.
+
+#### Rebuild Workflow
+1. Run SQL migration in Neon console (one-time): `scripts/create-ontology-tables.sql`
+2. Deploy code changes
+3. `POST /api/prospects?action=rebuild-ontology-layer1` to populate the graph
+4. Re-run rebuild anytime prospect data changes significantly
+
+#### UI: OntologySummary Component
+- `src/components/national-map/OntologySummary.jsx` — Displays in StateDetailPanel when a state is clicked
+- Shows certification landscape (horizontal bars), technology signals (badges), ownership mix (list), medical/RJG stat cards
+- Fetches data via `ontology-state-summary` endpoint
+- Includes InfoTooltip on all section headers
+
+#### Phase Roadmap
+- **Phase 5 (future):** Layer 2 extraction from research briefs
+- **Phase 6 (future):** Ontology Density as a National Map metric
 
 ## Notes
 

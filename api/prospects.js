@@ -154,6 +154,138 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Ontology: aggregate stats ───
+    if (action === 'ontology-stats') {
+      try {
+        const [entityCounts, relCounts, layerCounts, lastRebuilt] = await Promise.all([
+          sql`SELECT oet.name AS type_name, COUNT(*)::int AS count
+              FROM ontology_entities oe
+              JOIN ontology_entity_types oet ON oe.type_id = oet.id
+              GROUP BY oet.name ORDER BY count DESC`,
+          sql`SELECT ort.name AS type_name, COUNT(*)::int AS count
+              FROM ontology_relationships orel
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              GROUP BY ort.name ORDER BY count DESC`,
+          sql`SELECT
+                COUNT(*)::int AS total_entities,
+                COUNT(*) FILTER (WHERE layer = 1)::int AS layer1_entities,
+                COUNT(*) FILTER (WHERE layer = 2)::int AS layer2_entities
+              FROM ontology_entities`,
+          sql`SELECT MAX(updated_at) AS last_rebuilt
+              FROM ontology_entities WHERE layer = 1`,
+        ])
+
+        const entity_counts = {}
+        for (const r of entityCounts) entity_counts[r.type_name] = r.count
+        const relationship_counts = {}
+        for (const r of relCounts) relationship_counts[r.type_name] = r.count
+        const totalRels = relCounts.reduce((s, r) => s + r.count, 0)
+
+        return res.status(200).json({
+          entity_counts,
+          relationship_counts,
+          total_entities: layerCounts[0]?.total_entities || 0,
+          total_relationships: totalRels,
+          layer1_entities: layerCounts[0]?.layer1_entities || 0,
+          layer2_entities: layerCounts[0]?.layer2_entities || 0,
+          last_rebuilt: lastRebuilt[0]?.last_rebuilt || null,
+        })
+      } catch (error) {
+        console.error('Error fetching ontology stats:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Ontology: state-level summary for StateDetailPanel ───
+    if (action === 'ontology-state-summary') {
+      const stateCode = req.query.state
+      if (!stateCode) {
+        return res.status(400).json({ error: 'state query param is required' })
+      }
+      try {
+        const stateUpper = stateCode.toUpperCase()
+        const [certRows, techRows, ownerRows, medicalCount, rjgCount, entityCounts] = await Promise.all([
+          // Top certifications in this state
+          sql`SELECT oe_obj.name, COUNT(*)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'holds_certification'
+              GROUP BY oe_obj.name ORDER BY count DESC LIMIT 10`,
+          // Technologies in this state
+          sql`SELECT oe_obj.name, COUNT(*)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'uses_technology'
+              GROUP BY oe_obj.name ORDER BY count DESC LIMIT 10`,
+          // Ownership breakdown
+          sql`SELECT oe_obj.name, COUNT(*)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'has_ownership_structure'
+              GROUP BY oe_obj.name ORDER BY count DESC`,
+          // Medical device company count
+          sql`SELECT COUNT(DISTINCT oe_comp.id)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'serves_market'
+                AND oe_obj.name = 'Medical Devices'`,
+          // RJG company count
+          sql`SELECT COUNT(DISTINCT oe_comp.id)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_relationship_types ort ON orel.type_id = ort.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'uses_technology'
+                AND oe_obj.name = 'RJG Cavity Pressure Monitoring'`,
+          // Entity counts by type for this state
+          sql`SELECT oet.name AS type_name, COUNT(DISTINCT oe_obj.id)::int AS count
+              FROM ontology_entities oe_comp
+              JOIN prospect_companies pc ON oe_comp.prospect_company_id = pc.id
+              JOIN ontology_relationships orel ON orel.subject_entity_id = oe_comp.id
+              JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              JOIN ontology_entity_types oet ON oe_obj.type_id = oet.id
+              WHERE UPPER(pc.state) = ${stateUpper}
+              GROUP BY oet.name ORDER BY count DESC`,
+        ])
+
+        const entity_counts = {}
+        for (const r of entityCounts) entity_counts[r.type_name] = r.count
+        // Add company count
+        const companyCountResult = await sql`
+          SELECT COUNT(*)::int AS count FROM ontology_entities oe
+          JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
+          WHERE UPPER(pc.state) = ${stateUpper}
+        `
+        entity_counts['Company'] = companyCountResult[0]?.count || 0
+
+        return res.status(200).json({
+          state: stateUpper,
+          entity_counts,
+          top_certifications: certRows,
+          top_technologies: techRows,
+          ownership_breakdown: ownerRows,
+          companies_with_medical: medicalCount[0]?.count || 0,
+          companies_with_rjg: rjgCount[0]?.count || 0,
+        })
+      } catch (error) {
+        console.error('Error fetching ontology state summary:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attachments for a prospect
     if (action === 'attachments' && id) {
       try {
@@ -435,6 +567,143 @@ export default async function handler(req, res) {
 
   // ─── POST ──────────────────────────────────────────────
   if (req.method === 'POST') {
+    // ─── Ontology: Layer 1 auto-derivation rebuild ───
+    if (action === 'rebuild-ontology-layer1') {
+      try {
+        const startTime = Date.now()
+
+        // 1. Load entity type and relationship type lookups
+        const [entityTypes, relTypes] = await Promise.all([
+          sql`SELECT id, name FROM ontology_entity_types`,
+          sql`SELECT id, name FROM ontology_relationship_types`,
+        ])
+        const typeMap = {}
+        for (const t of entityTypes) typeMap[t.name] = t.id
+        const relMap = {}
+        for (const r of relTypes) relMap[r.name] = r.id
+
+        if (!typeMap['Company'] || !typeMap['Certification']) {
+          return res.status(500).json({ error: 'Ontology entity types not seeded. Run the SQL migration first.' })
+        }
+
+        // 2. Clear all Layer 1 data (relationships first due to FK cascade)
+        await sql`DELETE FROM ontology_relationships WHERE layer = 1`
+        await sql`DELETE FROM ontology_entities WHERE layer = 1`
+
+        // 3. Read all prospects
+        const prospects = await sql`SELECT * FROM prospect_companies`
+
+        let entitiesCreated = 0
+        let relationshipsCreated = 0
+
+        // Helper: normalize entity name
+        function normalizeName(raw) {
+          return raw.trim().replace(/\s+/g, ' ')
+        }
+
+        // Helper: UPSERT entity and return its id
+        async function upsertEntity(typeId, name, attrs = {}, prospectCompanyId = null, source = null, confidence = 'Confirmed') {
+          const normalized = normalizeName(name)
+          if (!normalized) return null
+          const result = await sql`
+            INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
+            VALUES (${typeId}, ${normalized}, ${JSON.stringify(attrs)}, ${prospectCompanyId}, ${source}, ${confidence}, 1)
+            ON CONFLICT (type_id, name) DO UPDATE SET
+              updated_at = NOW(),
+              prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
+            RETURNING id
+          `
+          entitiesCreated++
+          return result[0]?.id
+        }
+
+        // Helper: INSERT relationship (skip on conflict)
+        async function insertRelationship(relTypeId, subjectId, objectId, source = null, confidence = 'Confirmed') {
+          if (!relTypeId || !subjectId || !objectId) return
+          await sql`
+            INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
+            VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${source}, ${confidence}, 1)
+            ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
+          `
+          relationshipsCreated++
+        }
+
+        // 4. Process each prospect
+        for (const p of prospects) {
+          const source = p.source_report || null
+
+          // Create Company entity
+          const companyAttrs = {}
+          if (p.category) companyAttrs.category = p.category
+          if (p.in_house_tooling) companyAttrs.in_house_tooling = p.in_house_tooling
+          const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
+          if (!companyId) continue
+
+          // Parse certifications (comma-separated)
+          if (p.key_certifications && p.key_certifications.trim()) {
+            const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+            for (const cert of certs) {
+              const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
+              if (certId) {
+                await insertRelationship(relMap['holds_certification'], companyId, certId, source)
+              }
+            }
+          }
+
+          // RJG cavity pressure → Technology entity
+          if (p.rjg_cavity_pressure) {
+            const rjgVal = p.rjg_cavity_pressure.toLowerCase()
+            if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
+              const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
+              if (techId) {
+                await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
+              }
+            } else if (rjgVal === 'likely') {
+              const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
+              if (techId) {
+                await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Likely')
+              }
+            }
+          }
+
+          // Medical device manufacturing → Market Vertical
+          if (p.medical_device_mfg === 'Yes') {
+            const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
+            if (marketId) {
+              await insertRelationship(relMap['serves_market'], companyId, marketId, source)
+            }
+          }
+
+          // Ownership type → Ownership Structure entity
+          if (p.ownership_type && p.ownership_type.trim()) {
+            const ownerId = await upsertEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
+            if (ownerId) {
+              await insertRelationship(relMap['has_ownership_structure'], companyId, ownerId, source)
+            }
+          }
+
+          // Parent company → Company entity + subsidiary_of relationship
+          if (p.parent_company && p.parent_company.trim()) {
+            const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
+            if (parentId) {
+              await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
+            }
+          }
+        }
+
+        const duration = Date.now() - startTime
+        return res.status(200).json({
+          entities_created: entitiesCreated,
+          relationships_created: relationshipsCreated,
+          prospects_processed: prospects.length,
+          duration_ms: duration,
+        })
+      } catch (error) {
+        console.error('Error rebuilding ontology Layer 1:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Save/replace a state research report
     if (action === 'save-state-report') {
       try {
