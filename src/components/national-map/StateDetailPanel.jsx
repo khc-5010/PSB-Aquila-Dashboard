@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import StateReportSection from './StateReportSection'
 import StatePromptBuilderModal from './StatePromptBuilderModal'
+import OntologySummary from './OntologySummary'
 
 function StateDetailPanel({ stateId, stateName, data, onClose, onReportChanged }) {
   const [report, setReport] = useState(null)
@@ -226,20 +227,9 @@ function StateDetailPanel({ stateId, stateName, data, onClose, onReportChanged }
                 </button>
               </div>
 
-              {/* Coming Soon — Ontology */}
-              <div className="px-5 py-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Coming Soon</h3>
-                <div
-                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 opacity-60"
-                >
-                  <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                  </svg>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Ontology Summary</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Knowledge graph of manufacturing processes, technologies, and certifications found in this state's companies — powered by the alliance ontology</p>
-                  </div>
-                </div>
+              {/* Ontology Summary */}
+              <div className="border-t border-gray-100">
+                <OntologySummary stateCode={stateId} />
               </div>
             </>
           )}
