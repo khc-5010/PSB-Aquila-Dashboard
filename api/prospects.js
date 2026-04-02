@@ -286,6 +286,84 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Ontology: density by state (for National Map metric) ───
+    if (action === 'ontology-density-by-state') {
+      try {
+        const [relsByState, entsByState, prospectsByState, layerBreakdown] = await Promise.all([
+          // Relationship count per state (via subject Company entity → prospect_companies.state)
+          sql`SELECT UPPER(pc.state) AS state_code, COUNT(*)::int AS relationship_count
+              FROM ontology_relationships orel
+              JOIN ontology_entities oe ON orel.subject_entity_id = oe.id
+              JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
+              WHERE pc.state IS NOT NULL AND pc.state != ''
+              GROUP BY UPPER(pc.state)`,
+          // Entity count per state (Company entities + related object entities)
+          sql`SELECT UPPER(pc.state) AS state_code, COUNT(DISTINCT oe_obj.id)::int + COUNT(DISTINCT oe.id)::int AS entity_count
+              FROM ontology_entities oe
+              JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
+              LEFT JOIN ontology_relationships orel ON orel.subject_entity_id = oe.id
+              LEFT JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
+              WHERE pc.state IS NOT NULL AND pc.state != ''
+              GROUP BY UPPER(pc.state)`,
+          // Prospect count per state (for normalization)
+          sql`SELECT UPPER(state) AS state_code, COUNT(*)::int AS prospect_count
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''
+              GROUP BY UPPER(state)`,
+          // Layer breakdown per state
+          sql`SELECT UPPER(pc.state) AS state_code,
+                COUNT(*) FILTER (WHERE orel.layer = 1)::int AS layer1_relationships,
+                COUNT(*) FILTER (WHERE orel.layer = 2)::int AS layer2_relationships
+              FROM ontology_relationships orel
+              JOIN ontology_entities oe ON orel.subject_entity_id = oe.id
+              JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
+              WHERE pc.state IS NOT NULL AND pc.state != ''
+              GROUP BY UPPER(pc.state)`,
+        ])
+
+        // Build lookup maps
+        const relsMap = {}
+        for (const r of relsByState) relsMap[r.state_code] = r.relationship_count
+        const entsMap = {}
+        for (const r of entsByState) entsMap[r.state_code] = r.entity_count
+        const prospectsMap = {}
+        for (const r of prospectsByState) prospectsMap[r.state_code] = r.prospect_count
+        const layerMap = {}
+        for (const r of layerBreakdown) layerMap[r.state_code] = { layer1: r.layer1_relationships, layer2: r.layer2_relationships }
+
+        // Collect all state codes
+        const allCodes = new Set([...Object.keys(relsMap), ...Object.keys(entsMap)])
+        const result = {}
+        let totalEntities = 0, totalRelationships = 0, statesWithOntology = 0
+
+        for (const code of allCodes) {
+          const relCount = relsMap[code] || 0
+          const entCount = entsMap[code] || 0
+          const prospCount = prospectsMap[code] || 0
+          const layers = layerMap[code] || { layer1: 0, layer2: 0 }
+          const density = prospCount > 0 ? Math.round((relCount / prospCount) * 100) / 100 : 0
+
+          result[code] = {
+            entity_count: entCount,
+            relationship_count: relCount,
+            prospect_count: prospCount,
+            density,
+            layer1_relationships: layers.layer1,
+            layer2_relationships: layers.layer2,
+          }
+          totalEntities += entCount
+          totalRelationships += relCount
+          if (relCount > 0) statesWithOntology++
+        }
+
+        result._totals = { total_entities: totalEntities, total_relationships: totalRelationships, states_with_ontology: statesWithOntology }
+        return res.status(200).json(result)
+      } catch (error) {
+        console.error('Error fetching ontology density by state:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // All ontology entities grouped by type (for extraction prompt deduplication)
     if (action === 'ontology-existing-entities') {
       try {

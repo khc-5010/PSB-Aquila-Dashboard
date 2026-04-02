@@ -10,6 +10,9 @@ function getMetricValue(data, metric) {
     const hp = (priorities['HIGH PRIORITY'] || 0)
     return total > 0 ? hp / total : 0
   }
+  if (metric === 'ontology_density') {
+    return data.ontology_density || 0
+  }
   return data[metric] || 0
 }
 

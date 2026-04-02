@@ -428,6 +428,7 @@ When saving a new report for a state that already has one: old report gets `is_c
 | `cwp_total` | CWP Density | Total CWP contacts per state |
 | `priority_mix` | Priority Mix | Proportion of HIGH PRIORITY prospects |
 | `freshness` | Research Freshness | How recently each state was researched (semantic color scale) |
+| `ontology_density` | Ontology Density | Relationships per prospect — knowledge graph depth (standard gradient) |
 
 ### Color Palette
 - No data: `#E5E7EB` (gray-200)
@@ -521,6 +522,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 - `POST /api/prospects?action=rebuild-ontology-layer1` — Clears all Layer 1 entities/relationships, reads all prospects, regenerates. Idempotent. Returns `{ entities_created, relationships_created, prospects_processed, duration_ms }`.
 - `GET /api/prospects?action=ontology-stats` — Aggregate stats: entity counts by type, relationship counts by type, layer breakdown, last rebuilt timestamp.
 - `GET /api/prospects?action=ontology-state-summary&state=XX` — State-level breakdown: top certifications, technologies, ownership mix, medical/RJG counts.
+- `GET /api/prospects?action=ontology-density-by-state` — Per-state ontology density for National Map metric: entity count, relationship count, prospect count, density (relationships/prospects), layer breakdown. Includes `_totals` key.
 
 #### Rebuild Workflow
 1. Run SQL migration in Neon console (one-time): `scripts/create-ontology-tables.sql`
@@ -565,7 +567,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 **Entity types extracted by Layer 2**: Technology / Software, Equipment Brand, Quality Method, Material, Market Vertical, Manufacturing Process, Workforce Capability, Company (acquirers/partners)
 
 #### Phase Roadmap
-- **Phase 6 (future):** Ontology Density as a National Map metric
+- **Phase 6 (complete):** Ontology Density as 6th National Map metric. `ontology-density-by-state` endpoint returns per-state density (relationships/prospects), layer breakdown, entity/relationship counts. Data fetched in parallel on mount and merged into stateData. OntologySummary enhanced with Layer 1 vs Layer 2 breakdown bar and entity type distribution mini-bars.
 
 ## Notes
 

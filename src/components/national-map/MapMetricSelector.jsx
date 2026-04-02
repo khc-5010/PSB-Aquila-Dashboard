@@ -6,6 +6,7 @@ const METRICS = [
   { key: 'cwp_total', label: 'CWP Density', description: 'Total CWP contacts per state', tooltip: 'Total contacts in Penn State Behrend\'s Continuing Workforce Programs database — indicates existing PSB training relationships' },
   { key: 'priority_mix', label: 'Priority Mix', description: 'Proportion of HIGH PRIORITY prospects', tooltip: 'Proportion of High Priority vs Qualified vs Watch prospects — darker states have more high-priority targets' },
   { key: 'freshness', label: 'Research Freshness', description: 'How recently each state was researched', tooltip: 'How recently each state was researched — green means current, red means the research may be outdated' },
+  { key: 'ontology_density', label: 'Ontology Density', description: 'Knowledge graph depth per state', tooltip: 'Ontology relationships per prospect — higher means deeper knowledge graph coverage from structured data and research extraction. Run Layer 2 extractions to increase density.' },
 ]
 
 function MapMetricSelector({ activeMetric, onMetricChange }) {

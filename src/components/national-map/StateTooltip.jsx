@@ -18,7 +18,21 @@ function StateTooltip({ stateName, stateId, data, reportMeta, activeMetric, posi
         <span className="text-xs text-gray-400">{stateId}</span>
       </div>
 
-      {activeMetric === 'freshness' ? (
+      {activeMetric === 'ontology_density' ? (
+        <div className="space-y-0.5 text-xs text-gray-600">
+          {hasData && data.ontology_relationship_count > 0 ? (
+            <>
+              <p>Density: <span className="font-medium">{(data.ontology_density || 0).toFixed(1)} per prospect</span></p>
+              <p><span className="font-medium">{data.ontology_entity_count}</span> entities · <span className="font-medium">{data.ontology_relationship_count}</span> relationships</p>
+              <p><span className="font-medium">{data.prospect_count}</span> prospects tracked</p>
+            </>
+          ) : hasData ? (
+            <p className="text-gray-400 italic">No ontology data yet</p>
+          ) : (
+            <p className="text-gray-400 italic">No prospects tracked</p>
+          )}
+        </div>
+      ) : activeMetric === 'freshness' ? (
         <div className="space-y-0.5 text-xs text-gray-600">
           {reportMeta?.researched_at ? (
             <>
