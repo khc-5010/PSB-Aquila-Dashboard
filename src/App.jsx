@@ -21,6 +21,7 @@ import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
 import ProspectTable from './components/prospects/ProspectTable'
+import NationalMap from './components/national-map/NationalMap'
 import { PIPELINE_STAGES } from './constants/pipeline'
 
 function App() {
@@ -226,6 +227,8 @@ function App() {
 
       {activeView === 'prospects' ? (
         <ProspectTable />
+      ) : activeView === 'national-map' ? (
+        <NationalMap />
       ) : activeView === 'pipeline' ? (
         <>
           <MetricsBar

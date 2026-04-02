@@ -15,6 +15,106 @@ export default async function handler(req, res) {
 
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
+    // State-level aggregations for National Map
+    if (action === 'state-stats') {
+      try {
+        const [stateCounts, categoryBreakdown, signalAvg, cwpTotals, priorityCounts, topCompanies, totals] = await Promise.all([
+          // Prospect count per state
+          sql`SELECT state, COUNT(*)::int AS prospect_count
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''
+              GROUP BY state`,
+          // Top 3 categories per state
+          sql`SELECT state, category, COUNT(*)::int AS count
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != '' AND category IS NOT NULL
+              GROUP BY state, category
+              ORDER BY state, count DESC`,
+          // Average signal count per state
+          sql`SELECT state, ROUND(AVG(COALESCE(signal_count, 0))::numeric, 1)::float AS avg_signal
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''
+              GROUP BY state`,
+          // Total CWP contacts per state
+          sql`SELECT state, COALESCE(SUM(COALESCE(cwp_contacts, 0)), 0)::int AS cwp_total
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''
+              GROUP BY state`,
+          // Priority breakdown per state
+          sql`SELECT state, priority, COUNT(*)::int AS count
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''
+              GROUP BY state, priority`,
+          // Top 3 companies per state by signal_count
+          sql`SELECT state, company, signal_count, category, priority
+              FROM (
+                SELECT state, company, signal_count, category, priority,
+                       ROW_NUMBER() OVER (PARTITION BY state ORDER BY signal_count DESC NULLS LAST) AS rn
+                FROM prospect_companies
+                WHERE state IS NOT NULL AND state != ''
+              ) ranked
+              WHERE rn <= 3`,
+          // Pipeline-wide totals
+          sql`SELECT
+                COUNT(*)::int AS total_prospects,
+                COUNT(DISTINCT state)::int AS states_covered,
+                ROUND(AVG(COALESCE(signal_count, 0))::numeric, 1)::float AS avg_signal_overall,
+                COALESCE(SUM(COALESCE(cwp_contacts, 0)), 0)::int AS total_cwp
+              FROM prospect_companies
+              WHERE state IS NOT NULL AND state != ''`,
+        ])
+
+        // Build per-state object
+        const stateData = {}
+
+        for (const row of stateCounts) {
+          stateData[row.state] = { prospect_count: row.prospect_count, categories: [], avg_signal: 0, cwp_total: 0, priorities: {}, top_companies: [] }
+        }
+
+        // Category breakdown (top 3 per state)
+        const catByState = {}
+        for (const row of categoryBreakdown) {
+          if (!catByState[row.state]) catByState[row.state] = []
+          if (catByState[row.state].length < 3) {
+            catByState[row.state].push({ category: row.category, count: row.count })
+          }
+        }
+        for (const [st, cats] of Object.entries(catByState)) {
+          if (stateData[st]) stateData[st].categories = cats
+        }
+
+        for (const row of signalAvg) {
+          if (stateData[row.state]) stateData[row.state].avg_signal = row.avg_signal
+        }
+        for (const row of cwpTotals) {
+          if (stateData[row.state]) stateData[row.state].cwp_total = row.cwp_total
+        }
+        for (const row of priorityCounts) {
+          if (stateData[row.state]) {
+            stateData[row.state].priorities[row.priority || 'Unknown'] = row.count
+          }
+        }
+        for (const row of topCompanies) {
+          if (stateData[row.state]) {
+            stateData[row.state].top_companies.push({
+              company: row.company,
+              signal_count: row.signal_count,
+              category: row.category,
+              priority: row.priority,
+            })
+          }
+        }
+
+        return res.status(200).json({
+          ...stateData,
+          _totals: totals[0] || { total_prospects: 0, states_covered: 0, avg_signal_overall: 0, total_cwp: 0 },
+        })
+      } catch (error) {
+        console.error('Error fetching state stats:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attachments for a prospect
     if (action === 'attachments' && id) {
       try {
