@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Building2, Kanban, Map } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
@@ -44,33 +45,25 @@ function Header({ dbStatus, activeView, onViewChange }) {
             <div className="ml-6 flex bg-white/10 rounded-lg p-1">
               <button
                 onClick={() => onViewChange('prospects')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
                   activeView === 'prospects'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
+                <Building2 className="w-4 h-4" />
                 Prospects
               </button>
               <button
                 onClick={() => onViewChange('pipeline')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
                   activeView === 'pipeline'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
+                <Kanban className="w-4 h-4" />
                 Pipeline
-              </button>
-              <button
-                onClick={() => onViewChange('analytics')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  activeView === 'analytics'
-                    ? 'bg-white text-[#041E42]'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
-                }`}
-              >
-                Analytics
               </button>
               <button
                 onClick={() => onViewChange('national-map')}
@@ -80,9 +73,7 @@ function Header({ dbStatus, activeView, onViewChange }) {
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
-                </svg>
+                <Map className="w-4 h-4" />
                 National Map
               </button>
             </div>
