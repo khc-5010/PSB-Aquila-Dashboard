@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } from 'lucide-react'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
@@ -533,7 +534,7 @@ function ProspectTable() {
                     <span className="text-xs text-gray-600">
                       {displayValue(p.category)}
                       {p.in_house_tooling === 'Yes' && (
-                        <span className="ml-1 text-[#041E42]" title="In-house tooling — controls their own molds">🔧</span>
+                        <Wrench className="w-3.5 h-3.5 text-[#041E42] inline ml-1" title="In-house tooling — controls their own molds" />
                       )}
                     </span>
                   </td>
@@ -569,9 +570,11 @@ function ProspectTable() {
                   {/* RJG — gold treatment for confirmed users */}
                   <td className="px-3 py-2.5 text-center">
                     {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-xs leading-5" title="RJG cavity pressure — confirmed. Gold readiness signal.">★</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
+                        <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
+                      </span>
                     ) : p.rjg_cavity_pressure === 'Likely' ? (
-                      <span className="text-xs text-yellow-600" title="RJG cavity pressure — likely. Verify before outreach.">~</span>
+                      <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
                     ) : (
                       <span className="text-xs text-gray-400">{'\u2014'}</span>
                     )}
@@ -580,7 +583,9 @@ function ProspectTable() {
                   {/* Medical */}
                   <td className="px-3 py-2.5 text-center">
                     {p.medical_device_mfg === 'Yes' ? (
-                      <span className="inline-block w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs leading-5">&#x2713;</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
+                        <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+                      </span>
                     ) : (
                       <span className="text-xs text-gray-400">{'\u2014'}</span>
                     )}
@@ -598,13 +603,13 @@ function ProspectTable() {
                     <span className="text-xs text-gray-600 flex items-center gap-1">
                       <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
                       {p.ownership_type?.includes('PE') && p.recent_ma ? (
-                        <span className="flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)">⏱</span>
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
                       ) : p.ownership_type?.includes('PE') ? (
-                        <span className="flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period">⏱</span>
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
                       ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
-                        <span className="flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`}>◈</span>
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
                       ) : p.ownership_type === 'ESOP' ? (
-                        <span className="flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced">◈</span>
+                        <Users className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced" />
                       ) : null}
                     </span>
                   </td>
