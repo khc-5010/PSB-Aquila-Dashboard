@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } from 'lucide-react'
+
+const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
 const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const CATEGORY_OPTIONS = ['All', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
@@ -19,6 +22,19 @@ const PRESETS = [
 
 function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount }) {
   const [searchText, setSearchText] = useState('')
+  const [showLegend, setShowLegend] = useState(() => {
+    try { return localStorage.getItem(LEGEND_KEY) !== 'true' } catch { return true }
+  })
+
+  const handleCloseLegend = () => {
+    setShowLegend(false)
+    try { localStorage.setItem(LEGEND_KEY, 'true') } catch {}
+  }
+
+  const handleOpenLegend = () => {
+    setShowLegend(true)
+    try { localStorage.removeItem(LEGEND_KEY) } catch {}
+  }
 
   const handlePreset = (preset) => {
     if (preset.filter.preset === 'medical') {
@@ -101,12 +117,50 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
           </button>
         )}
 
+        {!showLegend && (
+          <button
+            onClick={handleOpenLegend}
+            className="text-xs text-gray-400 hover:text-gray-500 flex items-center gap-1 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
+            </svg>
+            Icon guide
+          </button>
+        )}
+
         <span className="ml-auto text-sm text-gray-500">
           {filteredCount === totalCount
             ? `${totalCount} companies`
             : `${filteredCount} of ${totalCount} companies`}
         </span>
       </div>
+
+      {/* Icon legend row */}
+      {showLegend && (
+        <div className="flex items-center gap-4 flex-wrap text-xs text-gray-500 pt-1 pb-0.5 border-t border-gray-100">
+          <span className="text-gray-400 font-medium mr-1">Icons:</span>
+          <span className="inline-flex items-center gap-1"><Wrench className="w-3 h-3 text-[#041E42]" /> In-house tooling</span>
+          <span className="text-gray-200">|</span>
+          <span className="inline-flex items-center gap-1"><Star className="w-3 h-3 text-amber-600" fill="#FBBF24" /> RJG confirmed</span>
+          <span className="inline-flex items-center gap-1"><HelpCircle className="w-3 h-3 text-yellow-500" /> RJG likely</span>
+          <span className="text-gray-200">|</span>
+          <span className="inline-flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-green-600" /> Medical</span>
+          <span className="text-gray-200">|</span>
+          <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3 text-red-500" /> PE urgent</span>
+          <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3 text-amber-500" /> PE window</span>
+          <span className="inline-flex items-center gap-1"><AlertTriangle className="w-3 h-3 text-orange-400" /> Succession</span>
+          <span className="inline-flex items-center gap-1"><Users className="w-3 h-3 text-blue-500" /> ESOP</span>
+          <button
+            onClick={handleCloseLegend}
+            className="text-gray-300 hover:text-gray-500 ml-auto"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Bottom row: Dropdown filters */}
       <div className="flex items-center gap-3 flex-wrap">
