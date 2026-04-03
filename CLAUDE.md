@@ -625,4 +625,6 @@ SQL migration: `scripts/create-ontology-tables.sql`
 - This is a small team tool (4 users), optimize for simplicity over scale
 - Mobile-friendly but desktop-primary usage expected
 - Focus on visibility and reducing dropped balls in the pipeline
-- **Tab routing uses hash-based navigation** (`window.location.hash`). URLs: `/#prospects`, `/#pipeline`, `/#analytics`, `/#national-map`. `VALID_VIEWS` array in App.jsx defines allowed values; default is `pipeline`. Refresh preserves the active tab, and browser back/forward navigates between tabs.
+- **Tab routing uses hash-based navigation** (`window.location.hash`). URLs: `/#prospects`, `/#pipeline`, `/#national-map`. `VALID_VIEWS` array in App.jsx defines allowed values; default is `pipeline`. Refresh preserves the active tab, and browser back/forward navigates between tabs. `/#analytics` falls back to `pipeline`.
+- **Analytics tab is hidden** (not deleted). Component files (`src/components/AnalyticsDashboard.jsx`, `src/components/analytics/`) are preserved for future resurrection when pipeline has active opportunities. The tab button was removed from Header and the routing branch from App.
+- **All nav tabs have Lucide icons**: Prospects (`Building2`), Pipeline (`Kanban`), National Map (`Map`). Same `w-4 h-4` sizing with `flex items-center gap-1.5` pattern.

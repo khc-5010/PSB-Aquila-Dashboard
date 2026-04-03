@@ -19,7 +19,6 @@ import ActiveProjectsModal from './components/ActiveProjectsModal'
 import DeadlineBanner from './components/DeadlineBanner'
 import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
-import AnalyticsDashboard from './components/AnalyticsDashboard'
 import ProspectTable from './components/prospects/ProspectTable'
 import NationalMap from './components/national-map/NationalMap'
 import { PIPELINE_STAGES } from './constants/pipeline'
@@ -33,7 +32,7 @@ function App() {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [metricsModal, setMetricsModal] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  const VALID_VIEWS = ['prospects', 'pipeline', 'analytics', 'national-map']
+  const VALID_VIEWS = ['prospects', 'pipeline', 'national-map']
 
   function getViewFromHash() {
     const hash = window.location.hash.replace('#', '')
@@ -250,7 +249,7 @@ function App() {
         <ProspectTable />
       ) : activeView === 'national-map' ? (
         <NationalMap />
-      ) : activeView === 'pipeline' ? (
+      ) : (
         <>
           <MetricsBar
             opportunities={opportunities}
@@ -359,8 +358,6 @@ function App() {
             />
           )}
         </>
-      ) : (
-        <AnalyticsDashboard />
       )}
 
       <footer className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
