@@ -12,6 +12,60 @@ import ImportOntologyModal from './ImportOntologyModal'
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
+const CERT_COLORS = {
+  'ISO 13485':    { bg: 'bg-purple-100', text: 'text-purple-700' },
+  'FDA':          { bg: 'bg-purple-100', text: 'text-purple-700' },
+  'MedAccred':    { bg: 'bg-purple-100', text: 'text-purple-700' },
+  'IATF 16949':   { bg: 'bg-blue-100', text: 'text-blue-700' },
+  'TS 16949':     { bg: 'bg-blue-100', text: 'text-blue-700' },
+  'AS9100':       { bg: 'bg-gray-200', text: 'text-gray-700' },
+  'NADCAP':       { bg: 'bg-gray-200', text: 'text-gray-700' },
+  'ITAR':         { bg: 'bg-gray-200', text: 'text-gray-700' },
+  'ISO 14001':    { bg: 'bg-green-100', text: 'text-green-700' },
+  'ISO 9001':     { bg: 'bg-gray-100', text: 'text-gray-600' },
+  'ISO Class':    { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+}
+
+function getCertColor(cert) {
+  const certLower = cert.toLowerCase()
+  for (const [key, colors] of Object.entries(CERT_COLORS)) {
+    if (certLower.includes(key.toLowerCase())) return colors
+  }
+  return { bg: 'bg-gray-100', text: 'text-gray-600' }
+}
+
+function buildHookLine(p) {
+  const hooks = []
+
+  if (p.rjg_cavity_pressure?.includes('Yes') || p.rjg_cavity_pressure?.includes('confirmed')) {
+    hooks.push('RJG cavity pressure user')
+  }
+
+  if (p.in_house_tooling === 'Yes' && p.category?.includes('Converter')) {
+    hooks.push('vertically integrated (converter + tooling)')
+  }
+
+  if (p.press_count) hooks.push(`${p.press_count}-press operation`)
+  else if ((p.employees_approx ?? 0) >= 500) hooks.push(`${p.employees_approx}+ employees`)
+
+  if ((p.years_in_business ?? 0) >= 30) hooks.push(`${p.years_in_business}-year legacy`)
+
+  if (p.ownership_type?.includes('PE') && p.recent_ma) {
+    hooks.push('PE-backed, recent M&A')
+  } else if (p.ownership_type?.includes('PE')) {
+    hooks.push('PE-backed')
+  }
+
+  if (p.medical_device_mfg === 'Yes') hooks.push('medical device mfg')
+
+  if ((p.cwp_contacts ?? 0) >= 20) hooks.push('deep PSB relationship')
+  else if ((p.cwp_contacts ?? 0) >= 5) hooks.push('warm PSB lead')
+
+  if (hooks.length < 2 && p.top_signal) hooks.push(p.top_signal)
+
+  return hooks.slice(0, 4).join(' \u00B7 ')
+}
+
 function displayValue(val) {
   if (val === null || val === undefined || val === '') return '\u2014'
   return String(val)
@@ -163,6 +217,9 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
               </div>
               {p.also_known_as && (
                 <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
+              )}
+              {buildHookLine(p) && (
+                <p className="text-sm text-white/60 mt-1 italic">{buildHookLine(p)}</p>
               )}
               <div className="flex items-center gap-2 mt-2">
                 <OutreachGroupBadge group={p.outreach_group} />
@@ -319,7 +376,23 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
               <Field label="Top Signal" value={p.top_signal} />
               <Field label="RJG Cavity Pressure" value={p.rjg_cavity_pressure} />
               <Field label="Medical Device Mfg" value={p.medical_device_mfg} />
-              <Field label="Key Certifications" value={p.key_certifications} className="col-span-2" />
+              <div className="col-span-2">
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Key Certifications</dt>
+                <dd className="mt-1 flex flex-wrap">
+                  {p.key_certifications ? (
+                    p.key_certifications.split(',').map(cert => cert.trim()).filter(Boolean).map((cert, i) => {
+                      const colors = getCertColor(cert)
+                      return (
+                        <span key={i} className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mr-1.5 mb-1.5 ${colors.bg} ${colors.text}`}>
+                          {cert}
+                        </span>
+                      )
+                    })
+                  ) : (
+                    <span className="text-sm text-gray-900">{'\u2014'}</span>
+                  )}
+                </dd>
+              </div>
             </dl>
           </Section>
 

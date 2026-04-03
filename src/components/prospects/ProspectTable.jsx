@@ -415,6 +415,9 @@ function ProspectTable() {
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('signal_count')}>
                 Sig <SortIcon column="signal_count" />
               </th>
+              <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('press_count')}>
+                Presses <SortIcon column="press_count" />
+              </th>
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16">
                 RJG
               </th>
@@ -435,7 +438,7 @@ function ProspectTable() {
           <tbody className="divide-y divide-gray-100">
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
                   {prospects.length === 0
                     ? 'No prospects loaded. Run the seed script or import from Excel.'
                     : 'No prospects match the current filters.'}
@@ -527,7 +530,12 @@ function ProspectTable() {
 
                   {/* Category */}
                   <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600">{displayValue(p.category)}</span>
+                    <span className="text-xs text-gray-600">
+                      {displayValue(p.category)}
+                      {p.in_house_tooling === 'Yes' && (
+                        <span className="ml-1 text-[#041E42]" title="In-house tooling — controls their own molds">🔧</span>
+                      )}
+                    </span>
                   </td>
 
                   {/* Location */}
@@ -553,12 +561,17 @@ function ProspectTable() {
                     <span className="text-sm text-gray-700">{displayValue(p.signal_count)}</span>
                   </td>
 
-                  {/* RJG */}
+                  {/* Press Count */}
+                  <td className="px-3 py-2.5 text-center">
+                    <span className="text-sm text-gray-700">{displayValue(p.press_count)}</span>
+                  </td>
+
+                  {/* RJG — gold treatment for confirmed users */}
                   <td className="px-3 py-2.5 text-center">
                     {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
-                      <span className="inline-block w-5 h-5 rounded-full bg-green-100 text-green-700 text-xs leading-5">&#x2713;</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-xs leading-5" title="RJG cavity pressure — confirmed. Gold readiness signal.">★</span>
                     ) : p.rjg_cavity_pressure === 'Likely' ? (
-                      <span className="text-xs text-yellow-600">~</span>
+                      <span className="text-xs text-yellow-600" title="RJG cavity pressure — likely. Verify before outreach.">~</span>
                     ) : (
                       <span className="text-xs text-gray-400">{'\u2014'}</span>
                     )}
@@ -580,9 +593,20 @@ function ProspectTable() {
                     </span>
                   </td>
 
-                  {/* Ownership */}
+                  {/* Ownership — with urgency indicators */}
                   <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600">{displayValue(p.ownership_type)}</span>
+                    <span className="text-xs text-gray-600 flex items-center gap-1">
+                      <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
+                      {p.ownership_type?.includes('PE') && p.recent_ma ? (
+                        <span className="flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)">⏱</span>
+                      ) : p.ownership_type?.includes('PE') ? (
+                        <span className="flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period">⏱</span>
+                      ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
+                        <span className="flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`}>◈</span>
+                      ) : p.ownership_type === 'ESOP' ? (
+                        <span className="flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced">◈</span>
+                      ) : null}
+                    </span>
                   </td>
 
                   {/* Suggested Next Step */}
