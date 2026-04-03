@@ -33,7 +33,28 @@ function App() {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [metricsModal, setMetricsModal] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  const [activeView, setActiveView] = useState('pipeline')
+  const VALID_VIEWS = ['prospects', 'pipeline', 'analytics', 'national-map']
+
+  function getViewFromHash() {
+    const hash = window.location.hash.replace('#', '')
+    return VALID_VIEWS.includes(hash) ? hash : 'pipeline'
+  }
+
+  const [activeView, setActiveView] = useState(getViewFromHash)
+
+  const changeView = useCallback((view) => {
+    setActiveView(view)
+    window.location.hash = view
+  }, [])
+
+  useEffect(() => {
+    function handleHashChange() {
+      const newView = getViewFromHash()
+      setActiveView(prev => prev !== newView ? newView : prev)
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
   const [users, setUsers] = useState([])
 
   const sensors = useSensors(
@@ -222,7 +243,7 @@ function App() {
       <Header
         dbStatus={dbStatus}
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={changeView}
       />
 
       {activeView === 'prospects' ? (
@@ -262,7 +283,7 @@ function App() {
                   </div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-1">No active opportunities yet</h3>
                   <p className="text-sm text-gray-500">
-                    Promote prospects from the <button onClick={() => setActiveView('prospects')} className="text-[#041E42] font-medium underline hover:no-underline">Prospects tab</button> to start tracking projects here.
+                    Promote prospects from the <button onClick={() => changeView('prospects')} className="text-[#041E42] font-medium underline hover:no-underline">Prospects tab</button> to start tracking projects here.
                   </p>
                 </div>
               )}
