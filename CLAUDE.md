@@ -280,6 +280,29 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - Two options: "Export filtered" (respects current filters) and "Export all" (full dataset)
 - Export button in the sub-view toggle header area of ProspectTable
 
+### Industry Visual Intelligence (Prospect Table + Detail Panel Polish)
+
+Six visual enhancements that surface plastics industry intelligence at a glance. All data-driven from existing API fields — no new endpoints or schema changes.
+
+**Files modified:** `ProspectTable.jsx`, `ProspectDetail.jsx`
+
+1. **Press Count Column** — "Presses" column between Sig and RJG in table. Sortable. Universal sizing metric in plastics.
+2. **Tooling Indicator** — 🔧 icon in Category cell when `in_house_tooling === 'Yes'`. Tooltip: "In-house tooling — controls their own molds."
+3. **Gold RJG Treatment** — Confirmed RJG users show gold/amber star (★) instead of green checkmark. Matches Brett's "gold signal" mental model. Likely still shows yellow tilde.
+4. **Ownership Urgency Indicators** — Icons after ownership text: red ⏱ (PE + recent M&A, 6-18mo window), amber ⏱ (PE, 3-5yr hold), orange ◈ (family 30+ years, succession), blue ◈ (ESOP). Ownership text truncated to ~100px in table.
+5. **Certification Badges in Detail** — `key_certifications` rendered as colored pills in ProspectDetail Signals section. Color-coded by market vertical:
+   - Purple: Medical (ISO 13485, FDA, MedAccred)
+   - Blue: Automotive (IATF 16949, TS 16949)
+   - Gray-dark: Aerospace (AS9100, NADCAP, ITAR)
+   - Green: Environmental (ISO 14001)
+   - Cyan: Cleanroom (ISO Class)
+   - Gray-light: General QMS (ISO 9001) and default
+6. **"Why This Company" Hook Line** — Computed one-liner in detail panel header (white/60 italic). Built from: RJG status → tooling integration → press count/employees → legacy years → PE/M&A → medical → CWP warmth → top_signal fallback. Max 4 hooks, separated by middle dot (·).
+
+**`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
+
+**`CERT_COLORS`** mapping and `getCertColor()` use case-insensitive partial match against certification string.
+
 ### Manufacturing Corridors (replaced Geography Tiers)
 The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from the `state` column at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.
 
