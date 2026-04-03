@@ -416,6 +416,11 @@ VITE_API_URL=            # API base URL (if separate backend)
 - Current function count: **10** (target: ≤ 12, Vercel Hobby limit)
 - Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`, `auth.js`
 
+### Icons
+- Use `lucide-react` for all new icons. Import only what you need (tree-shakeable, ~1KB per icon).
+- Currently used in `ProspectTable.jsx`: Wrench (tooling), Star (RJG confirmed), HelpCircle (RJG likely), Clock (PE urgency), AlertTriangle (family succession), Users (ESOP), ShieldCheck (medical).
+- Existing inline SVGs elsewhere in the app are fine — no need to migrate those.
+
 ## National Map Feature
 
 ### Overview
