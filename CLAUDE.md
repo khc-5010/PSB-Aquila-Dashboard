@@ -577,8 +577,17 @@ SQL migration: `scripts/create-ontology-tables.sql`
 #### Rebuild Workflow
 1. Run SQL migration in Neon console (one-time): `scripts/create-ontology-tables.sql`
 2. Deploy code changes
-3. `POST /api/prospects?action=rebuild-ontology-layer1` to populate the graph
-4. Re-run rebuild anytime prospect data changes significantly
+3. `POST /api/prospects?action=rebuild-ontology-layer1` to populate the graph (or let auto-triggers handle it)
+
+#### Auto-Trigger Behavior
+Layer 1 ontology auto-rebuilds on data changes — the ontology never silently goes stale:
+- **Bulk import** (`POST ?action=import`): Full `rebuildOntologyLayer1(sql)` after upsert loop. Adds `ontology` field to response.
+- **Single create** (`POST /api/prospects`): Per-prospect `rebuildOntologyForProspect(sql, id)` after insert. Adds `ontology` field to response.
+- **PATCH** (`PATCH ?id=X`): Conditional per-prospect rebuild only when body contains ontology-relevant fields: `key_certifications`, `rjg_cavity_pressure`, `medical_device_mfg`, `ownership_type`, `parent_company`, `category`, `in_house_tooling`. Editing `outreach_group`, `notes`, etc. does NOT trigger rebuild.
+
+All rebuild calls are **awaited before response** — fire-and-forget is unsafe on Vercel serverless (execution context freezes after `res.end()`). Per-prospect rebuild deletes only Layer 1 relationships (never entities, never Layer 2 data) to avoid CASCADE danger on shared entities like "ISO 9001".
+
+The manual endpoint `POST ?action=rebuild-ontology-layer1` still works — it calls the same extracted `rebuildOntologyLayer1(sql)` function.
 
 #### UI: OntologySummary Component
 - `src/components/national-map/OntologySummary.jsx` — Displays in StateDetailPanel when a state is clicked
