@@ -1,5 +1,287 @@
 import { neon } from '@neondatabase/serverless'
 
+// ─── Ontology Layer 1: Full rebuild (all prospects) ─────────────────
+// Clears all Layer 1 entities/relationships and regenerates from prospect_companies.
+// Layer 2 data is never touched. Returns stats object.
+async function rebuildOntologyLayer1(sql) {
+  const startTime = Date.now()
+
+  // 1. Load entity type and relationship type lookups
+  const [entityTypes, relTypes] = await Promise.all([
+    sql`SELECT id, name FROM ontology_entity_types`,
+    sql`SELECT id, name FROM ontology_relationship_types`,
+  ])
+  const typeMap = {}
+  for (const t of entityTypes) typeMap[t.name] = t.id
+  const relMap = {}
+  for (const r of relTypes) relMap[r.name] = r.id
+
+  if (!typeMap['Company'] || !typeMap['Certification']) {
+    throw new Error('Ontology entity types not seeded. Run the SQL migration first.')
+  }
+
+  // 2. Clear all Layer 1 data (relationships first due to FK cascade)
+  await sql`DELETE FROM ontology_relationships WHERE layer = 1`
+  await sql`DELETE FROM ontology_entities WHERE layer = 1`
+
+  // 3. Read all prospects
+  const prospects = await sql`SELECT * FROM prospect_companies`
+
+  let entitiesCreated = 0
+  let relationshipsCreated = 0
+
+  // Helper: normalize entity name
+  function normalizeName(raw) {
+    return raw.trim().replace(/\s+/g, ' ')
+  }
+
+  // Helper: UPSERT entity and return its id
+  async function upsertEntity(typeId, name, attrs = {}, prospectCompanyId = null, source = null, confidence = 'Confirmed') {
+    const normalized = normalizeName(name)
+    if (!normalized) return null
+    const result = await sql`
+      INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
+      VALUES (${typeId}, ${normalized}, ${JSON.stringify(attrs)}, ${prospectCompanyId}, ${source}, ${confidence}, 1)
+      ON CONFLICT (type_id, name) DO UPDATE SET
+        updated_at = NOW(),
+        prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
+      RETURNING id
+    `
+    entitiesCreated++
+    return result[0]?.id
+  }
+
+  // Helper: INSERT relationship (skip on conflict)
+  async function insertRelationship(relTypeId, subjectId, objectId, source = null, confidence = 'Confirmed') {
+    if (!relTypeId || !subjectId || !objectId) return
+    await sql`
+      INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
+      VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${source}, ${confidence}, 1)
+      ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
+    `
+    relationshipsCreated++
+  }
+
+  // 4. Process each prospect
+  for (const p of prospects) {
+    const source = p.source_report || null
+
+    // Create Company entity
+    const companyAttrs = {}
+    if (p.category) companyAttrs.category = p.category
+    if (p.in_house_tooling) companyAttrs.in_house_tooling = p.in_house_tooling
+    const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
+    if (!companyId) continue
+
+    // Parse certifications (comma-separated)
+    if (p.key_certifications && p.key_certifications.trim()) {
+      const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+      for (const cert of certs) {
+        const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
+        if (certId) {
+          await insertRelationship(relMap['holds_certification'], companyId, certId, source)
+        }
+      }
+    }
+
+    // RJG cavity pressure → Technology entity
+    if (p.rjg_cavity_pressure) {
+      const rjgVal = p.rjg_cavity_pressure.toLowerCase()
+      if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
+        const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
+        if (techId) {
+          await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
+        }
+      } else if (rjgVal === 'likely') {
+        const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
+        if (techId) {
+          await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Likely')
+        }
+      }
+    }
+
+    // Medical device manufacturing → Market Vertical
+    if (p.medical_device_mfg === 'Yes') {
+      const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
+      if (marketId) {
+        await insertRelationship(relMap['serves_market'], companyId, marketId, source)
+      }
+    }
+
+    // Ownership type → Ownership Structure entity
+    if (p.ownership_type && p.ownership_type.trim()) {
+      const ownerId = await upsertEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
+      if (ownerId) {
+        await insertRelationship(relMap['has_ownership_structure'], companyId, ownerId, source)
+      }
+    }
+
+    // Parent company → Company entity + subsidiary_of relationship
+    if (p.parent_company && p.parent_company.trim()) {
+      const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
+      if (parentId) {
+        await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
+      }
+    }
+  }
+
+  const duration = Date.now() - startTime
+  return {
+    entities_created: entitiesCreated,
+    relationships_created: relationshipsCreated,
+    prospects_processed: prospects.length,
+    duration_ms: duration,
+  }
+}
+
+// ─── Ontology Layer 1: Per-prospect rebuild ─────────────────────────
+// Rebuilds Layer 1 relationships for a single prospect without touching
+// shared entities or Layer 2 data. Safe against CASCADE — only deletes
+// Layer 1 relationships where this company is the subject.
+async function rebuildOntologyForProspect(sql, prospectId) {
+  const start = Date.now()
+
+  // 1. Load lookups
+  const [entityTypes, relTypes] = await Promise.all([
+    sql`SELECT id, name FROM ontology_entity_types`,
+    sql`SELECT id, name FROM ontology_relationship_types`,
+  ])
+  const typeMap = {}
+  for (const t of entityTypes) typeMap[t.name] = t.id
+  const relMap = {}
+  for (const r of relTypes) relMap[r.name] = r.id
+
+  if (!typeMap['Company']) {
+    throw new Error('Ontology entity types not seeded.')
+  }
+
+  // 2. Get the prospect record
+  const prospectRows = await sql`SELECT * FROM prospect_companies WHERE id = ${prospectId}`
+  if (prospectRows.length === 0) {
+    return { prospect_id: prospectId, error: 'Prospect not found', duration_ms: Date.now() - start }
+  }
+  const p = prospectRows[0]
+  const source = p.source_report || null
+
+  // Helper: normalize entity name
+  function normalizeName(raw) {
+    return raw.trim().replace(/\s+/g, ' ')
+  }
+
+  let entitiesUpserted = 0
+  let relationshipsCreated = 0
+
+  // Helper: UPSERT entity and return its id
+  async function upsertEntity(typeId, name, attrs = {}, prospectCompanyId = null, entitySource = null, confidence = 'Confirmed') {
+    const normalized = normalizeName(name)
+    if (!normalized) return null
+    const result = await sql`
+      INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
+      VALUES (${typeId}, ${normalized}, ${JSON.stringify(attrs)}, ${prospectCompanyId}, ${entitySource}, ${confidence}, 1)
+      ON CONFLICT (type_id, name) DO UPDATE SET
+        updated_at = NOW(),
+        prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
+      RETURNING id
+    `
+    entitiesUpserted++
+    return result[0]?.id
+  }
+
+  // Helper: INSERT relationship (skip on conflict)
+  async function insertRelationship(relTypeId, subjectId, objectId, relSource = null, confidence = 'Confirmed') {
+    if (!relTypeId || !subjectId || !objectId) return
+    await sql`
+      INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
+      VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${relSource}, ${confidence}, 1)
+      ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
+    `
+    relationshipsCreated++
+  }
+
+  // 3. Find or create the Company entity
+  const companyAttrs = {}
+  if (p.category) companyAttrs.category = p.category
+  if (p.in_house_tooling) companyAttrs.in_house_tooling = p.in_house_tooling
+  const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
+  if (!companyId) {
+    return { prospect_id: prospectId, error: 'Could not create Company entity', duration_ms: Date.now() - start }
+  }
+
+  // 4. Delete Layer 1 RELATIONSHIPS only where this company is the subject
+  //    Never delete entities — shared entities (ISO 9001, etc.) must survive
+  //    Never touch Layer 2 relationships
+  await sql`
+    DELETE FROM ontology_relationships
+    WHERE subject_entity_id = ${companyId} AND layer = 1
+  `
+
+  // 5. Re-derive relationships from this prospect's current fields
+
+  // Certifications
+  if (p.key_certifications && p.key_certifications.trim()) {
+    const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+    for (const cert of certs) {
+      const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
+      if (certId) {
+        await insertRelationship(relMap['holds_certification'], companyId, certId, source)
+      }
+    }
+  }
+
+  // RJG cavity pressure
+  if (p.rjg_cavity_pressure) {
+    const rjgVal = p.rjg_cavity_pressure.toLowerCase()
+    if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
+      const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
+      if (techId) {
+        await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
+      }
+    } else if (rjgVal === 'likely') {
+      const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
+      if (techId) {
+        await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Likely')
+      }
+    }
+  }
+
+  // Medical device manufacturing
+  if (p.medical_device_mfg === 'Yes') {
+    const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
+    if (marketId) {
+      await insertRelationship(relMap['serves_market'], companyId, marketId, source)
+    }
+  }
+
+  // Ownership type
+  if (p.ownership_type && p.ownership_type.trim()) {
+    const ownerId = await upsertEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
+    if (ownerId) {
+      await insertRelationship(relMap['has_ownership_structure'], companyId, ownerId, source)
+    }
+  }
+
+  // Parent company
+  if (p.parent_company && p.parent_company.trim()) {
+    const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
+    if (parentId) {
+      await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
+    }
+  }
+
+  return {
+    prospect_id: prospectId,
+    entities_upserted: entitiesUpserted,
+    relationships_created: relationshipsCreated,
+    duration_ms: Date.now() - start,
+  }
+}
+
+// Fields that affect ontology — PATCH only triggers rebuild when one of these changes
+const ONTOLOGY_FIELDS = [
+  'key_certifications', 'rjg_cavity_pressure', 'medical_device_mfg',
+  'ownership_type', 'parent_company', 'category', 'in_house_tooling',
+]
+
 /**
  * Consolidated prospect API — single serverless function.
  *
@@ -725,134 +1007,8 @@ export default async function handler(req, res) {
     // ─── Ontology: Layer 1 auto-derivation rebuild ───
     if (action === 'rebuild-ontology-layer1') {
       try {
-        const startTime = Date.now()
-
-        // 1. Load entity type and relationship type lookups
-        const [entityTypes, relTypes] = await Promise.all([
-          sql`SELECT id, name FROM ontology_entity_types`,
-          sql`SELECT id, name FROM ontology_relationship_types`,
-        ])
-        const typeMap = {}
-        for (const t of entityTypes) typeMap[t.name] = t.id
-        const relMap = {}
-        for (const r of relTypes) relMap[r.name] = r.id
-
-        if (!typeMap['Company'] || !typeMap['Certification']) {
-          return res.status(500).json({ error: 'Ontology entity types not seeded. Run the SQL migration first.' })
-        }
-
-        // 2. Clear all Layer 1 data (relationships first due to FK cascade)
-        await sql`DELETE FROM ontology_relationships WHERE layer = 1`
-        await sql`DELETE FROM ontology_entities WHERE layer = 1`
-
-        // 3. Read all prospects
-        const prospects = await sql`SELECT * FROM prospect_companies`
-
-        let entitiesCreated = 0
-        let relationshipsCreated = 0
-
-        // Helper: normalize entity name
-        function normalizeName(raw) {
-          return raw.trim().replace(/\s+/g, ' ')
-        }
-
-        // Helper: UPSERT entity and return its id
-        async function upsertEntity(typeId, name, attrs = {}, prospectCompanyId = null, source = null, confidence = 'Confirmed') {
-          const normalized = normalizeName(name)
-          if (!normalized) return null
-          const result = await sql`
-            INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
-            VALUES (${typeId}, ${normalized}, ${JSON.stringify(attrs)}, ${prospectCompanyId}, ${source}, ${confidence}, 1)
-            ON CONFLICT (type_id, name) DO UPDATE SET
-              updated_at = NOW(),
-              prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
-            RETURNING id
-          `
-          entitiesCreated++
-          return result[0]?.id
-        }
-
-        // Helper: INSERT relationship (skip on conflict)
-        async function insertRelationship(relTypeId, subjectId, objectId, source = null, confidence = 'Confirmed') {
-          if (!relTypeId || !subjectId || !objectId) return
-          await sql`
-            INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
-            VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${source}, ${confidence}, 1)
-            ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
-          `
-          relationshipsCreated++
-        }
-
-        // 4. Process each prospect
-        for (const p of prospects) {
-          const source = p.source_report || null
-
-          // Create Company entity
-          const companyAttrs = {}
-          if (p.category) companyAttrs.category = p.category
-          if (p.in_house_tooling) companyAttrs.in_house_tooling = p.in_house_tooling
-          const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
-          if (!companyId) continue
-
-          // Parse certifications (comma-separated)
-          if (p.key_certifications && p.key_certifications.trim()) {
-            const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
-            for (const cert of certs) {
-              const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
-              if (certId) {
-                await insertRelationship(relMap['holds_certification'], companyId, certId, source)
-              }
-            }
-          }
-
-          // RJG cavity pressure → Technology entity
-          if (p.rjg_cavity_pressure) {
-            const rjgVal = p.rjg_cavity_pressure.toLowerCase()
-            if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
-              const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
-              if (techId) {
-                await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
-              }
-            } else if (rjgVal === 'likely') {
-              const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
-              if (techId) {
-                await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Likely')
-              }
-            }
-          }
-
-          // Medical device manufacturing → Market Vertical
-          if (p.medical_device_mfg === 'Yes') {
-            const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
-            if (marketId) {
-              await insertRelationship(relMap['serves_market'], companyId, marketId, source)
-            }
-          }
-
-          // Ownership type → Ownership Structure entity
-          if (p.ownership_type && p.ownership_type.trim()) {
-            const ownerId = await upsertEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
-            if (ownerId) {
-              await insertRelationship(relMap['has_ownership_structure'], companyId, ownerId, source)
-            }
-          }
-
-          // Parent company → Company entity + subsidiary_of relationship
-          if (p.parent_company && p.parent_company.trim()) {
-            const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
-            if (parentId) {
-              await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
-            }
-          }
-        }
-
-        const duration = Date.now() - startTime
-        return res.status(200).json({
-          entities_created: entitiesCreated,
-          relationships_created: relationshipsCreated,
-          prospects_processed: prospects.length,
-          duration_ms: duration,
-        })
+        const result = await rebuildOntologyLayer1(sql)
+        return res.status(200).json(result)
       } catch (error) {
         console.error('Error rebuilding ontology Layer 1:', error)
         return res.status(500).json({ error: error.message })
@@ -1220,10 +1376,20 @@ export default async function handler(req, res) {
           upserted++
         }
 
+        // Rebuild ontology to reflect imported data
+        let ontologyResult = null
+        try {
+          ontologyResult = await rebuildOntologyLayer1(sql)
+        } catch (err) {
+          console.error('Post-import ontology rebuild failed:', err)
+          // Non-fatal — import succeeded, ontology just needs manual rebuild
+        }
+
         return res.status(200).json({
           message: `Import complete: ${upserted} upserted, ${skipped} skipped`,
           upserted,
           skipped,
+          ontology: ontologyResult || { error: 'Rebuild failed — run manual rebuild' },
         })
       } catch (error) {
         console.error('Error importing prospects:', error)
@@ -1262,7 +1428,16 @@ export default async function handler(req, res) {
         )
         RETURNING *
       `
-      return res.status(201).json(result[0])
+
+      // Derive ontology for new prospect
+      let ontologyResult = null
+      try {
+        ontologyResult = await rebuildOntologyForProspect(sql, result[0].id)
+      } catch (err) {
+        console.error('Post-create ontology derivation failed:', err)
+      }
+
+      return res.status(201).json({ ...result[0], ontology: ontologyResult })
     } catch (error) {
       console.error('Error creating prospect:', error)
       return res.status(500).json({ error: error.message })
@@ -1316,6 +1491,16 @@ export default async function handler(req, res) {
 
       if (!result || result.length === 0) {
         return res.status(404).json({ error: 'Prospect not found' })
+      }
+
+      // Conditional ontology rebuild — only when ontology-relevant fields changed
+      const touchesOntology = ONTOLOGY_FIELDS.some(field => field in body)
+      if (touchesOntology) {
+        try {
+          await rebuildOntologyForProspect(sql, id)
+        } catch (err) {
+          console.error('Post-edit ontology rebuild failed:', err)
+        }
       }
 
       return res.status(200).json(result[0])
