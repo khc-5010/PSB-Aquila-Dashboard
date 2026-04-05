@@ -668,6 +668,209 @@ export default async function handler(req, res) {
     }
 
     // Attachments for a prospect
+    if (action === 'data-audit') {
+      try {
+        // Query 1 — Field completeness counts
+        // Query 2 — Logical inconsistency counts
+        // Query 3 — Per-state signal health
+        const [completeness, consistency, stateSignal] = await Promise.all([
+          sql`SELECT
+            COUNT(*)::int as total,
+            COUNT(*) FILTER (WHERE signal_count IS NULL OR signal_count = 0)::int as null_signal,
+            COUNT(*) FILTER (WHERE cwp_contacts IS NULL)::int as null_cwp,
+            COUNT(*) FILTER (WHERE state IS NULL OR state = '')::int as null_state,
+            COUNT(*) FILTER (WHERE category IS NULL OR category = '')::int as null_category,
+            COUNT(*) FILTER (WHERE priority IS NULL OR priority = '')::int as null_priority,
+            COUNT(*) FILTER (WHERE press_count IS NULL OR press_count = 0)::int as null_press,
+            COUNT(*) FILTER (WHERE year_founded IS NULL)::int as null_founded,
+            COUNT(*) FILTER (WHERE employees_approx IS NULL)::int as null_employees,
+            COUNT(*) FILTER (WHERE key_certifications IS NULL OR key_certifications = '')::int as null_certs,
+            COUNT(*) FILTER (WHERE ownership_type IS NULL OR ownership_type = '')::int as null_ownership,
+            COUNT(*) FILTER (WHERE prospect_status IS NULL OR prospect_status = '')::int as null_status
+          FROM prospect_companies`,
+          sql`SELECT
+            COUNT(*) FILTER (WHERE (rjg_cavity_pressure ILIKE '%yes%' OR rjg_cavity_pressure ILIKE '%confirmed%') AND (signal_count IS NULL OR signal_count = 0))::int as rjg_no_signal,
+            COUNT(*) FILTER (WHERE medical_device_mfg = 'Yes' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%'))::int as medical_no_cert,
+            COUNT(*) FILTER (WHERE employees_approx > 200 AND (press_count IS NULL OR press_count = 0))::int as large_no_press,
+            COUNT(*) FILTER (WHERE category ILIKE '%converter%' AND (press_count IS NULL OR press_count = 0))::int as converter_no_press,
+            COUNT(*) FILTER (WHERE parent_company IS NOT NULL AND parent_company != '' AND (ownership_type IS NULL OR ownership_type = ''))::int as parent_no_ownership,
+            COUNT(*) FILTER (WHERE years_in_business IS NOT NULL AND year_founded IS NOT NULL AND ABS(years_in_business - (EXTRACT(YEAR FROM NOW()) - year_founded)) > 2)::int as age_mismatch
+          FROM prospect_companies`,
+          sql`SELECT state,
+            COUNT(*)::int as count,
+            ROUND(AVG(COALESCE(signal_count, 0))::numeric, 1)::float as avg_signal,
+            COUNT(*) FILTER (WHERE signal_count IS NULL OR signal_count = 0)::int as zero_signal_count
+          FROM prospect_companies
+          WHERE state IS NOT NULL AND state != ''
+          GROUP BY state
+          ORDER BY avg_signal ASC`
+        ])
+
+        const c = completeness[0]
+        const i = consistency[0]
+
+        // Build rules catalog
+        const rules = [
+          { id: 'null_state', name: 'Missing state', severity: 'critical', category: 'completeness', description: 'Prospects with no state assigned. Cannot appear on National Map or in corridor analytics.', count: c.null_state, suggestion: 'Add state for these companies from their website or source report.' },
+          { id: 'rjg_no_signal', name: 'RJG confirmed but signal = 0', severity: 'critical', category: 'consistency', description: 'Companies with confirmed RJG cavity pressure monitoring but signal_count = 0. RJG alone should count as at least 1 signal.', count: i.rjg_no_signal, suggestion: 'Review source reports and set signal_count to at least 1 for confirmed RJG users.' },
+          { id: 'null_signal', name: 'Missing signal count', severity: 'high', category: 'completeness', description: 'Prospects with signal_count = 0 or NULL. May have signals that weren\'t captured during import.', count: c.null_signal, suggestion: 'Review source reports for these states and update signal counts, or re-import from corrected data.' },
+          { id: 'null_cwp', name: 'Missing CWP contacts', severity: 'high', category: 'completeness', description: 'Prospects with NULL cwp_contacts. CWP warmth indicators won\'t show for these companies.', count: c.null_cwp, suggestion: 'Cross-reference CWP database to populate contact counts.' },
+          { id: 'null_category', name: 'Missing category', severity: 'warning', category: 'completeness', description: 'Prospects with no category. Won\'t appear in category breakdown charts.', count: c.null_category, suggestion: 'Classify these companies based on their primary business.' },
+          { id: 'null_priority', name: 'Missing priority', severity: 'warning', category: 'completeness', description: 'Prospects with no priority level assigned.', count: c.null_priority, suggestion: 'Review and assign priority based on fit criteria.' },
+          { id: 'null_ownership', name: 'Missing ownership type', severity: 'warning', category: 'completeness', description: 'Prospects with no ownership type. Ownership urgency indicators won\'t display.', count: c.null_ownership, suggestion: 'Research ownership structure (PE, family, ESOP, public) for these companies.' },
+          { id: 'medical_no_cert', name: 'Medical mfg but no ISO 13485', severity: 'warning', category: 'consistency', description: 'Companies flagged as medical device manufacturers but missing ISO 13485 certification. May be a data gap or genuinely uncertified.', count: i.medical_no_cert, suggestion: 'Verify if these companies hold ISO 13485 and update certifications field.' },
+          { id: 'converter_no_press', name: 'Converter with no press count', severity: 'warning', category: 'consistency', description: 'Companies categorized as converters but with no press count recorded. Press count is a key sizing metric for molders.', count: i.converter_no_press, suggestion: 'Research press counts from company websites or industry databases.' },
+          { id: 'null_press', name: 'Missing press count', severity: 'info', category: 'completeness', description: 'Prospects with no press count. Minor gap — press count helps size converter operations.', count: c.null_press, suggestion: 'Add press counts when available from research.' },
+          { id: 'null_founded', name: 'Missing year founded', severity: 'info', category: 'completeness', description: 'Prospects with no year founded. Affects legacy business calculations.', count: c.null_founded, suggestion: 'Add founding year from company websites.' },
+          { id: 'null_employees', name: 'Missing employee count', severity: 'info', category: 'completeness', description: 'Prospects with no employee count. Affects company sizing.', count: c.null_employees, suggestion: 'Add approximate employee counts from LinkedIn or company websites.' },
+          { id: 'null_certs', name: 'Missing certifications', severity: 'info', category: 'completeness', description: 'Prospects with no certifications listed. May have certs not yet captured.', count: c.null_certs, suggestion: 'Research certifications from company quality pages.' },
+          { id: 'parent_no_ownership', name: 'Has parent but no ownership type', severity: 'info', category: 'consistency', description: 'Companies with a parent company listed but no ownership type. Parent company implies subsidiary structure.', count: i.parent_no_ownership, suggestion: 'Set ownership type based on parent company structure.' },
+          { id: 'age_mismatch', name: 'Age calculation mismatch', severity: 'info', category: 'consistency', description: 'Companies where years_in_business doesn\'t match calculation from year_founded (off by >2 years).', count: i.age_mismatch, suggestion: 'Verify year_founded and years_in_business for consistency.' },
+        ]
+
+        // Add state signal gap rule from state data
+        const problemStates = stateSignal.filter(s => s.avg_signal < 0.5 && s.count >= 5)
+        rules.push({
+          id: 'state_signal_gap',
+          name: 'States with near-zero avg signal',
+          severity: 'critical',
+          category: 'coverage',
+          description: `${problemStates.length} state(s) with 5+ prospects but avg signal < 0.5: ${problemStates.map(s => s.state).join(', ') || 'none'}. Likely a bulk import issue where signal counts defaulted to 0.`,
+          count: problemStates.length,
+          suggestion: 'Review the source reports for these states and update signal counts from narrative data.',
+          examples: problemStates.slice(0, 5).map(s => ({ id: null, company: s.state, detail: `${s.count} prospects, avg_signal=${s.avg_signal}, ${s.zero_signal_count} with zero` }))
+        })
+
+        // Query 4 — Fetch examples for rules with count > 0 (batch into one query per category)
+        const needExamples = rules.filter(r => r.count > 0 && !r.examples)
+        const exampleQueries = []
+
+        // Build example queries for top issues
+        const exampleRuleIds = needExamples.slice(0, 8).map(r => r.id)
+        if (exampleRuleIds.length > 0) {
+          const exampleResults = await sql`
+            SELECT * FROM (
+              SELECT 'null_signal' as rule_id, id, company, state, COALESCE(signal_count::text, 'NULL') as detail
+              FROM prospect_companies
+              WHERE (signal_count IS NULL OR signal_count = 0)
+              ORDER BY company LIMIT 5
+            ) a
+            UNION ALL SELECT * FROM (
+              SELECT 'null_cwp' as rule_id, id, company, state, 'cwp_contacts=NULL' as detail
+              FROM prospect_companies
+              WHERE cwp_contacts IS NULL
+              ORDER BY company LIMIT 5
+            ) b
+            UNION ALL SELECT * FROM (
+              SELECT 'null_state' as rule_id, id, company, COALESCE(state, '') as state, 'no state' as detail
+              FROM prospect_companies
+              WHERE state IS NULL OR state = ''
+              ORDER BY company LIMIT 5
+            ) c
+            UNION ALL SELECT * FROM (
+              SELECT 'null_category' as rule_id, id, company, COALESCE(state, '') as state, 'no category' as detail
+              FROM prospect_companies
+              WHERE category IS NULL OR category = ''
+              ORDER BY company LIMIT 5
+            ) d
+            UNION ALL SELECT * FROM (
+              SELECT 'rjg_no_signal' as rule_id, id, company, COALESCE(state, '') as state,
+                'rjg=' || COALESCE(rjg_cavity_pressure, '') || ', signal=' || COALESCE(signal_count::text, 'NULL') as detail
+              FROM prospect_companies
+              WHERE (rjg_cavity_pressure ILIKE '%yes%' OR rjg_cavity_pressure ILIKE '%confirmed%')
+                AND (signal_count IS NULL OR signal_count = 0)
+              ORDER BY company LIMIT 5
+            ) e
+            UNION ALL SELECT * FROM (
+              SELECT 'medical_no_cert' as rule_id, id, company, COALESCE(state, '') as state,
+                'medical=Yes, certs=' || COALESCE(key_certifications, 'NULL') as detail
+              FROM prospect_companies
+              WHERE medical_device_mfg = 'Yes' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%')
+              ORDER BY company LIMIT 5
+            ) f
+            UNION ALL SELECT * FROM (
+              SELECT 'converter_no_press' as rule_id, id, company, COALESCE(state, '') as state,
+                'category=' || COALESCE(category, '') || ', press=0' as detail
+              FROM prospect_companies
+              WHERE category ILIKE '%converter%' AND (press_count IS NULL OR press_count = 0)
+              ORDER BY company LIMIT 5
+            ) g
+            UNION ALL SELECT * FROM (
+              SELECT 'age_mismatch' as rule_id, id, company, COALESCE(state, '') as state,
+                'founded=' || COALESCE(year_founded::text, 'NULL') || ', years_in_biz=' || COALESCE(years_in_business::text, 'NULL') as detail
+              FROM prospect_companies
+              WHERE years_in_business IS NOT NULL AND year_founded IS NOT NULL
+                AND ABS(years_in_business - (EXTRACT(YEAR FROM NOW()) - year_founded)) > 2
+              ORDER BY company LIMIT 5
+            ) h
+          `
+
+          // Attach examples to rules
+          const examplesByRule = {}
+          for (const row of exampleResults) {
+            if (!examplesByRule[row.rule_id]) examplesByRule[row.rule_id] = []
+            if (examplesByRule[row.rule_id].length < 5) {
+              examplesByRule[row.rule_id].push({ id: row.id, company: row.company, detail: row.state ? `${row.state} — ${row.detail}` : row.detail })
+            }
+          }
+          for (const rule of rules) {
+            if (examplesByRule[rule.id] && !rule.examples) {
+              rule.examples = examplesByRule[rule.id]
+            }
+          }
+        }
+
+        // Ensure all rules have examples array
+        for (const rule of rules) {
+          if (!rule.examples) rule.examples = []
+        }
+
+        // Query 5 — Ontology health (try/catch for missing tables)
+        let ontologyHealth = null
+        try {
+          const ontResult = await sql`
+            SELECT
+              (SELECT COUNT(*)::int FROM ontology_entities WHERE layer = 1) as layer1_entities,
+              (SELECT COUNT(*)::int FROM ontology_entities WHERE layer = 2) as layer2_entities,
+              (SELECT COUNT(*)::int FROM ontology_relationships WHERE layer = 1) as layer1_relationships,
+              (SELECT COUNT(*)::int FROM ontology_relationships WHERE layer = 2) as layer2_relationships,
+              (SELECT COUNT(DISTINCT oe.prospect_company_id) FROM ontology_entities oe WHERE oe.prospect_company_id IS NOT NULL) as companies_in_ontology
+          `
+          const o = ontResult[0]
+          ontologyHealth = {
+            layer1_entities: o.layer1_entities,
+            layer2_entities: o.layer2_entities,
+            layer1_relationships: o.layer1_relationships,
+            layer2_relationships: o.layer2_relationships,
+            companies_in_ontology: o.companies_in_ontology,
+            total_prospects: c.total,
+            coverage_pct: c.total > 0 ? Math.round((o.companies_in_ontology / c.total) * 100) : 0
+          }
+        } catch (e) {
+          ontologyHealth = { skipped: true, reason: 'Ontology tables not yet created' }
+        }
+
+        // Summary counts
+        const severityCounts = { critical: 0, high: 0, warning: 0, info: 0, clean: 0 }
+        for (const rule of rules) {
+          if (rule.count === 0) severityCounts.clean++
+          else if (severityCounts[rule.severity] !== undefined) severityCounts[rule.severity]++
+        }
+
+        return res.status(200).json({
+          timestamp: new Date().toISOString(),
+          total_prospects: c.total,
+          rules,
+          state_signal_health: stateSignal,
+          ontology_health: ontologyHealth,
+          summary: severityCounts
+        })
+      } catch (error) {
+        console.error('Error running data audit:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     if (action === 'attachments' && id) {
       try {
         const attachments = await sql`
