@@ -245,6 +245,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `GET /api/prospects?action=attachments&id=X` — List attachments for a prospect
 - `POST /api/prospects?action=attach` — Create attachment + auto-advance status
 - `DELETE /api/prospects?action=delete-attachment&attachmentId=X` — Delete attachment
+- `GET /api/prospects?action=data-audit` — Data quality audit: runs 16 diagnostic rules and returns counts, severity, examples, state signal health, and ontology health
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
@@ -327,6 +328,18 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 
 ### Sub-View Toggle Pattern
 The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state, affecting both table and chart views.
+
+### Data Quality Audit
+- **API**: `GET /api/prospects?action=data-audit` — Read-only diagnostic scan of the prospect database
+- **Component**: `DataAuditModal.jsx` — Modal triggered from "Audit" button in ProspectTable header
+- **16 diagnostic rules** across 3 categories:
+  - **Completeness** (10 rules): null_signal (high), null_cwp (high), null_state (critical), null_category (warning), null_priority (warning), null_press (info), null_founded (info), null_employees (info), null_certs (info), null_ownership (warning)
+  - **Consistency** (5 rules): rjg_no_signal (critical), medical_no_cert (warning), converter_no_press (warning), parent_no_ownership (info), age_mismatch (info)
+  - **Coverage** (1 rule): state_signal_gap (critical) — states with 5+ prospects but avg signal < 0.5
+- **Severity levels**: critical (data error), high (import gap), warning (possible issue), info (minor gap)
+- **Response includes**: rules with counts/examples (max 5 per rule), state_signal_health table, ontology_health (gracefully skips if tables don't exist), summary counts
+- **SQL efficiency**: 3 consolidated queries using `COUNT(*) FILTER (WHERE ...)` + 1 UNION ALL examples query + 1 ontology query (try/catch). Well within 10s Vercel timeout.
+- **Session caching**: Modal caches audit results; "Re-run Audit" button forces refresh
 
 ### Research Workflow & Attachments
 - **Deep research prompt template** lives at `public/prompts/deep-research-template.md` with `{{variable}}` placeholders injected from prospect data at render time

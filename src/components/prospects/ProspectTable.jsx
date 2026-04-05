@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } from 'lucide-react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck } from 'lucide-react'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
@@ -9,6 +9,7 @@ import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
 import AddCompanyModal from './AddCompanyModal'
 import BulkImportModal from './BulkImportModal'
+import DataAuditModal from './DataAuditModal'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
@@ -109,6 +110,7 @@ function ProspectTable() {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showAuditModal, setShowAuditModal] = useState(false)
 
   // Fetch prospects
   useEffect(() => {
@@ -339,6 +341,13 @@ function ProspectTable() {
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               Import
+            </button>
+            <button
+              onClick={() => setShowAuditModal(true)}
+              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+            >
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              Audit
             </button>
           <div className="relative">
             <button
@@ -639,6 +648,7 @@ function ProspectTable() {
 
       {showAddModal && <AddCompanyModal onClose={() => setShowAddModal(false)} onSuccess={refreshProspects} />}
       {showImportModal && <BulkImportModal onClose={() => setShowImportModal(false)} onSuccess={refreshProspects} />}
+      {showAuditModal && <DataAuditModal onClose={() => setShowAuditModal(false)} />}
     </div>
   )
 }
