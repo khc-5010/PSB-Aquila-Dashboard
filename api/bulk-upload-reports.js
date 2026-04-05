@@ -4,7 +4,13 @@ import { neon } from '@neondatabase/serverless'
 // Fetches markdown files from GitHub, inserts into state_research_reports.
 // DELETE THIS FILE after successful upload.
 
-const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/khc-5010/PSB-Aquila-Dashboard/claude/upload-state-reports-evS74/docs/state-reports/Tier3'
+// Try feature branch first, fall back to main (works pre- and post-merge)
+const BRANCH_CANDIDATES = [
+  'claude/upload-state-reports-evS74',
+  'main',
+]
+const GITHUB_RAW_PREFIX = 'https://raw.githubusercontent.com/khc-5010/PSB-Aquila-Dashboard'
+const TIER3_PATH = 'docs/state-reports/Tier3'
 
 const STATE_NAME_TO_ABBR = {
   'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
@@ -112,34 +118,56 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+export const config = { maxDuration: 60 }
+
 export default async function handler(req, res) {
   // Only allow POST to prevent accidental triggers
   if (req.method !== 'POST') {
     return res.status(200).send(`
       <html><body style="font-family:monospace;max-width:800px;margin:40px auto;padding:20px">
         <h2>Bulk Upload State Reports</h2>
-        <p>This will upload ${TIER3_FILES.length} Tier3 state reports to the database.</p>
+        <p>This will upload ${TIER3_FILES.length} Tier3 state reports to the database in batches of 10.</p>
         <p>Each upload archives any existing report for that state (sets is_current=false).</p>
-        <button onclick="runUpload()" style="padding:12px 24px;font-size:16px;cursor:pointer;background:#041E42;color:white;border:none;border-radius:6px">
-          Run Upload
+        <button id="btn" onclick="runBatches()" style="padding:12px 24px;font-size:16px;cursor:pointer;background:#041E42;color:white;border:none;border-radius:6px">
+          Run Upload (all batches)
         </button>
         <pre id="log" style="background:#111;color:#0f0;padding:16px;margin-top:16px;height:500px;overflow-y:auto;white-space:pre-wrap"></pre>
         <script>
-          async function runUpload() {
+          const BATCH_SIZE = 10;
+          const TOTAL = ${TIER3_FILES.length};
+          async function runBatches() {
             const log = document.getElementById('log');
-            log.textContent = 'Starting upload...\\n';
-            try {
-              const res = await fetch('/api/bulk-upload-reports', { method: 'POST' });
-              const data = await res.json();
-              log.textContent = JSON.stringify(data, null, 2);
-            } catch(e) {
-              log.textContent += 'Error: ' + e.message;
+            const btn = document.getElementById('btn');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            let allResults = [];
+            let totalUploaded = 0, totalFailed = 0;
+            for (let offset = 0; offset < TOTAL; offset += BATCH_SIZE) {
+              log.textContent += 'Batch ' + (Math.floor(offset/BATCH_SIZE)+1) + ' (files ' + offset + '-' + Math.min(offset+BATCH_SIZE-1, TOTAL-1) + ')...\\n';
+              try {
+                const res = await fetch('/api/bulk-upload-reports?offset=' + offset + '&limit=' + BATCH_SIZE, { method: 'POST' });
+                const data = await res.json();
+                totalUploaded += data.summary.uploaded;
+                totalFailed += data.summary.failed;
+                allResults = allResults.concat(data.details);
+                log.textContent += '  -> uploaded: ' + data.summary.uploaded + ', failed: ' + data.summary.failed + '\\n';
+              } catch(e) {
+                log.textContent += '  -> ERROR: ' + e.message + '\\n';
+              }
             }
+            log.textContent += '\\n=== DONE === Uploaded: ' + totalUploaded + ', Failed: ' + totalFailed + '\\n';
+            log.textContent += '\\nFull details:\\n' + JSON.stringify(allResults, null, 2);
+            btn.textContent = 'Done!';
           }
         </script>
       </body></html>
     `)
   }
+
+  // Support batching via query params
+  const offset = parseInt(req.query?.offset) || 0
+  const limit = parseInt(req.query?.limit) || TIER3_FILES.length
+  const batch = TIER3_FILES.slice(offset, offset + limit)
 
   const sql = neon(process.env.DATABASE_URL)
   const results = []
@@ -147,7 +175,7 @@ export default async function handler(req, res) {
   let failed = 0
   let skipped = 0
 
-  for (const file of TIER3_FILES) {
+  for (const file of batch) {
     const stateInfo = extractStateFromFilename(file)
     if (!stateInfo) {
       results.push({ file, status: 'skipped', reason: 'no state mapping' })
@@ -156,13 +184,19 @@ export default async function handler(req, res) {
     }
 
     try {
-      // Fetch markdown from GitHub
-      const url = `${GITHUB_RAW_BASE}/${encodeURIComponent(file)}`
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error(`GitHub fetch failed: ${response.status} ${response.statusText}`)
+      // Fetch markdown from GitHub (try each branch candidate)
+      let content = null
+      for (const branch of BRANCH_CANDIDATES) {
+        const url = `${GITHUB_RAW_PREFIX}/${branch}/${TIER3_PATH}/${encodeURIComponent(file)}`
+        const response = await fetch(url)
+        if (response.ok) {
+          content = await response.text()
+          break
+        }
       }
-      const content = await response.text()
+      if (!content) {
+        throw new Error('File not found on any branch')
+      }
 
       const title = extractTitle(content) || `Alliance Prospect Report — ${stateInfo.stateName}`
       const researchedAt = extractResearchDate(content, file)
@@ -216,8 +250,8 @@ export default async function handler(req, res) {
       failed++
     }
 
-    // Small delay between DB operations
-    await sleep(200)
+    // Small delay to avoid rate limiting
+    await sleep(100)
   }
 
   // Get final count of current reports
