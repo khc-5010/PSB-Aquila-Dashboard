@@ -25,7 +25,7 @@ import { PIPELINE_STAGES } from './constants/pipeline'
 
 function App() {
   const { user, loading: authLoading } = useAuth()
-  const [dbStatus, setDbStatus] = useState('checking')
+
   const [opportunities, setOpportunities] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -65,14 +65,6 @@ function App() {
   const activeOpportunity = activeId
     ? opportunities.find(o => o.id === activeId)
     : null
-
-  // Check database health
-  useEffect(() => {
-    fetch('/api/health')
-      .then(res => res.json())
-      .then(data => setDbStatus(data.database ? 'connected' : 'disconnected'))
-      .catch(() => setDbStatus('disconnected'))
-  }, [])
 
   // Fetch users for owner display
   useEffect(() => {
@@ -240,7 +232,6 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
-        dbStatus={dbStatus}
         activeView={activeView}
         onViewChange={changeView}
       />

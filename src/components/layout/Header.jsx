@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
 
-function Header({ dbStatus, activeView, onViewChange }) {
+function Header({ activeView, onViewChange }) {
   const { user, logout, authFetch } = useAuth()
   const [showAdmin, setShowAdmin] = useState(false)
   const [showChangePin, setShowChangePin] = useState(false)
@@ -81,23 +81,6 @@ function Header({ dbStatus, activeView, onViewChange }) {
 
           {/* Right side - Actions and user */}
           <div className="flex items-center gap-4">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm ${
-              dbStatus === 'connected'
-                ? 'bg-green-500/20 text-green-200'
-                : dbStatus === 'checking'
-                ? 'bg-yellow-500/20 text-yellow-200'
-                : 'bg-red-500/20 text-red-200'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                dbStatus === 'connected'
-                  ? 'bg-green-400'
-                  : dbStatus === 'checking'
-                  ? 'bg-yellow-400'
-                  : 'bg-red-400'
-              }`} />
-              {dbStatus === 'connected' ? 'Connected' : dbStatus === 'checking' ? 'Checking...' : 'Offline'}
-            </span>
-
             {/* Other team members (smaller avatars) */}
             {otherUsers.length > 0 && (
               <div className="flex items-center -space-x-2">
