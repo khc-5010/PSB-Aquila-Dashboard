@@ -643,6 +643,7 @@ The manual endpoint `POST ?action=rebuild-ontology-layer1` still works — it ca
 
 ## Notes
 
+- **Database health indicator removed from header.** `/api/health` endpoint still exists but is not called on page load.
 - **No local dev environment.** Kyle does NOT have a local clone of this repo. All development happens via Claude Code (cloud). Never suggest running commands locally, running scripts on Kyle's machine, or ask him to open a terminal. If a script needs to run (e.g., database migrations, setup scripts), run it directly in this environment or provide a way to execute it through the deployed app/API.
 - This is a small team tool (4 users), optimize for simplicity over scale
 - Mobile-friendly but desktop-primary usage expected
