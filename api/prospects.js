@@ -667,6 +667,446 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Ontology: Knowledge Graph — aggregated super-node explorer ───
+    if (action === 'ontology-graph') {
+      try {
+        const { state, type } = req.query
+
+        // Build optional WHERE filters for company scoping
+        let companyFilter = ''
+        const filterParams = []
+        if (state) {
+          filterParams.push(state.toUpperCase())
+          companyFilter = `AND pc.state = $1`
+        }
+
+        // Get all non-Company entities with relationship counts (as super-nodes)
+        const superNodesQuery = `
+          SELECT
+            et.name AS type_name,
+            e.id AS entity_id,
+            e.name AS entity_name,
+            COUNT(DISTINCT r.subject_entity_id) AS connection_count,
+            ARRAY_AGG(DISTINCT r.subject_entity_id) AS member_ids
+          FROM ontology_entities e
+          JOIN ontology_entity_types et ON et.id = e.type_id
+          JOIN ontology_relationships r ON r.object_entity_id = e.id
+          JOIN ontology_entities subj ON subj.id = r.subject_entity_id
+          JOIN ontology_entity_types subj_type ON subj_type.id = subj.type_id AND subj_type.name = 'Company'
+          ${state ? `JOIN prospect_companies pc ON pc.id = subj.prospect_company_id ${companyFilter}` : ''}
+          WHERE et.name != 'Company'
+          ${type ? `AND et.name = $${filterParams.length + 1}` : ''}
+          GROUP BY et.name, e.id, e.name
+          HAVING COUNT(DISTINCT r.subject_entity_id) > 0
+          ORDER BY COUNT(DISTINCT r.subject_entity_id) DESC
+        `
+        const queryParams = [...filterParams]
+        if (type) queryParams.push(type)
+
+        const superNodes = await sql.query(superNodesQuery, queryParams)
+
+        // Build node list
+        const nodes = superNodes.map(sn => ({
+          id: `${sn.type_name.toLowerCase().replace(/[\s\/]/g, '-')}-${sn.entity_name}`,
+          entityId: sn.entity_id,
+          label: sn.entity_name,
+          type: sn.type_name,
+          count: Number(sn.connection_count),
+          isSuper: true,
+          memberIds: sn.member_ids.map(Number),
+        }))
+
+        // Compute inter-super-node links (shared companies)
+        const links = []
+        for (let i = 0; i < nodes.length; i++) {
+          const setA = new Set(nodes[i].memberIds)
+          for (let j = i + 1; j < nodes.length; j++) {
+            const setB = new Set(nodes[j].memberIds)
+            let shared = 0
+            for (const id of setA) {
+              if (setB.has(id)) shared++
+            }
+            if (shared > 0) {
+              const strength = shared / Math.max(setA.size, setB.size)
+              if (strength >= 0.1) {
+                links.push({
+                  source: nodes[i].id,
+                  target: nodes[j].id,
+                  strength: Math.round(strength * 100) / 100,
+                  sharedCount: shared,
+                })
+              }
+            }
+          }
+        }
+
+        // Meta stats
+        const metaRows = await sql`
+          SELECT
+            (SELECT COUNT(*)::int FROM ontology_entities) AS total_entities,
+            (SELECT COUNT(*)::int FROM ontology_relationships) AS total_relationships
+        `
+
+        return res.status(200).json({
+          nodes,
+          links,
+          meta: {
+            totalEntities: metaRows[0].total_entities,
+            totalRelationships: metaRows[0].total_relationships,
+            stateFilter: state || null,
+            typeFilter: type || null,
+          },
+        })
+      } catch (error) {
+        console.error('Error fetching ontology graph:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Ontology: Knowledge Graph — 1-hop neighborhood ───
+    if (action === 'ontology-neighborhood') {
+      try {
+        const { entity_id, depth } = req.query
+        if (!entity_id) {
+          return res.status(400).json({ error: 'entity_id is required' })
+        }
+        const maxDepth = Math.min(Number(depth) || 1, 2)
+
+        // Get the root entity
+        const rootRows = await sql`
+          SELECT e.id, e.name, et.name AS type_name, e.prospect_company_id
+          FROM ontology_entities e
+          JOIN ontology_entity_types et ON et.id = e.type_id
+          WHERE e.id = ${entity_id}
+        `
+        if (rootRows.length === 0) {
+          return res.status(404).json({ error: 'Entity not found' })
+        }
+        const root = rootRows[0]
+
+        // Depth 1: all relationships where entity is subject OR object
+        const depth1Rels = await sql`
+          SELECT
+            r.id AS rel_id,
+            rt.name AS rel_type,
+            r.subject_entity_id,
+            r.object_entity_id,
+            se.name AS subject_name,
+            set2.name AS subject_type,
+            se.prospect_company_id AS subject_prospect_id,
+            oe.name AS object_name,
+            oet.name AS object_type,
+            oe.prospect_company_id AS object_prospect_id
+          FROM ontology_relationships r
+          JOIN ontology_relationship_types rt ON rt.id = r.type_id
+          JOIN ontology_entities se ON se.id = r.subject_entity_id
+          JOIN ontology_entity_types set2 ON set2.id = se.type_id
+          JOIN ontology_entities oe ON oe.id = r.object_entity_id
+          JOIN ontology_entity_types oet ON oet.id = oe.type_id
+          WHERE r.subject_entity_id = ${entity_id}
+             OR r.object_entity_id = ${entity_id}
+        `
+
+        const entityMap = new Map()
+        const linkList = []
+
+        // Add root
+        entityMap.set(Number(root.id), {
+          id: Number(root.id),
+          label: root.name,
+          type: root.type_name,
+          isSuper: false,
+          prospectId: root.prospect_company_id,
+        })
+
+        for (const rel of depth1Rels) {
+          // Add subject entity
+          if (!entityMap.has(Number(rel.subject_entity_id))) {
+            entityMap.set(Number(rel.subject_entity_id), {
+              id: Number(rel.subject_entity_id),
+              label: rel.subject_name,
+              type: rel.subject_type,
+              isSuper: false,
+              prospectId: rel.subject_prospect_id,
+            })
+          }
+          // Add object entity
+          if (!entityMap.has(Number(rel.object_entity_id))) {
+            entityMap.set(Number(rel.object_entity_id), {
+              id: Number(rel.object_entity_id),
+              label: rel.object_name,
+              type: rel.object_type,
+              isSuper: false,
+              prospectId: rel.object_prospect_id,
+            })
+          }
+          linkList.push({
+            source: Number(rel.subject_entity_id),
+            target: Number(rel.object_entity_id),
+            relType: rel.rel_type,
+          })
+        }
+
+        // Depth 2: for each neighbor, get their relationships too
+        if (maxDepth >= 2) {
+          const neighborIds = [...entityMap.keys()].filter(id => id !== Number(entity_id))
+          if (neighborIds.length > 0) {
+            const depth2Rels = await sql`
+              SELECT
+                r.id AS rel_id,
+                rt.name AS rel_type,
+                r.subject_entity_id,
+                r.object_entity_id,
+                se.name AS subject_name,
+                set2.name AS subject_type,
+                se.prospect_company_id AS subject_prospect_id,
+                oe.name AS object_name,
+                oet.name AS object_type,
+                oe.prospect_company_id AS object_prospect_id
+              FROM ontology_relationships r
+              JOIN ontology_relationship_types rt ON rt.id = r.type_id
+              JOIN ontology_entities se ON se.id = r.subject_entity_id
+              JOIN ontology_entity_types set2 ON set2.id = se.type_id
+              JOIN ontology_entities oe ON oe.id = r.object_entity_id
+              JOIN ontology_entity_types oet ON oet.id = oe.type_id
+              WHERE (r.subject_entity_id = ANY(${neighborIds})
+                 OR r.object_entity_id = ANY(${neighborIds}))
+                AND r.subject_entity_id != ${entity_id}
+                AND r.object_entity_id != ${entity_id}
+            `
+            for (const rel of depth2Rels) {
+              if (!entityMap.has(Number(rel.subject_entity_id))) {
+                entityMap.set(Number(rel.subject_entity_id), {
+                  id: Number(rel.subject_entity_id),
+                  label: rel.subject_name,
+                  type: rel.subject_type,
+                  isSuper: false,
+                  prospectId: rel.subject_prospect_id,
+                })
+              }
+              if (!entityMap.has(Number(rel.object_entity_id))) {
+                entityMap.set(Number(rel.object_entity_id), {
+                  id: Number(rel.object_entity_id),
+                  label: rel.object_name,
+                  type: rel.object_type,
+                  isSuper: false,
+                  prospectId: rel.object_prospect_id,
+                })
+              }
+              const linkKey = `${rel.subject_entity_id}-${rel.object_entity_id}-${rel.rel_type}`
+              if (!linkList.some(l => `${l.source}-${l.target}-${l.relType}` === linkKey)) {
+                linkList.push({
+                  source: Number(rel.subject_entity_id),
+                  target: Number(rel.object_entity_id),
+                  relType: rel.rel_type,
+                })
+              }
+            }
+          }
+        }
+
+        return res.status(200).json({
+          nodes: [...entityMap.values()],
+          links: linkList,
+          meta: {
+            rootEntityId: Number(entity_id),
+            rootLabel: root.name,
+            rootType: root.type_name,
+            depth: maxDepth,
+            nodeCount: entityMap.size,
+            linkCount: linkList.length,
+          },
+        })
+      } catch (error) {
+        console.error('Error fetching ontology neighborhood:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Ontology: Knowledge Graph — query by criteria ───
+    if (action === 'ontology-query') {
+      try {
+        const { certifications, technologies, markets, ownership, equipment, state: queryState } = req.query
+
+        // Parse comma-separated criteria
+        const criteria = {}
+        if (certifications) criteria.Certification = certifications.split(',').map(s => s.trim())
+        if (technologies) criteria['Technology / Software'] = technologies.split(',').map(s => s.trim())
+        if (markets) criteria['Market Vertical'] = markets.split(',').map(s => s.trim())
+        if (ownership) criteria['Ownership Structure'] = ownership.split(',').map(s => s.trim())
+        if (equipment) criteria['Equipment Brand'] = equipment.split(',').map(s => s.trim())
+
+        const categoryCount = Object.keys(criteria).length
+        if (categoryCount === 0) {
+          return res.status(400).json({ error: 'At least one filter criterion is required (certifications, technologies, markets, ownership, equipment)' })
+        }
+
+        // Flatten all requested entity names
+        const allEntityNames = Object.values(criteria).flat()
+        const totalCriteria = allEntityNames.length
+
+        // Find companies matching criteria using ontology relationships
+        // AND across categories, OR within categories
+        const matchQuery = `
+          WITH company_edges AS (
+            SELECT
+              ce.prospect_company_id,
+              et.name AS entity_type,
+              oe.name AS entity_name
+            FROM ontology_relationships r
+            JOIN ontology_entities ce ON ce.id = r.subject_entity_id
+            JOIN ontology_entity_types cet ON cet.id = ce.type_id AND cet.name = 'Company'
+            JOIN ontology_entities oe ON oe.id = r.object_entity_id
+            JOIN ontology_entity_types et ON et.id = oe.type_id
+            WHERE ce.prospect_company_id IS NOT NULL
+              AND oe.name = ANY($1)
+          ),
+          company_matches AS (
+            SELECT
+              prospect_company_id,
+              COUNT(DISTINCT entity_name) AS match_count,
+              COUNT(DISTINCT entity_type) AS categories_matched,
+              ARRAY_AGG(DISTINCT entity_name) AS matched_edges
+            FROM company_edges
+            GROUP BY prospect_company_id
+            HAVING COUNT(DISTINCT entity_type) >= $2
+          )
+          SELECT
+            cm.prospect_company_id,
+            cm.match_count,
+            cm.categories_matched,
+            cm.matched_edges,
+            pc.company,
+            pc.state,
+            pc.city,
+            pc.signal_count,
+            pc.category,
+            pc.key_certifications,
+            pc.rjg_cavity_pressure,
+            pc.ownership_type,
+            pc.medical_device_mfg
+          FROM company_matches cm
+          JOIN prospect_companies pc ON pc.id = cm.prospect_company_id
+          ${queryState ? `WHERE pc.state = $3` : ''}
+          ORDER BY cm.match_count DESC, pc.signal_count DESC NULLS LAST
+        `
+        const matchParams = [allEntityNames, categoryCount]
+        if (queryState) matchParams.push(queryState.toUpperCase())
+
+        const matches = await sql.query(matchQuery, matchParams)
+
+        const results = matches.map(m => {
+          const matchScore = m.match_count / totalCriteria
+          return {
+            id: m.prospect_company_id,
+            company: m.company,
+            state: m.state,
+            city: m.city,
+            matchScore: Math.round(matchScore * 100) / 100,
+            matchCount: Number(m.match_count),
+            totalCriteria,
+            matchedEdges: m.matched_edges,
+            hookLine: m.matched_edges.join(', '),
+          }
+        })
+
+        return res.status(200).json({
+          results,
+          meta: {
+            totalMatches: results.length,
+            criteria,
+          },
+        })
+      } catch (error) {
+        console.error('Error in ontology query:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Ontology: Knowledge Graph — similar companies ───
+    if (action === 'ontology-similar') {
+      try {
+        const { prospect_id, limit: simLimit } = req.query
+        if (!prospect_id) {
+          return res.status(400).json({ error: 'prospect_id is required' })
+        }
+        const resultLimit = Math.min(Number(simLimit) || 10, 50)
+
+        // Get target company info
+        const targetRows = await sql`
+          SELECT id, company FROM prospect_companies WHERE id = ${prospect_id}
+        `
+        if (targetRows.length === 0) {
+          return res.status(404).json({ error: 'Prospect not found' })
+        }
+        const target = targetRows[0]
+
+        // Find all object entities connected to the target company's entity
+        // Then find other companies sharing those same object entities
+        const similarQuery = `
+          WITH target_entity AS (
+            SELECT id FROM ontology_entities
+            WHERE prospect_company_id = $1
+            LIMIT 1
+          ),
+          target_edges AS (
+            SELECT r.object_entity_id, oe.name AS entity_name
+            FROM ontology_relationships r
+            JOIN target_entity te ON te.id = r.subject_entity_id
+            JOIN ontology_entities oe ON oe.id = r.object_entity_id
+          ),
+          other_companies AS (
+            SELECT
+              ce.prospect_company_id,
+              COUNT(DISTINCT te.object_entity_id) AS shared_count,
+              ARRAY_AGG(DISTINCT te.entity_name) AS shared_entities
+            FROM ontology_relationships r
+            JOIN ontology_entities ce ON ce.id = r.subject_entity_id
+            JOIN ontology_entity_types cet ON cet.id = ce.type_id AND cet.name = 'Company'
+            JOIN target_edges te ON te.object_entity_id = r.object_entity_id
+            WHERE ce.prospect_company_id IS NOT NULL
+              AND ce.prospect_company_id != $1
+            GROUP BY ce.prospect_company_id
+          )
+          SELECT
+            oc.prospect_company_id AS id,
+            pc.company,
+            pc.state,
+            pc.city,
+            oc.shared_count,
+            oc.shared_entities,
+            (SELECT COUNT(*)::int FROM target_edges) AS total_target_edges
+          FROM other_companies oc
+          JOIN prospect_companies pc ON pc.id = oc.prospect_company_id
+          ORDER BY oc.shared_count DESC
+          LIMIT $2
+        `
+
+        const similar = await sql.query(similarQuery, [prospect_id, resultLimit])
+
+        const totalTargetEdges = similar.length > 0 ? Number(similar[0].total_target_edges) : 0
+
+        return res.status(200).json({
+          target: { id: Number(target.id), company: target.company },
+          similar: similar.map(s => ({
+            id: s.id,
+            company: s.company,
+            state: s.state,
+            city: s.city,
+            sharedEdges: Number(s.shared_count),
+            sharedEntities: s.shared_entities,
+            totalEdgesTarget: totalTargetEdges,
+            similarity: totalTargetEdges > 0
+              ? Math.round((Number(s.shared_count) / totalTargetEdges) * 100) / 100
+              : 0,
+          })),
+        })
+      } catch (error) {
+        console.error('Error finding similar companies:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attachments for a prospect
     if (action === 'data-audit') {
       try {
