@@ -40,6 +40,7 @@ export default function ForceGraph({
   width = 900,
   height = 600,
   compact = false,
+  labelLimit = 0,
 }) {
   const containerRef = useRef(null)
   const simulationRef = useRef(null)
@@ -172,10 +173,32 @@ export default function ForceGraph({
         .attr('pointer-events', 'none')
     }
 
+    // Determine which nodes get visible labels
+    // labelLimit > 0: only show labels on super-nodes + top N most-connected non-super nodes
+    let labelVisibleIds = null
+    if (labelLimit > 0) {
+      labelVisibleIds = new Set()
+      // Super-nodes and center nodes always get labels
+      nodeData.forEach(n => { if (n.isSuper || n.isCenter) labelVisibleIds.add(n.id) })
+      // Count links per non-super node and keep top N
+      const linkCounts = new Map()
+      linkData.forEach(l => {
+        const srcId = typeof l.source === 'object' ? l.source.id : l.source
+        const tgtId = typeof l.target === 'object' ? l.target.id : l.target
+        linkCounts.set(srcId, (linkCounts.get(srcId) || 0) + 1)
+        linkCounts.set(tgtId, (linkCounts.get(tgtId) || 0) + 1)
+      })
+      const nonSuper = nodeData
+        .filter(n => !n.isSuper && !n.isCenter)
+        .sort((a, b) => (linkCounts.get(b.id) || 0) - (linkCounts.get(a.id) || 0))
+      nonSuper.slice(0, labelLimit).forEach(n => labelVisibleIds.add(n.id))
+    }
+
     // Label text below each node
     const labelMaxLen = compact ? 14 : 20
     node.append('text')
       .text(d => {
+        if (labelVisibleIds && !labelVisibleIds.has(d.id)) return ''
         const label = d.label || ''
         return label.length > labelMaxLen ? label.slice(0, labelMaxLen - 2) + '…' : label
       })
@@ -184,6 +207,22 @@ export default function ForceGraph({
       .attr('fill', '#94A3B8')
       .attr('font-size', compact ? '8px' : '10px')
       .attr('pointer-events', 'none')
+
+    // Hover labels for unlabeled nodes
+    if (labelVisibleIds) {
+      node.on('mouseenter', function(event, d) {
+        if (labelVisibleIds.has(d.id)) return
+        d3.select(this).select('text')
+          .text(() => {
+            const label = d.label || ''
+            return label.length > labelMaxLen ? label.slice(0, labelMaxLen - 2) + '…' : label
+          })
+      })
+      node.on('mouseleave', function(event, d) {
+        if (labelVisibleIds.has(d.id)) return
+        d3.select(this).select('text').text('')
+      })
+    }
 
     // Tick handler
     simulation.on('tick', () => {
@@ -222,7 +261,7 @@ export default function ForceGraph({
       simulation.stop()
       container.selectAll('*').remove()
     }
-  }, [nodes, links, width, height, highlightNodeIds, handleNodeClick, handleBackgroundClick, compact])
+  }, [nodes, links, width, height, highlightNodeIds, handleNodeClick, handleBackgroundClick, compact, labelLimit])
 
   return (
     <div

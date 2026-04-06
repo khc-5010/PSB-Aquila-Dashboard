@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Search, X, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react'
 import { ENTITY_COLORS } from './ForceGraph'
 import QueryResults from './QueryResults'
 
@@ -19,7 +19,17 @@ const US_STATES = [
   'WV','WI','WY',
 ]
 
-export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, onQueryResults, graphData }) {
+// Map entity type to the query param key for ontology-query
+const TYPE_TO_PARAM = {
+  'Certification': 'certifications',
+  'Technology / Software': 'technologies',
+  'Market Vertical': 'markets',
+  'Equipment Brand': 'equipment',
+  'Ownership Structure': 'ownership',
+  'Quality Method': 'quality_methods',
+}
+
+export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, onQueryResults, graphData, browseNode, onClearBrowse }) {
   const [selected, setSelected] = useState({})
   const [expandedSections, setExpandedSections] = useState({ certifications: true, technologies: true, markets: true })
   const [results, setResults] = useState(null)
@@ -27,7 +37,80 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
   const [queryError, setQueryError] = useState(null)
   const [similarData, setSimilarData] = useState(null)
 
+  // Browse mode state
+  const [browseCompanies, setBrowseCompanies] = useState(null)
+  const [browseSearch, setBrowseSearch] = useState('')
+  const [browseLoading, setBrowseLoading] = useState(false)
+
   const apiBase = import.meta.env.VITE_API_URL || ''
+
+  // Fetch member companies when entering browse mode
+  useEffect(() => {
+    if (!browseNode) {
+      setBrowseCompanies(null)
+      setBrowseSearch('')
+      return
+    }
+
+    let cancelled = false
+    async function fetchBrowseCompanies() {
+      setBrowseLoading(true)
+      try {
+        const paramKey = TYPE_TO_PARAM[browseNode.type]
+        if (!paramKey) { setBrowseLoading(false); return }
+
+        // Fetch matching companies from ontology-query AND full prospects for enrichment
+        const queryParams = new URLSearchParams({
+          action: 'ontology-query',
+          [paramKey]: browseNode.label,
+        })
+        if (stateFilter) queryParams.set('state', stateFilter)
+
+        const [queryRes, prospectsRes] = await Promise.all([
+          fetch(`${apiBase}/api/prospects?${queryParams}`),
+          fetch(`${apiBase}/api/prospects`),
+        ])
+
+        if (!queryRes.ok) throw new Error(`HTTP ${queryRes.status}`)
+        const queryData = await queryRes.json()
+
+        // Build prospect enrichment map (id → { signal_count, ... })
+        let prospectMap = new Map()
+        if (prospectsRes.ok) {
+          const allProspects = await prospectsRes.json()
+          const list = Array.isArray(allProspects) ? allProspects : allProspects.prospects || []
+          for (const p of list) {
+            prospectMap.set(p.id, p)
+          }
+        }
+
+        if (!cancelled) {
+          // Enrich query results with prospect data and sort by signal_count DESC
+          const enriched = (queryData.results || []).map(c => {
+            const p = prospectMap.get(c.id)
+            return {
+              ...c,
+              signal_count: p?.signal_count ?? null,
+              key_certifications: p?.key_certifications || null,
+              rjg_cavity_pressure: p?.rjg_cavity_pressure || null,
+              medical_device_mfg: p?.medical_device_mfg || null,
+              ownership_type: p?.ownership_type || null,
+            }
+          })
+          enriched.sort((a, b) => (b.signal_count ?? -1) - (a.signal_count ?? -1))
+          setBrowseCompanies(enriched)
+        }
+      } catch (err) {
+        console.error('Failed to fetch browse companies:', err)
+        if (!cancelled) setBrowseCompanies([])
+      } finally {
+        if (!cancelled) setBrowseLoading(false)
+      }
+    }
+
+    fetchBrowseCompanies()
+    return () => { cancelled = true }
+  }, [browseNode, stateFilter, apiBase])
 
   const toggleSection = (key) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))
@@ -50,6 +133,10 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
     setResults(null)
     setSimilarData(null)
     onQueryResults(null)
+  }
+
+  const handleExitBrowse = () => {
+    if (onClearBrowse) onClearBrowse()
   }
 
   const runQuery = useCallback(async () => {
@@ -116,6 +203,111 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
     }
   }
 
+  // ─── Browse mode ───
+  if (browseNode) {
+    const filtered = browseCompanies
+      ? browseCompanies.filter(c => {
+          if (!browseSearch.trim()) return true
+          const lower = browseSearch.toLowerCase()
+          return (c.company || '').toLowerCase().includes(lower) ||
+                 (c.state || '').toLowerCase().includes(lower) ||
+                 (c.city || '').toLowerCase().includes(lower)
+        })
+      : []
+
+    // Build a map of entity name → super-node info for "also belongs to" tags
+    const superNodeByName = buildSuperNodeNameMap(graphData, browseNode)
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col max-h-[calc(100vh-180px)]">
+        {/* Browse header */}
+        <div className="px-3 py-2.5 border-b border-gray-200 bg-gray-50">
+          <button
+            onClick={handleExitBrowse}
+            className="flex items-center gap-1 text-xs text-[#041E42] hover:underline font-medium mb-1.5"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            Back to Query Panel
+          </button>
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: ENTITY_COLORS[browseNode.type] || '#6B7280' }}
+            />
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">
+                {browseNode.label}
+              </h3>
+              <p className="text-xs text-gray-500">
+                {browseNode.type} · {browseNode.count || 0} companies
+              </p>
+            </div>
+          </div>
+          {/* Breadcrumb indicator */}
+          <div className="mt-1.5 flex items-center gap-1 text-[10px] text-gray-400">
+            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Browsing category</span>
+            <span>— too large to expand on graph</span>
+          </div>
+        </div>
+
+        {/* Search box */}
+        <div className="px-3 py-2 border-b border-gray-100">
+          <div className="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-2 py-1">
+            <Search className="w-3 h-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search companies…"
+              value={browseSearch}
+              onChange={(e) => setBrowseSearch(e.target.value)}
+              className="flex-1 text-xs bg-transparent border-none outline-none placeholder-gray-400"
+            />
+            {browseSearch && (
+              <button onClick={() => setBrowseSearch('')} className="text-gray-400 hover:text-gray-600">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          {browseCompanies && (
+            <p className="text-[10px] text-gray-400 mt-1">
+              {filtered.length === browseCompanies.length
+                ? `${browseCompanies.length} companies`
+                : `${filtered.length} of ${browseCompanies.length} companies`}
+            </p>
+          )}
+        </div>
+
+        {/* Company list */}
+        <div className="flex-1 overflow-y-auto">
+          {browseLoading ? (
+            <div className="px-3 py-6 flex justify-center">
+              <div className="w-5 h-5 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin" />
+            </div>
+          ) : filtered.length > 0 ? (
+            <div className="px-3 py-2 space-y-1.5">
+              {filtered.map((company, i) => {
+                // Derive other super-nodes from prospect's structured data
+                const otherNodes = deriveOtherSuperNodes(company, superNodeByName)
+                return (
+                  <BrowseCompanyCard
+                    key={company.id || i}
+                    company={company}
+                    otherSuperNodes={otherNodes}
+                    onFindSimilar={handleFindSimilar}
+                  />
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400 py-6 text-center">
+              {browseSearch ? 'No matching companies' : 'No companies found'}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Normal query mode ───
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col max-h-[calc(100vh-180px)]">
       {/* Panel header */}
@@ -240,4 +432,117 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
       </div>
     </div>
   )
+}
+
+// Card for a company in browse mode
+function BrowseCompanyCard({ company, otherSuperNodes, onFindSimilar }) {
+  return (
+    <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 hover:border-gray-300 transition-colors">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <h5 className="text-xs font-semibold text-gray-900 truncate">
+            {company.company}
+          </h5>
+          <div className="flex items-center gap-2 mt-0.5">
+            {company.state && (
+              <span className="text-[10px] text-gray-500">
+                {company.city ? `${company.city}, ` : ''}{company.state}
+              </span>
+            )}
+            {company.signal_count != null && (
+              <span className="text-[10px] text-gray-400">
+                Sig: {company.signal_count}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Other super-nodes this company belongs to */}
+      {otherSuperNodes.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {otherSuperNodes.slice(0, 5).map((sn, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px]"
+              style={{
+                backgroundColor: (ENTITY_COLORS[sn.type] || '#6B7280') + '18',
+                color: ENTITY_COLORS[sn.type] || '#6B7280',
+              }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ backgroundColor: ENTITY_COLORS[sn.type] || '#6B7280' }}
+              />
+              {sn.label}
+            </span>
+          ))}
+          {otherSuperNodes.length > 5 && (
+            <span className="text-[10px] text-gray-400">+{otherSuperNodes.length - 5}</span>
+          )}
+        </div>
+      )}
+
+      {/* Find similar button */}
+      {onFindSimilar && (
+        <button
+          onClick={() => onFindSimilar(company.id, company.company)}
+          className="mt-1.5 text-[10px] text-[#041E42] hover:underline"
+        >
+          Find similar companies
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Build a map: entity name → { label, type } for all super-nodes except the current browse node
+function buildSuperNodeNameMap(graphData, currentBrowseNode) {
+  const map = new Map()
+  if (!graphData?.nodes) return map
+
+  for (const node of graphData.nodes) {
+    if (!node.isSuper) continue
+    if (node.id === currentBrowseNode.id) continue
+    map.set(node.label.toLowerCase(), { label: node.label, type: node.type })
+  }
+
+  return map
+}
+
+// Derive which other super-nodes a company belongs to from its prospect data
+function deriveOtherSuperNodes(company, superNodeMap) {
+  const results = []
+
+  // Check certifications
+  if (company.key_certifications) {
+    const certs = company.key_certifications.split(',').map(c => c.trim())
+    for (const cert of certs) {
+      const match = superNodeMap.get(cert.toLowerCase())
+      if (match) results.push(match)
+    }
+  }
+
+  // Check RJG
+  if (company.rjg_cavity_pressure) {
+    const rjgLower = company.rjg_cavity_pressure.toLowerCase()
+    if (rjgLower.includes('yes') || rjgLower.includes('confirmed')) {
+      const match = superNodeMap.get('rjg cavity pressure monitoring')
+      if (match) results.push(match)
+    }
+  }
+
+  // Check medical device
+  if (company.medical_device_mfg === 'Yes') {
+    const match = superNodeMap.get('medical devices')
+    if (match) results.push(match)
+  }
+
+  // Check ownership
+  if (company.ownership_type) {
+    const match = superNodeMap.get(company.ownership_type.toLowerCase())
+    if (match) results.push(match)
+  }
+
+  return results
 }

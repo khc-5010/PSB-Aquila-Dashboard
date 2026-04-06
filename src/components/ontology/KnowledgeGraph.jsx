@@ -18,6 +18,7 @@ export default function KnowledgeGraph() {
   const [highlightNodeIds, setHighlightNodeIds] = useState(null)
   const [stateFilter, setStateFilter] = useState(null)
   const [initialCompanyId, setInitialCompanyId] = useState(null)
+  const [browseNode, setBrowseNode] = useState(null)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
 
@@ -59,6 +60,7 @@ export default function KnowledgeGraph() {
   const handleStateFilter = useCallback((state) => {
     setStateFilter(state)
     setHighlightNodeIds(null)
+    setBrowseNode(null)
   }, [])
 
   const handleQueryResults = useCallback((companyIds) => {
@@ -67,6 +69,17 @@ export default function KnowledgeGraph() {
       return
     }
     setHighlightNodeIds(new Set(companyIds.map(id => `company-${id}`)))
+  }, [])
+
+  // Browse mode: GraphExplorer tells us a large super-node was clicked
+  const handleBrowseSuperNode = useCallback((node) => {
+    setBrowseNode(node)
+    // Ensure query panel is visible
+    if (viewMode === 'graph') setViewMode('split')
+  }, [viewMode])
+
+  const handleClearBrowse = useCallback(() => {
+    setBrowseNode(null)
   }, [])
 
   // Extract filter options from graph super-nodes
@@ -86,7 +99,7 @@ export default function KnowledgeGraph() {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-1">
             Knowledge Graph
-            <InfoTooltip text="Explore the ontology of companies, certifications, technologies, and markets. Click super-nodes to expand, use the query panel to find companies by criteria." />
+            <InfoTooltip text="Explore the ontology of companies, certifications, technologies, and markets. Click super-nodes to expand (≤25 companies) or browse in the query panel (>25 companies)." />
           </h2>
           {graphData && (
             <p className="text-xs text-gray-500 mt-0.5">
@@ -149,6 +162,8 @@ export default function KnowledgeGraph() {
               onStateFilter={handleStateFilter}
               onQueryResults={handleQueryResults}
               graphData={graphData}
+              browseNode={browseNode}
+              onClearBrowse={handleClearBrowse}
             />
           </div>
 
@@ -159,6 +174,7 @@ export default function KnowledgeGraph() {
               highlightNodeIds={highlightNodeIds}
               loading={loading}
               initialCompanyId={initialCompanyId}
+              onBrowseSuperNode={handleBrowseSuperNode}
             />
           </div>
         </div>

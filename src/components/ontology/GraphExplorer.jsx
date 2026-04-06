@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { ArrowLeft, Search, X } from 'lucide-react'
 import ForceGraph, { ENTITY_COLORS } from './ForceGraph'
 
+const EXPAND_THRESHOLD = 25
+
 const TYPE_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'Certification', label: 'Certs' },
@@ -12,7 +14,7 @@ const TYPE_FILTERS = [
   { key: 'Quality Method', label: 'Quality' },
 ]
 
-export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId }) {
+export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId, onBrowseSuperNode }) {
   const [expandedEntity, setExpandedEntity] = useState(null)
   const [neighborhoodData, setNeighborhoodData] = useState(null)
   const [neighborLoading, setNeighborLoading] = useState(false)
@@ -21,6 +23,8 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
   const containerRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 900, height: 600 })
   const initialExpandDone = useRef(false)
+  // Track which super-node is being browsed (for highlight without expand)
+  const [browsingNodeId, setBrowsingNodeId] = useState(null)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
 
@@ -72,6 +76,20 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
 
   const handleNodeClick = useCallback(async (node) => {
     if (!node.isSuper) return
+
+    const count = node.count || 0
+
+    // Large super-nodes: browse in query panel instead of expanding
+    if (count > EXPAND_THRESHOLD) {
+      setBrowsingNodeId(node.id)
+      if (onBrowseSuperNode) {
+        onBrowseSuperNode(node)
+      }
+      return
+    }
+
+    // Small super-nodes: expand on graph as before
+    setBrowsingNodeId(null)
     setNeighborLoading(true)
     try {
       const params = new URLSearchParams({
@@ -88,15 +106,21 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     } finally {
       setNeighborLoading(false)
     }
-  }, [apiBase])
+  }, [apiBase, onBrowseSuperNode])
 
   const handleBackToOverview = useCallback(() => {
     setExpandedEntity(null)
     setNeighborhoodData(null)
+    setBrowsingNodeId(null)
   }, [])
 
   const handleBackgroundClick = useCallback(() => {
     // Don't collapse on background click — use the explicit back button
+  }, [])
+
+  // Clear browse mode when parent clears it
+  const clearBrowse = useCallback(() => {
+    setBrowsingNodeId(null)
   }, [])
 
   // Compute visible nodes/links
@@ -126,8 +150,23 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     })
   }
 
-  // Apply search highlight
+  // Compute highlight set
   let effectiveHighlight = highlightNodeIds
+
+  // When browsing a super-node: highlight it + connected super-nodes
+  if (browsingNodeId && !expandedEntity) {
+    const browseHighlight = new Set([browsingNodeId])
+    // Find linked super-nodes
+    displayLinks.forEach(l => {
+      const srcId = typeof l.source === 'object' ? l.source.id : l.source
+      const tgtId = typeof l.target === 'object' ? l.target.id : l.target
+      if (srcId === browsingNodeId) browseHighlight.add(tgtId)
+      if (tgtId === browsingNodeId) browseHighlight.add(srcId)
+    })
+    effectiveHighlight = browseHighlight
+  }
+
+  // Apply search highlight (overrides browse highlight)
   if (searchText.trim()) {
     const lower = searchText.toLowerCase()
     const matchIds = new Set()
@@ -138,6 +177,9 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     })
     if (matchIds.size > 0) effectiveHighlight = matchIds
   }
+
+  // Label limit for expanded neighborhoods: show labels on top 10 company nodes only
+  const labelLimit = (expandedEntity && neighborhoodData) ? 10 : 0
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col">
@@ -228,6 +270,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
             highlightNodeIds={effectiveHighlight}
             width={dimensions.width}
             height={dimensions.height}
+            labelLimit={labelLimit}
           />
         ) : (
           <div className="flex items-center justify-center h-full text-xs text-gray-400">
