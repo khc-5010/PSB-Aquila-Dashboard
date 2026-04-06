@@ -646,19 +646,34 @@ The manual endpoint `POST ?action=rebuild-ontology-layer1` still works — it ca
 
 ### Knowledge Graph (Phase 7 — Active)
 
-Interactive force-directed graph visualization of the ontology. Two planned modes: aggregated super-node explorer (Kyle/Duane) and query panel (Brett).
+Interactive force-directed graph visualization of the ontology. Top-level tab at `/#knowledge-graph` with query panel and graph explorer.
 
 **Dependencies:** `d3` (force simulation, zoom, drag)
 
 #### Components
 - **Directory:** `src/components/ontology/`
+- **KnowledgeGraph.jsx** — Page component. Fetches `ontology-graph` on mount, manages view mode (Query+Graph / Full Graph / Query Only), state filter, and query highlight state. Passes graph data to both QueryPanel (for filter options) and GraphExplorer (for rendering). Route: `/#knowledge-graph`.
+- **QueryPanel.jsx** — Left-panel query builder. Filter sections (Certifications, Technologies, Markets, Equipment, Ownership, Quality Methods) with toggleable chips derived from graph super-nodes. State filter dropdown. Calls `ontology-query` on search, passes matched company IDs up for graph highlighting. Includes "Find Similar" via `ontology-similar`.
+- **QueryResults.jsx** — Result cards within QueryPanel. Shows company name, location, match score, matched edges as tags. "Find similar companies" button per card. Similar results sub-view with back navigation.
+- **GraphExplorer.jsx** — Wraps ForceGraph with expand/collapse state. Click super-node → fetch `ontology-neighborhood` → show expanded view with "Back to overview" button. Entity type filter chips and search input in toolbar. Auto-sizes to container via ResizeObserver. Legend bar at bottom.
 - **ForceGraph.jsx** — Shared reusable D3 force-directed graph component. React owns a container div, D3 renders into a ref'd SVG. Props: `nodes`, `links`, `onNodeClick`, `onBackgroundClick`, `highlightNodeIds` (Set), `width`, `height`. Does NOT fetch data.
   - Exports `ENTITY_COLORS` constant mapping entity types to hex colors
   - Super-node radius: `Math.max(16, Math.min(42, 10 + Math.sqrt(count) * 3.2))`
   - Company node radius: fixed 10
   - Supports zoom (d3.zoom, scaleExtent [0.3, 4]) and drag (d3.drag)
   - Highlight: dims non-highlighted nodes/links to opacity 0.1
-- **ForceGraphTestPage.jsx** — Temporary test harness. Fetches `ontology-graph` on mount, renders ForceGraph. Route: `/#test-graph`. Delete after Session 2.
+
+#### View Modes
+- **Query + Graph** (default): Split layout — 340px query panel + flexible graph area
+- **Full Graph**: Graph only, query panel hidden via CSS `display:none` (NOT unmounted — preserves D3 state)
+- **Query Only**: Query panel full width, graph hidden
+
+#### Query Flow
+1. Filter options derived from graph super-nodes (no extra API call)
+2. User selects chips (AND across sections, OR within)
+3. "Find Companies" calls `ontology-query` → results in QueryResults
+4. Matched company IDs passed to GraphExplorer as `highlightNodeIds`
+5. "Find Similar" on result card calls `ontology-similar` → inline sub-view
 
 #### API Endpoints (all in `api/prospects.js`)
 - `GET /api/prospects?action=ontology-graph` — Aggregated super-node view. Each non-Company entity becomes a super-node with `count` (connected companies) and `memberIds[]`. Inter-node links computed by shared company overlap (strength ≥ 0.1). Optional `state` and `type` filters. Response: `{ nodes, links, meta }`.
@@ -684,6 +699,6 @@ Interactive force-directed graph visualization of the ontology. Two planned mode
 - This is a small team tool (4 users), optimize for simplicity over scale
 - Mobile-friendly but desktop-primary usage expected
 - Focus on visibility and reducing dropped balls in the pipeline
-- **Tab routing uses hash-based navigation** (`window.location.hash`). URLs: `/#prospects`, `/#pipeline`, `/#national-map`. `VALID_VIEWS` array in App.jsx defines allowed values; default is `pipeline`. Refresh preserves the active tab, and browser back/forward navigates between tabs. `/#analytics` falls back to `pipeline`.
+- **Tab routing uses hash-based navigation** (`window.location.hash`). URLs: `/#prospects`, `/#pipeline`, `/#national-map`, `/#knowledge-graph`. `VALID_VIEWS` array in App.jsx defines allowed values; default is `pipeline`. Refresh preserves the active tab, and browser back/forward navigates between tabs. `/#analytics` falls back to `pipeline`.
 - **Analytics tab is hidden** (not deleted). Component files (`src/components/AnalyticsDashboard.jsx`, `src/components/analytics/`) are preserved for future resurrection when pipeline has active opportunities. The tab button was removed from Header and the routing branch from App.
-- **All nav tabs have Lucide icons**: Prospects (`Building2`), Pipeline (`Kanban`), National Map (`Map`). Same `w-4 h-4` sizing with `flex items-center gap-1.5` pattern.
+- **All nav tabs have Lucide icons**: Prospects (`Building2`), Pipeline (`Kanban`), National Map (`Map`), Knowledge Graph (`Share2`). Same `w-4 h-4` sizing with `flex items-center gap-1.5` pattern.
