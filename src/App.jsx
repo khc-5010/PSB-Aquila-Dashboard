@@ -21,7 +21,7 @@ import MetricsBar from './components/MetricsBar'
 import Header from './components/layout/Header'
 import ProspectTable from './components/prospects/ProspectTable'
 import NationalMap from './components/national-map/NationalMap'
-import ForceGraphTestPage from './components/ontology/ForceGraphTestPage'
+import KnowledgeGraph from './components/ontology/KnowledgeGraph'
 import { PIPELINE_STAGES } from './constants/pipeline'
 
 function App() {
@@ -33,7 +33,7 @@ function App() {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [metricsModal, setMetricsModal] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  const VALID_VIEWS = ['prospects', 'pipeline', 'national-map', 'test-graph']
+  const VALID_VIEWS = ['prospects', 'pipeline', 'national-map', 'knowledge-graph']
 
   function getViewFromHash() {
     const hash = window.location.hash.replace('#', '')
@@ -241,8 +241,8 @@ function App() {
         <ProspectTable />
       ) : activeView === 'national-map' ? (
         <NationalMap />
-      ) : activeView === 'test-graph' ? (
-        <ForceGraphTestPage />
+      ) : activeView === 'knowledge-graph' ? (
+        <KnowledgeGraph />
       ) : (
         <>
           <MetricsBar

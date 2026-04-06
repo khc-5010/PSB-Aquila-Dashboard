@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, Kanban, Map } from 'lucide-react'
+import { Building2, Kanban, Map, Share2 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
@@ -75,6 +75,17 @@ function Header({ activeView, onViewChange }) {
               >
                 <Map className="w-4 h-4" />
                 National Map
+              </button>
+              <button
+                onClick={() => onViewChange('knowledge-graph')}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                  activeView === 'knowledge-graph'
+                    ? 'bg-white text-[#041E42]'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <Share2 className="w-4 h-4" />
+                Knowledge Graph
               </button>
             </div>
           </div>
