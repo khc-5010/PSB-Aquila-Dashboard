@@ -12,7 +12,7 @@ const TYPE_FILTERS = [
   { key: 'Quality Method', label: 'Quality' },
 ]
 
-export default function GraphExplorer({ graphData, highlightNodeIds, loading }) {
+export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId }) {
   const [expandedEntity, setExpandedEntity] = useState(null)
   const [neighborhoodData, setNeighborhoodData] = useState(null)
   const [neighborLoading, setNeighborLoading] = useState(false)
@@ -20,8 +20,39 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading }) 
   const [searchText, setSearchText] = useState('')
   const containerRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 900, height: 600 })
+  const initialExpandDone = useRef(false)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
+
+  // Auto-expand company neighborhood when navigated from ProspectDetail
+  useEffect(() => {
+    if (!initialCompanyId || initialExpandDone.current) return
+    initialExpandDone.current = true
+
+    async function expandCompany() {
+      setNeighborLoading(true)
+      try {
+        const params = new URLSearchParams({
+          action: 'ontology-neighborhood',
+          entity_id: initialCompanyId,
+        })
+        const res = await fetch(`${apiBase}/api/prospects?${params}`)
+        if (!res.ok) return
+        const data = await res.json()
+        const rootNode = data.nodes?.find(n => n.id === initialCompanyId)
+        if (rootNode) {
+          setNeighborhoodData(data)
+          setExpandedEntity({ ...rootNode, entityId: initialCompanyId })
+        }
+      } catch (err) {
+        console.error('Failed to expand company:', err)
+      } finally {
+        setNeighborLoading(false)
+      }
+    }
+
+    expandCompany()
+  }, [initialCompanyId, apiBase])
 
   // Measure container size
   useEffect(() => {

@@ -17,8 +17,23 @@ export default function KnowledgeGraph() {
   const [viewMode, setViewMode] = useState('split')
   const [highlightNodeIds, setHighlightNodeIds] = useState(null)
   const [stateFilter, setStateFilter] = useState(null)
+  const [initialCompanyId, setInitialCompanyId] = useState(null)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
+
+  // Parse hash params on mount (e.g., #knowledge-graph?company=123)
+  useEffect(() => {
+    const hash = window.location.hash
+    const qIdx = hash.indexOf('?')
+    if (qIdx === -1) return
+    const params = new URLSearchParams(hash.slice(qIdx + 1))
+    const companyId = params.get('company')
+    if (companyId) {
+      setInitialCompanyId(Number(companyId))
+      // Clean up hash params after reading
+      window.location.hash = 'knowledge-graph'
+    }
+  }, [])
 
   const fetchGraph = useCallback(async (state) => {
     setLoading(true)
@@ -143,6 +158,7 @@ export default function KnowledgeGraph() {
               graphData={graphData}
               highlightNodeIds={highlightNodeIds}
               loading={loading}
+              initialCompanyId={initialCompanyId}
             />
           </div>
         </div>

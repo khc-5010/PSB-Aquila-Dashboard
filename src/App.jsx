@@ -36,7 +36,8 @@ function App() {
   const VALID_VIEWS = ['prospects', 'pipeline', 'national-map', 'knowledge-graph']
 
   function getViewFromHash() {
-    const hash = window.location.hash.replace('#', '')
+    const raw = window.location.hash.replace('#', '')
+    const hash = raw.split('?')[0]
     return VALID_VIEWS.includes(hash) ? hash : 'pipeline'
   }
 
