@@ -31,6 +31,9 @@ src/
 │   │   ├── StateDetailPanel.jsx  # Right slide-out panel on state click
 │   │   ├── MapMetricSelector.jsx # Pill buttons for switching color metric
 │   │   └── MapLegend.jsx         # Color scale legend
+│   ├── ontology/        # Knowledge Graph: ForceGraph D3 visualization, test page
+│   │   ├── ForceGraph.jsx           # Reusable D3 force-directed graph (shared component)
+│   │   └── ForceGraphTestPage.jsx   # Temporary test harness (remove after Session 2)
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -640,6 +643,39 @@ The manual endpoint `POST ?action=rebuild-ontology-layer1` still works — it ca
 
 #### Phase Roadmap
 - **Phase 6 (complete):** Ontology Density as 6th National Map metric. `ontology-density-by-state` endpoint returns per-state density (relationships/prospects), layer breakdown, entity/relationship counts. Data fetched in parallel on mount and merged into stateData. OntologySummary enhanced with Layer 1 vs Layer 2 breakdown bar and entity type distribution mini-bars.
+
+### Knowledge Graph (Phase 7 — Active)
+
+Interactive force-directed graph visualization of the ontology. Two planned modes: aggregated super-node explorer (Kyle/Duane) and query panel (Brett).
+
+**Dependencies:** `d3` (force simulation, zoom, drag)
+
+#### Components
+- **Directory:** `src/components/ontology/`
+- **ForceGraph.jsx** — Shared reusable D3 force-directed graph component. React owns a container div, D3 renders into a ref'd SVG. Props: `nodes`, `links`, `onNodeClick`, `onBackgroundClick`, `highlightNodeIds` (Set), `width`, `height`. Does NOT fetch data.
+  - Exports `ENTITY_COLORS` constant mapping entity types to hex colors
+  - Super-node radius: `Math.max(16, Math.min(42, 10 + Math.sqrt(count) * 3.2))`
+  - Company node radius: fixed 10
+  - Supports zoom (d3.zoom, scaleExtent [0.3, 4]) and drag (d3.drag)
+  - Highlight: dims non-highlighted nodes/links to opacity 0.1
+- **ForceGraphTestPage.jsx** — Temporary test harness. Fetches `ontology-graph` on mount, renders ForceGraph. Route: `/#test-graph`. Delete after Session 2.
+
+#### API Endpoints (all in `api/prospects.js`)
+- `GET /api/prospects?action=ontology-graph` — Aggregated super-node view. Each non-Company entity becomes a super-node with `count` (connected companies) and `memberIds[]`. Inter-node links computed by shared company overlap (strength ≥ 0.1). Optional `state` and `type` filters. Response: `{ nodes, links, meta }`.
+- `GET /api/prospects?action=ontology-neighborhood` — 1-hop (or 2-hop) neighborhood around a specific entity. Required: `entity_id`. Optional: `depth` (1-2). Response: `{ nodes, links, meta }` with `isSuper: false`.
+- `GET /api/prospects?action=ontology-query` — Find companies matching ontology criteria. AND across categories, OR within. Params: `certifications`, `technologies`, `markets`, `ownership`, `equipment`, `state`. Response: `{ results[], meta }` with matchScore.
+- `GET /api/prospects?action=ontology-similar` — Find companies sharing the most ontology edges with a target. Required: `prospect_id`. Optional: `limit` (default 10). Response: `{ target, similar[] }` with similarity scores.
+
+#### Entity Color Mapping (shared constant in ForceGraph.jsx)
+| Entity Type | Color |
+|-------------|-------|
+| Company | `#041E42` (navy) |
+| Certification | `#1D9E75` (green) |
+| Technology / Software | `#D85A30` (orange) |
+| Market Vertical | `#D4537E` (pink) |
+| Ownership Structure | `#BA7517` (gold) |
+| Equipment Brand | `#639922` (olive) |
+| Quality Method | `#534AB7` (purple) |
 
 ## Notes
 
