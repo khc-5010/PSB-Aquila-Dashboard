@@ -31,8 +31,13 @@ src/
 │   │   ├── StateDetailPanel.jsx  # Right slide-out panel on state click
 │   │   ├── MapMetricSelector.jsx # Pill buttons for switching color metric
 │   │   └── MapLegend.jsx         # Color scale legend
-│   ├── ontology/        # Knowledge Graph: ForceGraph D3 visualization, test page
-│   │   ├── ForceGraph.jsx           # Reusable D3 force-directed graph (shared component)
+│   ├── ontology/        # Knowledge Graph: ForceGraph D3 visualization, query panel, neighborhood
+│   │   ├── ForceGraph.jsx           # Reusable D3 force-directed graph (shared component, supports compact mode)
+│   │   ├── KnowledgeGraph.jsx       # Page component (top-level tab, hash param support)
+│   │   ├── GraphExplorer.jsx        # Graph viewer with expand/collapse, type filters, search
+│   │   ├── QueryPanel.jsx           # Query builder with filter chips and state dropdown
+│   │   ├── QueryResults.jsx         # Result cards with "Find similar" button
+│   │   ├── NeighborhoodPanel.jsx    # Compact graph for ProspectDetail (entity resolution + neighborhood)
 │   │   └── ForceGraphTestPage.jsx   # Temporary test harness (remove after Session 2)
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
@@ -656,12 +661,14 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 - **QueryPanel.jsx** — Left-panel query builder. Filter sections (Certifications, Technologies, Markets, Equipment, Ownership, Quality Methods) with toggleable chips derived from graph super-nodes. State filter dropdown. Calls `ontology-query` on search, passes matched company IDs up for graph highlighting. Includes "Find Similar" via `ontology-similar`.
 - **QueryResults.jsx** — Result cards within QueryPanel. Shows company name, location, match score, matched edges as tags. "Find similar companies" button per card. Similar results sub-view with back navigation.
 - **GraphExplorer.jsx** — Wraps ForceGraph with expand/collapse state. Click super-node → fetch `ontology-neighborhood` → show expanded view with "Back to overview" button. Entity type filter chips and search input in toolbar. Auto-sizes to container via ResizeObserver. Legend bar at bottom.
-- **ForceGraph.jsx** — Shared reusable D3 force-directed graph component. React owns a container div, D3 renders into a ref'd SVG. Props: `nodes`, `links`, `onNodeClick`, `onBackgroundClick`, `highlightNodeIds` (Set), `width`, `height`. Does NOT fetch data.
+- **ForceGraph.jsx** — Shared reusable D3 force-directed graph component. React owns a container div, D3 renders into a ref'd SVG. Props: `nodes`, `links`, `onNodeClick`, `onBackgroundClick`, `highlightNodeIds` (Set), `width`, `height`, `compact` (boolean). Does NOT fetch data.
   - Exports `ENTITY_COLORS` constant mapping entity types to hex colors
   - Super-node radius: `Math.max(16, Math.min(42, 10 + Math.sqrt(count) * 3.2))`
   - Company node radius: fixed 10
   - Supports zoom (d3.zoom, scaleExtent [0.3, 4]) and drag (d3.drag)
   - Highlight: dims non-highlighted nodes/links to opacity 0.1
+  - **Compact mode** (`compact=true`): Smaller node radii (30% reduction), tighter force params, 8px labels (vs 10px), no count text in super-nodes, tighter zoom [0.6, 2]. Center node (`isCenter=true`) gets amber stroke highlight.
+- **NeighborhoodPanel.jsx** — Compact neighborhood graph for ProspectDetail. Embedded after Research Brief section. Resolves prospect → ontology entity_id via multi-step lookup (ontology-similar → ontology-graph → probe neighborhood → company neighborhood). Shows company's 1-hop ontology connections in a compact ForceGraph (280px height). Caps at 15 visible nodes with overflow indicator. Clicking non-center nodes shows entity detail line below graph. "View in Knowledge Graph" link navigates to `#knowledge-graph?company={entityId}`. Handles empty/loading/error states.
 
 #### View Modes
 - **Query + Graph** (default): Split layout — 340px query panel + flexible graph area
@@ -680,6 +687,12 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 - `GET /api/prospects?action=ontology-neighborhood` — 1-hop (or 2-hop) neighborhood around a specific entity. Required: `entity_id`. Optional: `depth` (1-2). Response: `{ nodes, links, meta }` with `isSuper: false`.
 - `GET /api/prospects?action=ontology-query` — Find companies matching ontology criteria. AND across categories, OR within. Params: `certifications`, `technologies`, `markets`, `ownership`, `equipment`, `state`. Response: `{ results[], meta }` with matchScore.
 - `GET /api/prospects?action=ontology-similar` — Find companies sharing the most ontology edges with a target. Required: `prospect_id`. Optional: `limit` (default 10). Response: `{ target, similar[] }` with similarity scores.
+
+#### Cross-Navigation (Session 3)
+- **ProspectDetail → Knowledge Graph**: NeighborhoodPanel "View in Knowledge Graph" navigates to `#knowledge-graph?company={entityId}`
+- **KnowledgeGraph.jsx** reads `?company=` hash param on mount, passes `initialCompanyId` to GraphExplorer, which auto-expands the company's neighborhood
+- **Hash param routing**: `App.jsx` `getViewFromHash()` strips query params before matching against `VALID_VIEWS`, so `#knowledge-graph?company=123` correctly routes to the knowledge-graph view
+- **D3/React pattern**: React owns the container div, D3 renders into a ref'd SVG inside a `useEffect`. D3 handles all mutations (nodes, links, zoom, drag). React re-runs the effect when props change. Never mix React DOM and D3 DOM on the same elements.
 
 #### Entity Color Mapping (shared constant in ForceGraph.jsx)
 | Entity Type | Color |
