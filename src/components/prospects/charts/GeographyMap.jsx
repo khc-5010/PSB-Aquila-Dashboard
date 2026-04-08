@@ -5,20 +5,9 @@ import {
   Legend,
 } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
+import { CORRIDOR_COLORS } from '../../../data/corridors'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
-
-const CORRIDOR_COLORS = {
-  'Great Lakes Auto':       '#041E42',
-  'Northeast Tool':         '#2563EB',
-  'Southeast Growth':       '#16A34A',
-  'Gulf / Resin Belt':      '#DC2626',
-  'Upper Midwest Medical':  '#7C3AED',
-  'West Coast':             '#F59E0B',
-  'Mountain / Central':     '#6B7280',
-  'Non-Contiguous':         '#9CA3AF',
-  'Unknown':                '#D1D5DB',
-}
 
 function GeographyMap({ corridors, loading, onGeoClick }) {
   if (loading) {

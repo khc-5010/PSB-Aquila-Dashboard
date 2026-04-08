@@ -496,7 +496,8 @@ state_research_reports (
 When saving a new report for a state that already has one: old report gets `is_current = false` (archived, not deleted), new one inserted with `is_current = true`. The unique partial index enforces only one current report per state. Future UI could show report history.
 
 ### Static Data
-`src/data/us-states.js` — SVG path data for all 50 states + DC. ViewBox `0 0 960 600`. Alaska/Hawaii repositioned as insets. Exports `US_STATES` array and `STATE_ABBR_TO_NAME` lookup.
+- `src/data/us-states.js` — SVG path data for all 50 states + DC. ViewBox `0 0 960 600`. Alaska/Hawaii repositioned as insets. Exports `US_STATES` array and `STATE_ABBR_TO_NAME` lookup.
+- `src/data/corridors.js` — Single source of truth for manufacturing corridor constants. Exports `CORRIDOR_COLORS` (corridor name → hex) and `STATE_TO_CORRIDOR` (state abbreviation → corridor name). Imported by `GeographyMap.jsx`, `USMap.jsx`, `NationalMap.jsx`, `MapLegend.jsx`, and `StateTooltip.jsx`. The mapping also exists in `api/prospects.js` (SQL CASE) for server-side analytics.
 
 ### Metrics
 | Key | Label | Description |
@@ -513,6 +514,18 @@ When saving a new report for a state that already has one: old report gets `is_c
 - Data gradient (standard metrics): light blue (`#93C5FD`) → blue (`#2563EB`) → navy (`#041E42`)
 - Freshness metric: green (`#16A34A`, <30d) → yellow (`#EAB308`, 30-90d) → red (`#DC2626`, >90d) → gray (`#E5E7EB`, no report)
 - Selected state: amber stroke (`#F59E0B`)
+
+### Corridor Overlay
+- Toggle button ("Corridors") in top-right of map container. When active: state borders colored by manufacturing corridor, corridor legend shown below metric legend, and corridor name displayed in tooltip header.
+- Toggle state persisted in `localStorage` key `national-map-corridors-visible`.
+- Stroke priority: selected (amber) > hovered (navy) > corridor color (1.5px) > default (white 0.5px). Corridor strokes never override hover/selection.
+- Prop flow: `NationalMap` owns `showCorridors` state → passes to `USMap` (strokes), `MapLegend` (corridor legend), `StateTooltip` (corridor name via `showCorridor` + `corridorName` props).
+- Corridor colors/mapping defined in `src/data/corridors.js` (single source of truth).
+
+### Enhanced State Tooltip
+- Default tooltip (non-freshness, non-ontology) shows: company count, high priority count (amber), avg signal, CWP total, top 3 company names with category, and research date or "Not yet researched".
+- When corridor overlay is active, corridor name appears below the state name/abbreviation header.
+- All data sourced from already-fetched `stateData` and `reportMeta` — no additional API calls on hover.
 
 ### Freshness Thresholds (configurable in `StateReportSection.jsx`)
 - **Fresh** (green): < 30 days since `researched_at`

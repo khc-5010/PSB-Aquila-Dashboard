@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { US_STATES } from '../../data/us-states'
 import { FRESHNESS_THRESHOLDS, getFreshnessInfo } from './StateReportSection'
+import { CORRIDOR_COLORS, STATE_TO_CORRIDOR } from '../../data/corridors'
 
 function getMetricValue(data, metric) {
   if (!data) return 0
@@ -49,7 +50,7 @@ function getFreshnessColor(reportMeta) {
   return FRESHNESS_COLORS[info.color] || FRESHNESS_COLORS.gray
 }
 
-function USMap({ stateData, reportMeta, activeMetric, selectedState, onStateHover, onStateClick, onMouseMove }) {
+function USMap({ stateData, reportMeta, activeMetric, selectedState, showCorridors, onStateHover, onStateClick, onMouseMove }) {
   const [hoveredState, setHoveredState] = useState(null)
 
   // Compute min/max for the active metric across states with data
@@ -90,8 +91,8 @@ function USMap({ stateData, reportMeta, activeMetric, selectedState, onStateHove
             key={state.id}
             d={state.path}
             fill={fill}
-            stroke={isSelected ? '#F59E0B' : isHovered ? '#041E42' : '#FFFFFF'}
-            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : 0.5}
+            stroke={isSelected ? '#F59E0B' : isHovered ? '#041E42' : showCorridors ? (CORRIDOR_COLORS[STATE_TO_CORRIDOR[state.id]] || '#FFFFFF') : '#FFFFFF'}
+            strokeWidth={isSelected ? 2 : isHovered ? 1.5 : showCorridors ? 1.5 : 0.5}
             opacity={isHovered ? 0.85 : 1}
             className="cursor-pointer transition-opacity"
             onMouseEnter={() => handleMouseEnter(state)}
