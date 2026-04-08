@@ -172,7 +172,7 @@ function ProspectTable() {
   // Filter logic
   const filtered = prospects.filter(p => {
     if (filters.preset === 'medical') {
-      const isMolder = p.category === 'Converter+Tooling' || p.category === 'Converter'
+      const isMolder = p.category === 'Mold Maker + Converter' || p.category === 'Converter'
       if (!isMolder || p.medical_device_mfg !== 'Yes') return false
     }
     if (filters.preset === 'warm_leads') {

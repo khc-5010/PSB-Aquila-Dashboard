@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
 import UploadStateReportModal from './UploadStateReportModal'
+import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
 
 // Freshness thresholds (days) — easy to tune
 const FRESHNESS_THRESHOLDS = { fresh: 30, aging: 90 }
@@ -66,8 +66,8 @@ function parseSections(markdown) {
   return merged.length > 0 ? merged : sections
 }
 
-function SectionAccordion({ title, content, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen)
+function PreviewAccordion({ title, content }) {
+  const [open, setOpen] = useState(false)
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -79,18 +79,16 @@ function SectionAccordion({ title, content, defaultOpen = true }) {
         <span className="text-gray-400 text-xs">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
       {open && (
-        <div className="px-4 py-3 prose prose-sm max-w-none">
-          <ReactMarkdown>{content}</ReactMarkdown>
+        <div className="px-4 py-3">
+          <ReportMarkdownRenderer content={content} />
         </div>
       )}
     </div>
   )
 }
 
-export default function StateReportSection({ stateCode, stateName, report, currentProspectCount, onReportSaved, onOpenPromptBuilder }) {
+export default function StateReportSection({ stateCode, stateName, report, currentProspectCount, onReportSaved, onOpenPromptBuilder, onOpenFullReport }) {
   const [showUpload, setShowUpload] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [allExpanded, setAllExpanded] = useState(null) // null = default behavior
 
   if (!report) {
     return (
@@ -134,6 +132,7 @@ export default function StateReportSection({ stateCode, stateName, report, curre
 
   const freshness = getFreshnessInfo(report.researched_at)
   const sections = parseSections(report.content)
+  const previewSections = sections.slice(0, 2)
 
   const researchedDate = report.researched_at
     ? new Date(report.researched_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -143,29 +142,9 @@ export default function StateReportSection({ stateCode, stateName, report, curre
     ? currentProspectCount - report.prospect_count_at_time
     : null
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(report.content)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = report.content
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      document.body.removeChild(textarea)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  function toggleAll() {
-    setAllExpanded(prev => prev === null ? false : !prev)
-  }
-
   return (
     <div className="px-5 py-4 border-b border-gray-100">
+      <p className="text-xs text-gray-400 mb-1">Comprehensive market research for this state's plastics manufacturing landscape</p>
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Research Report</h3>
 
       {/* Metadata bar */}
@@ -213,31 +192,36 @@ export default function StateReportSection({ stateCode, stateName, report, curre
             Run State Research
           </button>
         )}
-        <button
-          onClick={handleCopy}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          {copied ? 'Copied!' : 'Copy Raw Markdown'}
-        </button>
-        <button
-          onClick={toggleAll}
-          className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          {allExpanded === false ? 'Expand All' : 'Collapse All'}
-        </button>
       </div>
 
-      {/* Accordion sections */}
-      <div className="space-y-2">
-        {sections.map((section, i) => (
-          <SectionAccordion
-            key={`${section.title}-${allExpanded}`}
+      {/* Preview: first 1-2 accordion sections (collapsed) */}
+      <div className="space-y-2 mb-3">
+        {previewSections.map((section, i) => (
+          <PreviewAccordion
+            key={section.title}
             title={section.title}
             content={section.content}
-            defaultOpen={allExpanded === null ? i < 3 : allExpanded !== false}
           />
         ))}
+        {sections.length > 2 && (
+          <p className="text-xs text-gray-400 pl-1">
+            +{sections.length - 2} more section{sections.length - 2 !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
+
+      {/* Open Full Report button */}
+      {onOpenFullReport && (
+        <button
+          onClick={onOpenFullReport}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[#041E42] rounded-lg hover:bg-[#041E42]/90 transition-colors"
+        >
+          Open Full Report
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+        </button>
+      )}
 
       {showUpload && (
         <UploadStateReportModal
@@ -251,4 +235,4 @@ export default function StateReportSection({ stateCode, stateName, report, curre
   )
 }
 
-export { FRESHNESS_THRESHOLDS, getFreshnessInfo }
+export { FRESHNESS_THRESHOLDS, getFreshnessInfo, parseSections }

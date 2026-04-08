@@ -4,7 +4,7 @@ import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } fr
 const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
 const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
-const CATEGORY_OPTIONS = ['All', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
+const CATEGORY_OPTIONS = ['All', 'Mold Maker + Converter', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
 const GEO_OPTIONS = ['All', 'Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
 const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -14,7 +14,7 @@ const PRESETS = [
   { label: 'Group 2', filter: { group: 'Group 2' } },
   { label: 'Time-Sensitive', filter: { group: 'Time-Sensitive' } },
   { label: 'Medical Molders', filter: { preset: 'medical' } },
-  { label: 'Converter+Tooling', filter: { category: 'Converter+Tooling' } },
+  { label: 'Mold Maker + Converter', filter: { category: 'Mold Maker + Converter' } },
   { label: 'Home Turf', filter: { geo: 'Northeast Tool' } },
   { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
   { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },

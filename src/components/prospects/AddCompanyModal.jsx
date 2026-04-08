@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 
-const CATEGORY_OPTIONS = ['', 'Converter+Tooling', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
+const CATEGORY_OPTIONS = ['', 'Mold Maker + Converter', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
 const GEO_OPTIONS = ['', 'Tier 1', 'Tier 2', 'Infrastructure']
 const GROUP_OPTIONS = ['Unassigned', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure']
