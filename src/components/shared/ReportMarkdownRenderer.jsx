@@ -110,6 +110,28 @@ const reportComponents = {
   h4: ({ children, ...props }) => (
     <h4 className="text-sm font-semibold text-gray-800 mt-3 mb-1" {...props}>{children}</h4>
   ),
+
+  // Tables: styled with gridlines, striped rows, navy header
+  table: ({ children, ...props }) => (
+    <div className="my-4 overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+      <table className="min-w-full border-collapse text-sm" {...props}>{children}</table>
+    </div>
+  ),
+  thead: ({ children, ...props }) => (
+    <thead className="bg-[#041E42] text-white" {...props}>{children}</thead>
+  ),
+  tbody: ({ children, ...props }) => (
+    <tbody className="divide-y divide-gray-200" {...props}>{children}</tbody>
+  ),
+  tr: ({ children, node, ...props }) => (
+    <tr className="even:bg-gray-50/60 hover:bg-blue-50/40 transition-colors" {...props}>{children}</tr>
+  ),
+  th: ({ children, ...props }) => (
+    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide border-r border-white/20 last:border-r-0" {...props}>{children}</th>
+  ),
+  td: ({ children, ...props }) => (
+    <td className="px-3 py-2 text-gray-700 border-r border-gray-100 last:border-r-0" {...props}>{children}</td>
+  ),
 }
 
 /**
@@ -120,7 +142,7 @@ export default function ReportMarkdownRenderer({ content }) {
   if (!content) return null
 
   return (
-    <div className="prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:border-gray-300 prose-th:px-3 prose-th:py-1.5 prose-th:bg-gray-50 prose-th:text-left prose-td:border prose-td:border-gray-200 prose-td:px-3 prose-td:py-1.5">
+    <div className="prose prose-sm max-w-none">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={reportComponents}>{content}</ReactMarkdown>
     </div>
   )
