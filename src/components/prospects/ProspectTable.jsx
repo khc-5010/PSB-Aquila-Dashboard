@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck } from 'lucide-react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown } from 'lucide-react'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
@@ -111,6 +111,7 @@ function ProspectTable() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showAuditModal, setShowAuditModal] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState(new Set())
 
   // Fetch prospects
   useEffect(() => {
@@ -228,6 +229,76 @@ function ProspectTable() {
     return sigB - sigA
   })
 
+  // Group by parent company (client-side, after filter + sort)
+  const grouped = (() => {
+    const companyNameToProspect = new Map()
+    for (const p of sorted) companyNameToProspect.set(p.company, p)
+
+    const childrenByParent = new Map()
+    for (const p of sorted) {
+      if (p.parent_company) {
+        if (!childrenByParent.has(p.parent_company)) childrenByParent.set(p.parent_company, [])
+        childrenByParent.get(p.parent_company).push(p)
+      }
+    }
+
+    // Identify real parents — prospects whose company name is referenced as parent_company by others
+    const realParentNames = new Set()
+    for (const [parentName, children] of childrenByParent) {
+      if (companyNameToProspect.has(parentName) && children.some(c => c.company !== parentName)) {
+        realParentNames.add(parentName)
+      }
+    }
+
+    // Build valid groups. Exclude real parents from being children of other groups.
+    const validGroups = new Map()
+    for (const [parentName, children] of childrenByParent) {
+      const filteredChildren = children.filter(c => c.company !== parentName && !realParentNames.has(c.company))
+      const parentProspect = companyNameToProspect.get(parentName) || null
+      if (filteredChildren.length >= 2 || (parentProspect && filteredChildren.length >= 1)) {
+        validGroups.set(parentName, { children: filteredChildren, parentProspect })
+      }
+    }
+
+    const consumedIds = new Set()
+    for (const [, g] of validGroups) {
+      for (const c of g.children) consumedIds.add(c.id)
+      if (g.parentProspect) consumedIds.add(g.parentProspect.id)
+    }
+
+    const result = []
+    const emittedGroups = new Set()
+    for (const p of sorted) {
+      if (!consumedIds.has(p.id)) {
+        result.push({ type: 'standalone', prospect: p })
+        continue
+      }
+      const groupName = validGroups.has(p.company) ? p.company
+        : (p.parent_company && validGroups.has(p.parent_company)) ? p.parent_company : null
+      if (groupName && !emittedGroups.has(groupName)) {
+        emittedGroups.add(groupName)
+        const g = validGroups.get(groupName)
+        const all = g.parentProspect ? [g.parentProspect, ...g.children] : g.children
+        result.push({
+          type: g.parentProspect ? 'parent' : 'virtual-parent',
+          groupName,
+          prospect: g.parentProspect,
+          children: g.children,
+          aggregates: {
+            totalPresses: all.reduce((s, m) => s + (m.press_count || 0), 0),
+            totalEmployees: all.reduce((s, m) => s + (m.employees_approx || 0), 0),
+            totalCWP: all.reduce((s, m) => s + (m.cwp_contacts || 0), 0),
+            totalSignal: all.reduce((s, m) => s + (m.signal_count || 0), 0),
+            states: [...new Set(all.map(m => m.state).filter(Boolean))],
+            count: all.length,
+            childCount: g.children.length,
+          },
+        })
+      }
+    }
+    return result
+  })()
+
   const handleSort = (key) => {
     setSortConfig(prev => {
       if (prev.key === key) {
@@ -264,6 +335,15 @@ function ProspectTable() {
     }
   }
 
+  const toggleGroup = useCallback((groupName) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupName)) next.delete(groupName)
+      else next.add(groupName)
+      return next
+    })
+  }, [])
+
   if (loading) {
     return (
       <div className="p-6">
@@ -285,6 +365,290 @@ function ProspectTable() {
           <p className="text-xs text-red-500 mt-1">Make sure the prospect_companies table has been created. See scripts/create-prospect-table.sql</p>
         </div>
       </div>
+    )
+  }
+
+  const renderProspectRow = (p, { isChild = false } = {}) => (
+    <tr
+      key={p.id}
+      className={`${isChild ? 'bg-gray-50/30 hover:bg-gray-100/50 border-l-2 border-l-gray-200' : 'hover:bg-blue-50/50'} cursor-pointer transition-colors`}
+      onClick={() => setSelectedProspect(p)}
+    >
+      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+        {editingRank === p.id ? (
+          <input
+            type="number" min="1" autoFocus
+            value={editingRankValue}
+            onChange={(e) => setEditingRankValue(e.target.value)}
+            onBlur={() => handleRankBlur(p.id)}
+            onKeyDown={(e) => handleRankKeyDown(e, p.id)}
+            className="w-12 px-1 py-0.5 text-sm text-center border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        ) : (
+          <button
+            onClick={() => { setEditingRank(p.id); setEditingRankValue(p.outreach_rank ?? '') }}
+            className="w-12 px-1 py-0.5 text-sm text-center rounded hover:bg-gray-100 transition-colors font-mono"
+            title="Click to edit rank"
+          >
+            {p.outreach_rank ?? '\u2014'}
+          </button>
+        )}
+      </td>
+      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+        <select
+          value={p.outreach_group || 'Unassigned'}
+          onChange={(e) => updateProspect(p.id, 'outreach_group', e.target.value)}
+          className="text-xs font-medium rounded-full px-2 py-1 border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+          style={{
+            backgroundColor: { 'Group 1': '#dcfce7', 'Group 2': '#dbeafe', 'Time-Sensitive': '#fef3c7', 'Infrastructure': '#f3e8ff', 'Unassigned': '#f3f4f6' }[p.outreach_group || 'Unassigned'],
+            color: { 'Group 1': '#15803d', 'Group 2': '#1d4ed8', 'Time-Sensitive': '#b45309', 'Infrastructure': '#7e22ce', 'Unassigned': '#6b7280' }[p.outreach_group || 'Unassigned'],
+            borderColor: { 'Group 1': '#86efac', 'Group 2': '#93c5fd', 'Time-Sensitive': '#fcd34d', 'Infrastructure': '#c4b5fd', 'Unassigned': '#d1d5db' }[p.outreach_group || 'Unassigned'],
+          }}
+        >
+          {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+        </select>
+      </td>
+      <td className="px-3 py-2.5"><StatusBadge status={p.prospect_status} /></td>
+      <td className={`px-3 py-2.5${isChild ? ' pl-10' : ''}`}>
+        <div className="flex items-center">
+          {(p.cwp_contacts ?? 0) >= 5 && (
+            <span className={`inline-block w-2 h-2 rounded-full mr-1.5 flex-shrink-0 ${
+              (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-500' : (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-500' : 'bg-amber-400'
+            }`} title={`${p.cwp_contacts} CWP contacts`} />
+          )}
+          <div className="min-w-0">
+            <span className="text-sm font-medium text-gray-900">{p.company}</span>
+            {p.also_known_as && <div className="text-xs text-gray-400 italic">fka {p.also_known_as}</div>}
+          </div>
+          {(p.conversion_count ?? 0) > 0 && (
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
+              {p.conversion_count}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-3 py-2.5">
+        <span className="text-xs text-gray-600">
+          {displayValue(p.category)}
+          {p.in_house_tooling === 'Yes' && <Wrench className="w-3.5 h-3.5 text-[#041E42] inline ml-1" title="In-house tooling — controls their own molds" />}
+        </span>
+      </td>
+      <td className="px-3 py-2.5">
+        <span className="text-xs text-gray-600">{p.city && p.state ? `${p.city}, ${p.state}` : displayValue(p.city || p.state)}</span>
+      </td>
+      <td className="px-3 py-2.5">
+        {p.priority ? (
+          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${PRIORITY_COLORS[p.priority] || 'bg-gray-100 text-gray-600'}`}>{p.priority}</span>
+        ) : (
+          <span className="text-xs text-gray-400">{'\u2014'}</span>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.signal_count)}</span></td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.press_count)}</span></td>
+      <td className="px-3 py-2.5 text-center">
+        {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
+            <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
+          </span>
+        ) : p.rjg_cavity_pressure === 'Likely' ? (
+          <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
+        ) : (
+          <span className="text-xs text-gray-400">{'\u2014'}</span>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        {p.medical_device_mfg === 'Yes' ? (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400">{'\u2014'}</span>
+        )}
+      </td>
+      <td className="px-3 py-2.5 text-center">
+        <span className={`text-sm ${cwpHeatClass(p.cwp_contacts ?? 0)}`}>{displayValue(p.cwp_contacts)}</span>
+      </td>
+      <td className="px-3 py-2.5">
+        <span className="text-xs text-gray-600 flex items-center gap-1">
+          <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
+          {p.ownership_type?.includes('PE') && p.recent_ma ? (
+            <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
+          ) : p.ownership_type?.includes('PE') ? (
+            <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
+          ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
+            <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
+          ) : p.ownership_type === 'ESOP' ? (
+            <Users className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced" />
+          ) : null}
+        </span>
+      </td>
+      <td className="px-3 py-2.5">
+        <span className="text-xs text-gray-600 truncate block max-w-[200px]" title={p.suggested_next_step || ''}>{displayValue(p.suggested_next_step)}</span>
+      </td>
+    </tr>
+  )
+
+  const renderGroupHeaderRow = (item) => {
+    const { type, groupName, prospect: parentP, children, aggregates } = item
+    const isExpanded = expandedGroups.has(groupName)
+    const isVirtual = type === 'virtual-parent'
+    const toggle = (
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleGroup(groupName) }}
+        className="mr-1.5 p-0.5 text-gray-400 hover:text-gray-600 rounded"
+      >
+        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+    )
+    const badge = (
+      <span className="ml-2 text-xs text-gray-500 bg-gray-200/80 rounded-full px-2 py-0.5 whitespace-nowrap">
+        {aggregates.childCount} {aggregates.childCount === 1 ? 'subsidiary' : 'subsidiaries'}
+      </span>
+    )
+    const dash = <span className="text-xs text-gray-400">{'\u2014'}</span>
+
+    if (isVirtual) {
+      return (
+        <tr key={`group-${groupName}`} className="bg-gray-100/60 transition-colors">
+          <td className="px-3 py-2.5">{dash}</td>
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5">
+            <div className="flex items-center">
+              {toggle}
+              <span className="text-sm font-semibold text-gray-600">{groupName}</span>
+              {badge}
+            </div>
+          </td>
+          <td className="px-3 py-2.5">{dash}</td>
+          <td className="px-3 py-2.5"><span className="text-xs text-gray-500">{aggregates.states.join(', ')}</span></td>
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalSignal || '\u2014'}</span></td>
+          <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalPresses || '\u2014'}</span></td>
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5 text-center"><span className={`text-sm ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span></td>
+          <td className="px-3 py-2.5" />
+          <td className="px-3 py-2.5" />
+        </tr>
+      )
+    }
+
+    // Real parent header — shows parent's own data + aggregates in numeric cols
+    return (
+      <tr
+        key={`group-${groupName}`}
+        className="hover:bg-blue-50/50 cursor-pointer transition-colors"
+        onClick={() => setSelectedProspect(parentP)}
+      >
+        <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+          {editingRank === parentP.id ? (
+            <input
+              type="number" min="1" autoFocus
+              value={editingRankValue}
+              onChange={(e) => setEditingRankValue(e.target.value)}
+              onBlur={() => handleRankBlur(parentP.id)}
+              onKeyDown={(e) => handleRankKeyDown(e, parentP.id)}
+              className="w-12 px-1 py-0.5 text-sm text-center border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
+            />
+          ) : (
+            <button
+              onClick={() => { setEditingRank(parentP.id); setEditingRankValue(parentP.outreach_rank ?? '') }}
+              className="w-12 px-1 py-0.5 text-sm text-center rounded hover:bg-gray-100 transition-colors font-mono"
+              title="Click to edit rank"
+            >
+              {parentP.outreach_rank ?? '\u2014'}
+            </button>
+          )}
+        </td>
+        <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+          <select
+            value={parentP.outreach_group || 'Unassigned'}
+            onChange={(e) => updateProspect(parentP.id, 'outreach_group', e.target.value)}
+            className="text-xs font-medium rounded-full px-2 py-1 border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+            style={{
+              backgroundColor: { 'Group 1': '#dcfce7', 'Group 2': '#dbeafe', 'Time-Sensitive': '#fef3c7', 'Infrastructure': '#f3e8ff', 'Unassigned': '#f3f4f6' }[parentP.outreach_group || 'Unassigned'],
+              color: { 'Group 1': '#15803d', 'Group 2': '#1d4ed8', 'Time-Sensitive': '#b45309', 'Infrastructure': '#7e22ce', 'Unassigned': '#6b7280' }[parentP.outreach_group || 'Unassigned'],
+              borderColor: { 'Group 1': '#86efac', 'Group 2': '#93c5fd', 'Time-Sensitive': '#fcd34d', 'Infrastructure': '#c4b5fd', 'Unassigned': '#d1d5db' }[parentP.outreach_group || 'Unassigned'],
+            }}
+          >
+            {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+          </select>
+        </td>
+        <td className="px-3 py-2.5"><StatusBadge status={parentP.prospect_status} /></td>
+        <td className="px-3 py-2.5">
+          <div className="flex items-center">
+            {toggle}
+            {(parentP.cwp_contacts ?? 0) >= 5 && (
+              <span className={`inline-block w-2 h-2 rounded-full mr-1.5 flex-shrink-0 ${
+                (parentP.cwp_contacts ?? 0) >= 20 ? 'bg-red-500' : (parentP.cwp_contacts ?? 0) >= 10 ? 'bg-orange-500' : 'bg-amber-400'
+              }`} title={`${parentP.cwp_contacts} CWP contacts`} />
+            )}
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-gray-900">{parentP.company}</span>
+              {parentP.also_known_as && <div className="text-xs text-gray-400 italic">fka {parentP.also_known_as}</div>}
+            </div>
+            {badge}
+            {(parentP.conversion_count ?? 0) > 0 && (
+              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${parentP.conversion_count} active opportunity${parentP.conversion_count > 1 ? 'ies' : ''}`}>
+                {parentP.conversion_count}
+              </span>
+            )}
+          </div>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-gray-600">
+            {displayValue(parentP.category)}
+            {parentP.in_house_tooling === 'Yes' && <Wrench className="w-3.5 h-3.5 text-[#041E42] inline ml-1" title="In-house tooling — controls their own molds" />}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-gray-600">{parentP.city && parentP.state ? `${parentP.city}, ${parentP.state}` : displayValue(parentP.city || parentP.state)}</span>
+        </td>
+        <td className="px-3 py-2.5">
+          {parentP.priority ? (
+            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${PRIORITY_COLORS[parentP.priority] || 'bg-gray-100 text-gray-600'}`}>{parentP.priority}</span>
+          ) : dash}
+        </td>
+        <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalSignal || '\u2014'}</span></td>
+        <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalPresses || '\u2014'}</span></td>
+        <td className="px-3 py-2.5 text-center">
+          {parentP.rjg_cavity_pressure === 'Yes' || parentP.rjg_cavity_pressure === 'Yes (confirmed)' ? (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
+              <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
+            </span>
+          ) : parentP.rjg_cavity_pressure === 'Likely' ? (
+            <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
+          ) : dash}
+        </td>
+        <td className="px-3 py-2.5 text-center">
+          {parentP.medical_device_mfg === 'Yes' ? (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
+            </span>
+          ) : dash}
+        </td>
+        <td className="px-3 py-2.5 text-center">
+          <span className={`text-sm font-medium ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-gray-600 flex items-center gap-1">
+            <span className="truncate max-w-[100px]" title={parentP.ownership_type || ''}>{displayValue(parentP.ownership_type)}</span>
+            {parentP.ownership_type?.includes('PE') && parentP.recent_ma ? (
+              <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
+            ) : parentP.ownership_type?.includes('PE') ? (
+              <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
+            ) : (parentP.ownership_type === 'Family/Founder-Owned' || parentP.ownership_type === 'Family-Owned' || parentP.ownership_type?.includes('Family')) && (parentP.years_in_business ?? 0) >= 30 ? (
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${parentP.years_in_business}+ years — potential succession/transition window`} />
+            ) : parentP.ownership_type === 'ESOP' ? (
+              <Users className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced" />
+            ) : null}
+          </span>
+        </td>
+        <td className="px-3 py-2.5">
+          <span className="text-xs text-gray-600 truncate block max-w-[200px]" title={parentP.suggested_next_step || ''}>{displayValue(parentP.suggested_next_step)}</span>
+        </td>
+      </tr>
     )
   }
 
@@ -446,7 +810,7 @@ function ProspectTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sorted.length === 0 ? (
+            {grouped.length === 0 ? (
               <tr>
                 <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
                   {prospects.length === 0
@@ -455,182 +819,16 @@ function ProspectTable() {
                 </td>
               </tr>
             ) : (
-              sorted.map((p) => (
-                <tr
-                  key={p.id}
-                  className="hover:bg-blue-50/50 cursor-pointer transition-colors"
-                  onClick={() => setSelectedProspect(p)}
-                >
-                  {/* Outreach Rank - inline editable */}
-                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    {editingRank === p.id ? (
-                      <input
-                        type="number"
-                        min="1"
-                        autoFocus
-                        value={editingRankValue}
-                        onChange={(e) => setEditingRankValue(e.target.value)}
-                        onBlur={() => handleRankBlur(p.id)}
-                        onKeyDown={(e) => handleRankKeyDown(e, p.id)}
-                        className="w-12 px-1 py-0.5 text-sm text-center border border-blue-400 rounded focus:outline-none focus:ring-2 focus:ring-blue-300"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => { setEditingRank(p.id); setEditingRankValue(p.outreach_rank ?? '') }}
-                        className="w-12 px-1 py-0.5 text-sm text-center rounded hover:bg-gray-100 transition-colors font-mono"
-                        title="Click to edit rank"
-                      >
-                        {p.outreach_rank ?? '\u2014'}
-                      </button>
-                    )}
-                  </td>
-
-                  {/* Group - dropdown editable */}
-                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      value={p.outreach_group || 'Unassigned'}
-                      onChange={(e) => updateProspect(p.id, 'outreach_group', e.target.value)}
-                      className="text-xs font-medium rounded-full px-2 py-1 border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                      style={{
-                        backgroundColor: {
-                          'Group 1': '#dcfce7', 'Group 2': '#dbeafe', 'Time-Sensitive': '#fef3c7',
-                          'Infrastructure': '#f3e8ff', 'Unassigned': '#f3f4f6',
-                        }[p.outreach_group || 'Unassigned'],
-                        color: {
-                          'Group 1': '#15803d', 'Group 2': '#1d4ed8', 'Time-Sensitive': '#b45309',
-                          'Infrastructure': '#7e22ce', 'Unassigned': '#6b7280',
-                        }[p.outreach_group || 'Unassigned'],
-                        borderColor: {
-                          'Group 1': '#86efac', 'Group 2': '#93c5fd', 'Time-Sensitive': '#fcd34d',
-                          'Infrastructure': '#c4b5fd', 'Unassigned': '#d1d5db',
-                        }[p.outreach_group || 'Unassigned'],
-                      }}
-                    >
-                      {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                  </td>
-
-                  {/* Status */}
-                  <td className="px-3 py-2.5">
-                    <StatusBadge status={p.prospect_status} />
-                  </td>
-
-                  {/* Company */}
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center">
-                      {(p.cwp_contacts ?? 0) >= 5 && (
-                        <span className={`inline-block w-2 h-2 rounded-full mr-1.5 flex-shrink-0 ${
-                          (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-500' :
-                          (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-500' : 'bg-amber-400'
-                        }`} title={`${p.cwp_contacts} CWP contacts`} />
-                      )}
-                      <div className="min-w-0">
-                        <span className="text-sm font-medium text-gray-900">{p.company}</span>
-                        {p.also_known_as && (
-                          <div className="text-xs text-gray-400 italic">fka {p.also_known_as}</div>
-                        )}
-                      </div>
-                      {(p.conversion_count ?? 0) > 0 && (
-                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
-                          {p.conversion_count}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* Category */}
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600">
-                      {displayValue(p.category)}
-                      {p.in_house_tooling === 'Yes' && (
-                        <Wrench className="w-3.5 h-3.5 text-[#041E42] inline ml-1" title="In-house tooling — controls their own molds" />
-                      )}
-                    </span>
-                  </td>
-
-                  {/* Location */}
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600">
-                      {p.city && p.state ? `${p.city}, ${p.state}` : displayValue(p.city || p.state)}
-                    </span>
-                  </td>
-
-                  {/* Priority */}
-                  <td className="px-3 py-2.5">
-                    {p.priority ? (
-                      <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${PRIORITY_COLORS[p.priority] || 'bg-gray-100 text-gray-600'}`}>
-                        {p.priority}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">{'\u2014'}</span>
-                    )}
-                  </td>
-
-                  {/* Signal Count */}
-                  <td className="px-3 py-2.5 text-center">
-                    <span className="text-sm text-gray-700">{displayValue(p.signal_count)}</span>
-                  </td>
-
-                  {/* Press Count */}
-                  <td className="px-3 py-2.5 text-center">
-                    <span className="text-sm text-gray-700">{displayValue(p.press_count)}</span>
-                  </td>
-
-                  {/* RJG — gold treatment for confirmed users */}
-                  <td className="px-3 py-2.5 text-center">
-                    {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
-                        <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
-                      </span>
-                    ) : p.rjg_cavity_pressure === 'Likely' ? (
-                      <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
-                    ) : (
-                      <span className="text-xs text-gray-400">{'\u2014'}</span>
-                    )}
-                  </td>
-
-                  {/* Medical */}
-                  <td className="px-3 py-2.5 text-center">
-                    {p.medical_device_mfg === 'Yes' ? (
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
-                        <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">{'\u2014'}</span>
-                    )}
-                  </td>
-
-                  {/* CWP Contacts */}
-                  <td className="px-3 py-2.5 text-center">
-                    <span className={`text-sm ${cwpHeatClass(p.cwp_contacts ?? 0)}`}>
-                      {displayValue(p.cwp_contacts)}
-                    </span>
-                  </td>
-
-                  {/* Ownership — with urgency indicators */}
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600 flex items-center gap-1">
-                      <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
-                      {p.ownership_type?.includes('PE') && p.recent_ma ? (
-                        <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-                      ) : p.ownership_type?.includes('PE') ? (
-                        <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
-                      ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
-                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
-                      ) : p.ownership_type === 'ESOP' ? (
-                        <Users className="w-3.5 h-3.5 flex-shrink-0 text-blue-500" title="Employee-owned — demonstrate value to workforce, investment-oriented once convinced" />
-                      ) : null}
-                    </span>
-                  </td>
-
-                  {/* Suggested Next Step */}
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs text-gray-600 truncate block max-w-[200px]" title={p.suggested_next_step || ''}>
-                      {displayValue(p.suggested_next_step)}
-                    </span>
-                  </td>
-                </tr>
-              ))
+              grouped.map((item) => {
+                if (item.type === 'standalone') return renderProspectRow(item.prospect)
+                const isExpanded = expandedGroups.has(item.groupName)
+                return (
+                  <Fragment key={`group-${item.groupName}`}>
+                    {renderGroupHeaderRow(item)}
+                    {isExpanded && item.children.map(c => renderProspectRow(c, { isChild: true }))}
+                  </Fragment>
+                )
+              })
             )}
           </tbody>
         </table>

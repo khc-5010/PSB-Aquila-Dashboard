@@ -294,6 +294,38 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - Two options: "Export filtered" (respects current filters) and "Export all" (full dataset)
 - Export button in the sub-view toggle header area of ProspectTable
 
+### Parent-Company Grouping (Expandable Rows)
+Companies that share a `parent_company` value are grouped into expandable/collapsible rows in ProspectTable. All grouping is **client-side**, applied after filtering and sorting — no API or schema changes.
+
+**Grouping rules:**
+- A group is created when 2+ filtered prospects share the same `parent_company` value, OR when a prospect's `company` name matches another prospect's `parent_company` (real parent + at least 1 child)
+- **Real parent**: A prospect row exists with the parent's company name → it becomes the group header row (clickable to open detail panel)
+- **Virtual parent**: No matching prospect row exists (e.g., "Hillenbrand") → a non-clickable header row is created with the parent name and aggregate stats
+- Prospects that are real parents (others reference them) are never consumed as children of another group, preventing multi-level nesting
+- Single-child groups without a real parent row are not grouped (child appears standalone)
+
+**Visual design:**
+- Group header rows: +/− toggle (`ChevronRight`/`ChevronDown`), bold company name, subsidiary count badge (`bg-gray-200/80 rounded-full`)
+- Virtual parent rows: `bg-gray-100/60`, aggregate stats in numeric columns, dashes in text columns
+- Real parent rows: parent's own data in text columns, aggregate totals in numeric columns (Sig, Presses, CWP)
+- Child rows: indented (`pl-10` on company cell), muted background (`bg-gray-50/30`), left border (`border-l-2 border-l-gray-200`)
+
+**State management:**
+- `expandedGroups` — `Set<string>` of expanded parent company names, default all collapsed
+- `toggleGroup(groupName)` — adds/removes from Set, `e.stopPropagation()` prevents row click
+
+**Key behaviors:**
+- Filtering works on the flat prospect list first, grouping applies to filtered results — search for "Synventive" shows it even though it's a subsidiary
+- CSV export remains flat (exports the filtered array, not grouped structure)
+- `filtered.length` count reflects individual prospects, not grouped row count
+- Column widths unchanged — grouped rows use the same 14-column structure
+- Charts sub-view unaffected — grouping only applies to table view
+
+**Key test cases:**
+- Barnes Molding Solutions: real parent + 6 subsidiaries
+- Hillenbrand: virtual parent, 2 subsidiaries (DME Company, Mold-Masters)
+- Peterson Manufacturing: real parent + 3 subsidiaries
+
 ### Industry Visual Intelligence (Prospect Table + Detail Panel Polish)
 
 Six visual enhancements that surface plastics industry intelligence at a glance. All data-driven from existing API fields — no new endpoints or schema changes.
