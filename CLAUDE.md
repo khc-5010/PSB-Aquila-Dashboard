@@ -29,8 +29,12 @@ src/
 │   │   ├── USMap.jsx             # SVG map component (state paths, hover/click, color fills)
 │   │   ├── StateTooltip.jsx      # Cursor-following tooltip on state hover
 │   │   ├── StateDetailPanel.jsx  # Right slide-out panel on state click
+│   │   ├── StateReportSection.jsx # Condensed report preview in sidebar with "Open Full Report" button
+│   │   ├── StateReportModal.jsx  # Near-full-screen modal for reading state research reports
 │   │   ├── MapMetricSelector.jsx # Pill buttons for switching color metric
 │   │   └── MapLegend.jsx         # Color scale legend
+│   ├── shared/          # Shared components used across features
+│   │   └── ReportMarkdownRenderer.jsx  # Custom ReactMarkdown renderer for research reports (company formatting)
 │   ├── ontology/        # Knowledge Graph: ForceGraph D3 visualization, query panel, neighborhood
 │   │   ├── ForceGraph.jsx           # Reusable D3 force-directed graph (shared component, supports compact mode)
 │   │   ├── KnowledgeGraph.jsx       # Page component (top-level tab, hash param support)
@@ -258,7 +262,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
-- `ProspectFilters` — Filter bar with preset buttons (Group 1, Group 2, Time-Sensitive, Medical Molders, Converter+Tooling, Tier 1 Local, Warm Leads, Ready for Research) + dropdown filters for group, category, priority, geography, and status
+- `ProspectFilters` — Filter bar with preset buttons (Group 1, Group 2, Time-Sensitive, Medical Molders, Mold Maker + Converter, Home Turf, Warm Leads, Ready for Research) + dropdown filters for group, category, priority, geography, and status
 - `ProspectDetail` — Right slide-out panel (follows OpportunityDetail pattern) with all fields in sections; status and outreach group are editable
 - `OutreachGroupBadge` — Colored badge: Group 1=green, Group 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
 - `StatusBadge` — Prospect lifecycle badge: Identified=gray, Prioritized=blue, Research Complete=amber, Outreach Ready=green, Converted=purple, Nurture=gray italic
@@ -455,7 +459,8 @@ Interactive SVG choropleth map of the United States. Each state colored by a sel
 - **USMap.jsx** — SVG `<path>` rendering for all 50 states + DC with hover/click handlers and metric-based color fills (including freshness semantic colors)
 - **StateTooltip.jsx** — Floating tooltip near cursor showing state summary; shows freshness info when Research Freshness metric is active
 - **StateDetailPanel.jsx** — Right slide-out panel with summary stats, category breakdown, priority bar, top companies, research report section, and "Coming Soon" placeholders for Prompt Builder and Ontology Summary
-- **StateReportSection.jsx** — Research report viewer with collapsible accordion sections, freshness badge, "new prospects since report" indicator, copy/expand-all controls, and upload button
+- **StateReportSection.jsx** — Condensed report preview in sidebar: freshness badge, metadata, first 1-2 accordion sections as preview, action buttons, and "Open Full Report" button that opens StateReportModal. Exports `getFreshnessInfo` and `parseSections` used by other components.
+- **StateReportModal.jsx** — Near-full-screen modal (max-w-5xl, 90vh) for reading state research reports. Includes all controls: accordion expand/collapse, copy raw markdown, freshness badge, new-prospects indicator, upload new report, run state research. Closeable via X, Escape, or backdrop click. Uses shared `ReportMarkdownRenderer` for company-entry formatting.
 - **UploadStateReportModal.jsx** — Modal for uploading state research reports via paste (textarea) or file upload (drag-and-drop .md/.txt). State selector, research date picker, title field, preview mode. Max 500KB file size.
 - **MapMetricSelector.jsx** — Array-driven pill buttons for switching color metric (5 metrics including Research Freshness)
 - **MapLegend.jsx** — Color gradient scale for standard metrics; categorical legend (green/yellow/red/gray) for freshness metric
@@ -706,6 +711,16 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 | Ownership Structure | `#BA7517` (gold) |
 | Equipment Brand | `#639922` (olive) |
 | Quality Method | `#534AB7` (purple) |
+
+### Shared Components
+
+- **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting.
+
+### Category Rename: "Converter+Tooling" → "Mold Maker + Converter"
+- Database category value updated via SQL (already done)
+- UI code updated in: `CategoryBreakdown.jsx` (colors + parent rules), `ProspectFilters.jsx` (options + presets), `ProspectTable.jsx` (medical filter logic), `AddCompanyModal.jsx` (category dropdown)
+- **"Mold Maker + Converter"** is distinct from **"Converter + In-House Tooling"** — do NOT merge these categories
+- Seed data in `api/prospects.js` and `scripts/seed-prospects.js` still references old value — these are for initial seeding only, not runtime
 
 ## Notes
 

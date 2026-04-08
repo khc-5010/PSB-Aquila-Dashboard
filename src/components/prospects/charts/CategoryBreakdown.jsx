@@ -12,7 +12,7 @@ import { Bar } from 'react-chartjs-2'
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
 const CATEGORY_COLORS = {
-  'Converter+Tooling': '#041E42',
+  'Mold Maker + Converter': '#041E42',
   'Converter + In-House Tooling': '#0a2a52',
   'Captive Converter': '#122d4f',
   'Converter': '#1e3a5f',
@@ -28,7 +28,7 @@ const CATEGORY_COLORS = {
 const TOP_N = 8
 
 const CATEGORY_PARENT_RULES = [
-  { prefix: 'Converter+Tooling', parent: 'Converter+Tooling' },
+  { prefix: 'Mold Maker + Converter', parent: 'Mold Maker + Converter' },
   { prefix: 'Converter + In-House Tooling', parent: 'Converter + In-House Tooling' },
   { prefix: 'Captive Converter', parent: 'Captive Converter' },
   { prefix: 'Converter', parent: 'Converter' },

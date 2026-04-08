@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import StateReportSection from './StateReportSection'
+import StateReportModal from './StateReportModal'
 import StatePromptBuilderModal from './StatePromptBuilderModal'
 import OntologySummary from './OntologySummary'
 
@@ -7,6 +8,7 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
   const [report, setReport] = useState(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [showPromptBuilder, setShowPromptBuilder] = useState(false)
+  const [showReportModal, setShowReportModal] = useState(false)
 
   // Fetch full report when state changes
   useEffect(() => {
@@ -209,6 +211,7 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
                   currentProspectCount={data?.prospect_count || 0}
                   onReportSaved={handleReportSaved}
                   onOpenPromptBuilder={() => setShowPromptBuilder(true)}
+                  onOpenFullReport={report ? () => setShowReportModal(true) : undefined}
                 />
               )}
 
@@ -219,6 +222,18 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
             </>
           )}
         </div>
+
+        {showReportModal && report && (
+          <StateReportModal
+            report={report}
+            stateCode={stateId}
+            stateName={stateName}
+            currentProspectCount={data?.prospect_count || 0}
+            onClose={() => setShowReportModal(false)}
+            onReportSaved={handleReportSaved}
+            onOpenPromptBuilder={() => { setShowReportModal(false); setShowPromptBuilder(true) }}
+          />
+        )}
 
         {showPromptBuilder && (
           <StatePromptBuilderModal

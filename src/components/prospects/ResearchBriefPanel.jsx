@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
 import InfoTooltip from '../national-map/InfoTooltip'
+import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
 
 const SECTION_HEADERS = [
   'Pain Points & Opportunities',
@@ -51,8 +51,8 @@ function SectionAccordion({ title, content, defaultOpen = true }) {
         <span className="text-gray-400 text-xs">{open ? '\u25B2' : '\u25BC'}</span>
       </button>
       {open && (
-        <div className="px-4 py-3 prose prose-sm max-w-none">
-          <ReactMarkdown>{content}</ReactMarkdown>
+        <div className="px-4 py-3">
+          <ReportMarkdownRenderer content={content} />
         </div>
       )}
     </div>
