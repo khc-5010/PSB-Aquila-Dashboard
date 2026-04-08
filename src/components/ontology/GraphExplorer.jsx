@@ -12,12 +12,15 @@ const TYPE_FILTERS = [
   { key: 'Quality Method', label: 'Quality' },
 ]
 
-export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId }) {
+const SPARSE_THRESHOLD = 5
+
+export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId, onLargeNodeClick }) {
   const [expandedEntity, setExpandedEntity] = useState(null)
   const [neighborhoodData, setNeighborhoodData] = useState(null)
   const [neighborLoading, setNeighborLoading] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [searchText, setSearchText] = useState('')
+  const [showSparseNodes, setShowSparseNodes] = useState(false)
   const containerRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 900, height: 600 })
   const initialExpandDone = useRef(false)
@@ -72,6 +75,15 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
 
   const handleNodeClick = useCallback(async (node) => {
     if (!node.isSuper) return
+
+    // Large super-nodes route to query panel instead of expanding
+    if ((node.count || 0) > 25) {
+      if (onLargeNodeClick) {
+        onLargeNodeClick(node.type, node.label)
+      }
+      return
+    }
+
     setNeighborLoading(true)
     try {
       const params = new URLSearchParams({
@@ -88,7 +100,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     } finally {
       setNeighborLoading(false)
     }
-  }, [apiBase])
+  }, [apiBase, onLargeNodeClick])
 
   const handleBackToOverview = useCallback(() => {
     setExpandedEntity(null)
@@ -124,6 +136,23 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
       const tgtId = typeof l.target === 'object' ? l.target.id : l.target
       return visibleIds.has(srcId) && visibleIds.has(tgtId)
     })
+  }
+
+  // Sparse node filtering (overview only, not expanded neighborhoods)
+  const totalBeforeFilter = displayNodes.length
+  let hiddenCount = 0
+  if (!expandedEntity && !showSparseNodes) {
+    const filtered = displayNodes.filter(n => !n.isSuper || (n.count || 0) >= SPARSE_THRESHOLD)
+    hiddenCount = displayNodes.length - filtered.length
+    if (hiddenCount > 0) {
+      const filteredIds = new Set(filtered.map(n => n.id))
+      displayNodes = filtered
+      displayLinks = displayLinks.filter(l => {
+        const srcId = typeof l.source === 'object' ? l.source.id : l.source
+        const tgtId = typeof l.target === 'object' ? l.target.id : l.target
+        return filteredIds.has(srcId) && filteredIds.has(tgtId)
+      })
+    }
   }
 
   // Apply search highlight
@@ -175,6 +204,24 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
                 </button>
               ))}
             </div>
+
+            {/* Sparse node toggle */}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setShowSparseNodes(s => !s)}
+                className="px-2 py-0.5 text-[11px] rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+              >
+                Show all ({hiddenCount} hidden)
+              </button>
+            )}
+            {showSparseNodes && !expandedEntity && (
+              <button
+                onClick={() => setShowSparseNodes(false)}
+                className="px-2 py-0.5 text-[11px] rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+              >
+                Hide sparse
+              </button>
+            )}
           </>
         )}
 
@@ -183,7 +230,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
           <Search className="w-3 h-3 text-gray-400" />
           <input
             type="text"
-            placeholder="Search nodes…"
+            placeholder="Search nodes..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             className="text-xs bg-transparent border-none outline-none w-28 placeholder-gray-400"
@@ -213,7 +260,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
       {(neighborLoading || loading) && (
         <div className="px-3 py-1 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
           <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs text-blue-600">Loading…</span>
+          <span className="text-xs text-blue-600">Loading...</span>
         </div>
       )}
 

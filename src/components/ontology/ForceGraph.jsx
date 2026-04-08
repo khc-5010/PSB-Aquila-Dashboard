@@ -17,6 +17,23 @@ export const ENTITY_COLORS = {
   'Readiness Signal': '#F59E0B',
 }
 
+// Value-chain horizontal zone targets (fraction of width)
+// Left: design & tooling inputs, Center: companies, Right: outputs & compliance
+const ZONE_X = {
+  'Equipment Brand': 0.20,
+  'Manufacturing Process': 0.18,
+  'Material': 0.22,
+  'Workforce Capability': 0.25,
+  'Company': 0.50,
+  'Technology / Software': 0.62,
+  'Ownership Structure': 0.58,
+  'Certification': 0.80,
+  'Market Vertical': 0.82,
+  'Quality Method': 0.78,
+  'Data Type': 0.65,
+  'Readiness Signal': 0.70,
+}
+
 function getNodeRadius(node, compact = false) {
   if (compact) {
     if (node.isCenter) return 14
@@ -64,7 +81,7 @@ export default function ForceGraph({
       .append('svg')
       .attr('width', width)
       .attr('height', height)
-      .style('background', '#0F172A')
+      .style('background', 'transparent')
       .on('click', handleBackgroundClick)
 
     const g = svg.append('g')
@@ -85,26 +102,43 @@ export default function ForceGraph({
       target: l.target,
     }))
 
-    // Create simulation
+    // Create simulation with mode-specific parameters
     const simulation = d3.forceSimulation(nodeData)
       .force('link', d3.forceLink(linkData)
         .id(d => d.id)
         .distance(d => {
           const strength = d.strength || 0.5
-          return compact ? 40 + (1 - strength) * 60 : 80 + (1 - strength) * 120
+          if (compact) return 40 + (1 - strength) * 60
+          return 60 + (1 - strength) * 80
         })
         .strength(d => d.strength || 0.3)
       )
       .force('charge', d3.forceManyBody()
-        .strength(d => compact
-          ? (d.isCenter ? -200 : d.isSuper ? -120 : -60)
-          : (d.isSuper ? -300 : -100)
-        )
+        .strength(d => {
+          if (compact) return d.isCenter ? -200 : d.isSuper ? -120 : -60
+          return d.isSuper ? -200 : -60
+        })
       )
-      .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collision', d3.forceCollide()
         .radius(d => getNodeRadius(d, compact) + (compact ? 2 : 4))
       )
+
+    // Zone layout for non-compact mode; center force for compact
+    if (!compact) {
+      simulation
+        .force('center', null)
+        .force('x', d3.forceX(d => {
+          const zone = ZONE_X[d.type] || 0.5
+          return width * zone
+        }).strength(0.10))
+        .force('y', d3.forceY(d => {
+          const count = d.count || 0
+          const zone = count > 20 ? 0.35 : count > 5 ? 0.45 : 0.55
+          return height * zone
+        }).strength(0.04))
+    } else {
+      simulation.force('center', d3.forceCenter(width / 2, height / 2))
+    }
 
     simulationRef.current = simulation
 
@@ -114,8 +148,8 @@ export default function ForceGraph({
       .selectAll('line')
       .data(linkData)
       .join('line')
-      .attr('stroke', '#475569')
-      .attr('stroke-opacity', 0.4)
+      .attr('stroke', '#CBD5E1')
+      .attr('stroke-opacity', 0.3)
       .attr('stroke-width', d => {
         if (d.strength != null) return Math.max(1, d.strength * 4)
         return 1
@@ -128,7 +162,6 @@ export default function ForceGraph({
       .data(nodeData)
       .join('g')
       .attr('cursor', 'pointer')
-      .on('click', handleNodeClick)
 
     // Drag behavior
     const drag = d3.drag()
@@ -149,11 +182,40 @@ export default function ForceGraph({
 
     node.call(drag)
 
+    // Hover-to-highlight (before click handler)
+    node
+      .on('mouseover', (event, d) => {
+        // Skip if query highlights are active
+        if (highlightNodeIds && highlightNodeIds.size > 0) return
+
+        // Find directly connected node IDs
+        const connectedIds = new Set([d.id])
+        linkData.forEach(l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target
+          if (srcId === d.id) connectedIds.add(tgtId)
+          if (tgtId === d.id) connectedIds.add(srcId)
+        })
+
+        node.attr('opacity', n => connectedIds.has(n.id) ? 1 : 0.12)
+        link.attr('opacity', l => {
+          const srcId = typeof l.source === 'object' ? l.source.id : l.source
+          const tgtId = typeof l.target === 'object' ? l.target.id : l.target
+          return (srcId === d.id || tgtId === d.id) ? 0.6 : 0.03
+        })
+      })
+      .on('mouseout', () => {
+        if (highlightNodeIds && highlightNodeIds.size > 0) return
+        node.attr('opacity', 1)
+        link.attr('opacity', 0.3)
+      })
+      .on('click', handleNodeClick)
+
     // Circle for each node
     node.append('circle')
       .attr('r', d => getNodeRadius(d, compact))
       .attr('fill', d => getNodeColor(d))
-      .attr('stroke', d => compact && d.isCenter ? '#F59E0B' : '#1E293B')
+      .attr('stroke', d => compact && d.isCenter ? '#F59E0B' : '#D1D5DB')
       .attr('stroke-width', d => compact && d.isCenter ? 2 : 1.5)
 
     // Count text for super-nodes (skip in compact mode)
@@ -177,11 +239,11 @@ export default function ForceGraph({
     node.append('text')
       .text(d => {
         const label = d.label || ''
-        return label.length > labelMaxLen ? label.slice(0, labelMaxLen - 2) + '…' : label
+        return label.length > labelMaxLen ? label.slice(0, labelMaxLen - 2) + '...' : label
       })
       .attr('text-anchor', 'middle')
       .attr('dy', d => getNodeRadius(d, compact) + (compact ? 9 : 12))
-      .attr('fill', '#94A3B8')
+      .attr('fill', '#6B7280')
       .attr('font-size', compact ? '8px' : '10px')
       .attr('pointer-events', 'none')
 
@@ -194,6 +256,28 @@ export default function ForceGraph({
         .attr('y2', d => d.target.y)
 
       node.attr('transform', d => `translate(${d.x},${d.y})`)
+    })
+
+    // Fit-to-view after simulation settles
+    simulation.on('end', () => {
+      const xs = nodeData.map(d => d.x)
+      const ys = nodeData.map(d => d.y)
+      if (xs.length === 0) return
+      const padding = 40
+      const x0 = Math.min(...xs) - padding
+      const y0 = Math.min(...ys) - padding
+      const x1 = Math.max(...xs) + padding
+      const y1 = Math.max(...ys) + padding
+      const bw = x1 - x0
+      const bh = y1 - y0
+      if (bw <= 0 || bh <= 0) return
+      const scale = Math.min(width / bw, height / bh, 1.5)
+      const tx = (width - bw * scale) / 2 - x0 * scale
+      const ty = (height - bh * scale) / 2 - y0 * scale
+      svg.transition().duration(500).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(scale)
+      )
     })
 
     // Highlight support
@@ -212,7 +296,7 @@ export default function ForceGraph({
         link.attr('opacity', d => highlightedLinkSet.has(d) ? 0.6 : 0.05)
       } else {
         node.attr('opacity', 1)
-        link.attr('opacity', 0.4)
+        link.attr('opacity', 0.3)
       }
     }
     applyHighlight()
@@ -228,7 +312,7 @@ export default function ForceGraph({
     <div
       ref={containerRef}
       style={{ width, height }}
-      className="rounded-lg overflow-hidden border border-gray-700"
+      className="rounded-lg overflow-hidden border border-gray-200"
     />
   )
 }
