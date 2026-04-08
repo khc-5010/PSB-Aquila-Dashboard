@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 /**
  * Detects if a list item represents a numbered company entry.
@@ -119,8 +120,8 @@ export default function ReportMarkdownRenderer({ content }) {
   if (!content) return null
 
   return (
-    <div className="prose prose-sm max-w-none">
-      <ReactMarkdown components={reportComponents}>{content}</ReactMarkdown>
+    <div className="prose prose-sm max-w-none prose-table:border-collapse prose-th:border prose-th:border-gray-300 prose-th:px-3 prose-th:py-1.5 prose-th:bg-gray-50 prose-th:text-left prose-td:border prose-td:border-gray-200 prose-td:px-3 prose-td:py-1.5">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={reportComponents}>{content}</ReactMarkdown>
     </div>
   )
 }

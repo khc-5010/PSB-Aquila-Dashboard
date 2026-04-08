@@ -779,7 +779,7 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 
 ### Shared Components
 
-- **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting.
+- **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with `remark-gfm` plugin for GFM table support and component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Pipe-delimited markdown tables render as styled HTML tables (borders, padding, header background). Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting.
 
 ### Category Rename: "Converter+Tooling" → "Mold Maker + Converter"
 - Database category value updated via SQL (already done)
