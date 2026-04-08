@@ -326,6 +326,19 @@ Companies that share a `parent_company` value are grouped into expandable/collap
 - Hillenbrand: virtual parent, 2 subsidiaries (DME Company, Mold-Masters)
 - Peterson Manufacturing: real parent + 3 subsidiaries
 
+**Brett's corporate structure taxonomy:**
+- **Parent Company**: owns a controlling interest in subsidiaries that still operate independently (e.g., Barnes → Synventive, Männer)
+- **M&A / Absorbed**: company was acquired and absorbed — the original entity legally no longer exists but legacy data/contacts may remain (e.g., Berry Global ← F&S Tool). Indicated by `also_known_as` field on child rows
+- "Conglomerate" does NOT apply to our dataset — do not use this term in UI text
+
+**Absorbed-company visual indicator:**
+- Child rows within a parent group that have `also_known_as` populated show a `GitMerge` icon (`w-3 h-3 text-gray-400`) next to the "fka" text, signaling the company was absorbed into the parent
+- Standalone rows (not in a parent group) with `also_known_as` show "fka" text only — no merge icon (name change, not absorption)
+
+**Search fields:**
+- Text search covers: `company`, `also_known_as`, `city`, `state`, `category`, `parent_company`, `notes`, `suggested_next_step`
+- Searching "F&S" surfaces companies with "F&S" in `also_known_as`; searching "Westfall" surfaces all subsidiaries via `parent_company` match
+
 ### Industry Visual Intelligence (Prospect Table + Detail Panel Polish)
 
 Six visual enhancements that surface plastics industry intelligence at a glance. All data-driven from existing API fields — no new endpoints or schema changes.
