@@ -757,6 +757,26 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 | Equipment Brand | `#639922` (olive) |
 | Quality Method | `#534AB7` (purple) |
 
+#### Visual Redesign (Session 8)
+
+**Light background**: SVG background is `transparent` (container is white). Node strokes: `#D1D5DB`, label fill: `#6B7280`, link stroke: `#CBD5E1` at 0.3 opacity. Container border: `border-gray-200`. Compact mode center node retains amber (`#F59E0B`) stroke.
+
+**Value-chain zone layout** (non-compact mode only): Entity types get horizontal zone targets via `forceX` that mirror the injection molding value chain. Defined in `ZONE_X` constant in ForceGraph.jsx:
+- **Left zone (x: 0.18-0.25):** Equipment Brand, Manufacturing Process, Material, Workforce Capability — design & tooling inputs
+- **Center zone (x: 0.50):** Company nodes — the connective tissue
+- **Bridge zone (x: 0.58-0.62):** Technology / Software, Ownership Structure — bridge production to compliance
+- **Right zone (x: 0.78-0.82):** Certification, Market Vertical, Quality Method — outputs & compliance
+
+`forceX` strength: 0.10 (gentle zones, not rigid). `forceY` uses connection count: highly-connected nodes (count>20) drift to 0.35*height, medium (>5) to 0.45, low to 0.55. `forceY` strength: 0.04 (very gentle vertical nudge). Compact mode (`NeighborhoodPanel`) is exempt — uses `forceCenter` instead.
+
+**Fit-to-view**: `simulation.on('end', ...)` computes bounding box of all nodes and applies a d3.zoom transform to fit content with padding. Capped at 1.5x zoom. Prevents the "tiny cluster in a corner" problem.
+
+**Hover-to-highlight**: Mouseover a node dims unconnected nodes to 0.12 opacity and unconnected links to 0.03. Mouseout restores. Disabled when `highlightNodeIds` is active (query results take priority). Does not interfere with click behavior.
+
+**Super-node threshold gate**: Super-nodes with >25 members are NOT expanded on click. Instead, `GraphExplorer` fires `onLargeNodeClick` which switches `KnowledgeGraph` to split view (showing QueryPanel). Nodes with <=25 members expand normally via neighborhood fetch. Threshold constant: `25` in `GraphExplorer.jsx`.
+
+**Sparse node filtering**: Super-nodes with <5 connections hidden by default in overview. Toggle "Show all (N hidden)" / "Hide sparse" in GraphExplorer toolbar. Only applies to overview (not expanded neighborhoods). Threshold constant: `SPARSE_THRESHOLD = 5` in `GraphExplorer.jsx`.
+
 ### Shared Components
 
 - **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting.

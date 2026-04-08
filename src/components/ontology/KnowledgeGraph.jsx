@@ -69,6 +69,11 @@ export default function KnowledgeGraph() {
     setHighlightNodeIds(new Set(companyIds.map(id => `company-${id}`)))
   }, [])
 
+  // Large super-node click: switch to split view so QueryPanel is visible
+  const handleLargeNodeClick = useCallback((entityType, label) => {
+    setViewMode('split')
+  }, [])
+
   // Extract filter options from graph super-nodes
   const filterOptions = graphData ? extractFilterOptions(graphData.nodes) : {}
 
@@ -159,6 +164,7 @@ export default function KnowledgeGraph() {
               highlightNodeIds={highlightNodeIds}
               loading={loading}
               initialCompanyId={initialCompanyId}
+              onLargeNodeClick={handleLargeNodeClick}
             />
           </div>
         </div>
