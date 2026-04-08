@@ -6,8 +6,10 @@ import StateTooltip from './StateTooltip'
 import StateDetailPanel from './StateDetailPanel'
 import { getMetricValue } from './USMap'
 import { US_STATES } from '../../data/us-states'
+import { STATE_TO_CORRIDOR } from '../../data/corridors'
 
 const ORIENTATION_KEY = 'national-map-orientation-dismissed'
+const CORRIDORS_KEY = 'national-map-corridors-visible'
 
 function OrientationCard() {
   const [dismissed, setDismissed] = useState(() => {
@@ -148,6 +150,9 @@ function NationalMap() {
   const [tooltip, setTooltip] = useState({ show: false, stateId: null, stateName: null, data: null, position: { x: 0, y: 0 } })
   const [selectedState, setSelectedState] = useState(null)
   const [selectedStateName, setSelectedStateName] = useState(null)
+  const [showCorridors, setShowCorridors] = useState(() => {
+    try { return localStorage.getItem(CORRIDORS_KEY) === 'true' } catch { return false }
+  })
 
   function fetchReportMeta() {
     fetch('/api/prospects?action=state-reports')
@@ -219,6 +224,14 @@ function NationalMap() {
     setSelectedStateName(null)
   }, [])
 
+  const toggleCorridors = useCallback(() => {
+    setShowCorridors(prev => {
+      const next = !prev
+      try { localStorage.setItem(CORRIDORS_KEY, String(next)) } catch {}
+      return next
+    })
+  }, [])
+
   // Compute min/max for legend (not used for freshness metric)
   const statesWithData = US_STATES.filter(s => stateData[s.id]?.prospect_count > 0)
   const values = activeMetric !== 'freshness'
@@ -259,12 +272,28 @@ function NationalMap() {
         </div>
       ) : (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 relative">
+            {/* Corridor overlay toggle */}
+            <button
+              onClick={toggleCorridors}
+              className={`absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                showCorridors
+                  ? 'bg-[#041E42] text-white border-[#041E42]'
+                  : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400 hover:text-gray-700'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              Corridors
+            </button>
+
             <USMap
               stateData={stateData}
               reportMeta={reportMeta}
               activeMetric={activeMetric}
               selectedState={selectedState}
+              showCorridors={showCorridors}
               onStateHover={handleStateHover}
               onStateClick={handleStateClick}
               onMouseMove={handleMouseMove}
@@ -272,8 +301,8 @@ function NationalMap() {
           </div>
 
           {/* Legend */}
-          <div className="mt-3 flex justify-center">
-            <MapLegend activeMetric={activeMetric} minValue={minVal} maxValue={maxVal} />
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <MapLegend activeMetric={activeMetric} minValue={minVal} maxValue={maxVal} showCorridors={showCorridors} />
           </div>
         </>
       )}
@@ -287,6 +316,8 @@ function NationalMap() {
           reportMeta={reportMeta[tooltip.stateId] || null}
           activeMetric={activeMetric}
           position={tooltip.position}
+          showCorridor={showCorridors}
+          corridorName={STATE_TO_CORRIDOR[tooltip.stateId] || null}
         />
       )}
 
