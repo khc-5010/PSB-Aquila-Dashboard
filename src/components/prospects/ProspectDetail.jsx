@@ -461,10 +461,13 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
           </div>
 
           {/* Meta */}
-          <div className="px-5 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100">
+          <div className="px-5 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100 space-y-1">
+            <div className="flex justify-between">
+              <span>Added by: {p.added_by || 'Unknown'}{p.created_at ? ` · ${new Date(p.created_at).toLocaleDateString()}` : ''}</span>
+              <span>Updated: {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : 'N/A'}</span>
+            </div>
             <div className="flex justify-between">
               <span>Last edited by: {p.last_edited_by || 'N/A'}</span>
-              <span>Updated: {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : 'N/A'}</span>
             </div>
           </div>
         </div>

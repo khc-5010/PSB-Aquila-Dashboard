@@ -35,7 +35,7 @@ function AddCompanyModal({ onClose, onSuccess }) {
     setSubmitting(true)
     setError(null)
 
-    const payload = { last_edited_by: user?.name || 'Unknown' }
+    const payload = { last_edited_by: user?.name || 'Unknown', added_by: user?.name || 'Unknown' }
     for (const [key, val] of Object.entries(form)) {
       if (val !== '' && val !== null) {
         if (key === 'employees_approx' || key === 'year_founded' || key === 'cwp_contacts') {

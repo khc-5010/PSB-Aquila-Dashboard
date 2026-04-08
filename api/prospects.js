@@ -2002,7 +2002,7 @@ export default async function handler(req, res) {
                 key_certifications, ownership_type, recent_ma, parent_company, decision_location,
                 cwp_contacts, psb_connection_notes,
                 engagement_type, suggested_next_step, legacy_data_potential, notes,
-                outreach_group, outreach_rank
+                outreach_group, outreach_rank, added_by
               ) VALUES (
                 ${company}, ${p.also_known_as || null}, ${p.website || null}, ${p.category || null}, ${p.in_house_tooling || null},
                 ${p.city || null}, ${p.state || null}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
@@ -2011,7 +2011,7 @@ export default async function handler(req, res) {
                 ${p.key_certifications || null}, ${p.ownership_type || null}, ${p.recent_ma || null}, ${p.parent_company || null}, ${p.decision_location || null},
                 ${p.cwp_contacts || null}, ${p.psb_connection_notes || null},
                 ${p.engagement_type || null}, ${p.suggested_next_step || null}, ${p.legacy_data_potential || null}, ${p.notes || null},
-                'Unassigned', ${null}
+                'Unassigned', ${null}, ${req.body.added_by || null}
               )
             `
           }
@@ -2058,7 +2058,7 @@ export default async function handler(req, res) {
           key_certifications, ownership_type, recent_ma, parent_company, decision_location,
           cwp_contacts, psb_connection_notes,
           engagement_type, suggested_next_step, legacy_data_potential, notes,
-          outreach_group, outreach_rank, group_notes, last_edited_by
+          outreach_group, outreach_rank, group_notes, last_edited_by, added_by
         ) VALUES (
           ${company.trim()}, ${b.also_known_as || null}, ${b.website || null}, ${b.category || null}, ${b.in_house_tooling || null},
           ${b.city || null}, ${b.state || null}, ${b.geography_tier || null}, ${b.source_report || null}, ${b.priority || null},
@@ -2067,7 +2067,7 @@ export default async function handler(req, res) {
           ${b.key_certifications || null}, ${b.ownership_type || null}, ${b.recent_ma || null}, ${b.parent_company || null}, ${b.decision_location || null},
           ${b.cwp_contacts || null}, ${b.psb_connection_notes || null},
           ${b.engagement_type || null}, ${b.suggested_next_step || null}, ${b.legacy_data_potential || null}, ${b.notes || null},
-          ${b.outreach_group || 'Unassigned'}, ${b.outreach_rank || null}, ${b.group_notes || null}, ${b.last_edited_by || null}
+          ${b.outreach_group || 'Unassigned'}, ${b.outreach_rank || null}, ${b.group_notes || null}, ${b.last_edited_by || null}, ${b.added_by || null}
         )
         RETURNING *
       `

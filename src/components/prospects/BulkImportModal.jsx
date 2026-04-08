@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
+import { useAuth } from '../../context/AuthContext'
 
 const EXCEL_TO_DB = {
   'company': 'company',
@@ -79,6 +80,7 @@ function parseRow(row, headerMap) {
 }
 
 function BulkImportModal({ onClose, onSuccess }) {
+  const { user } = useAuth()
   const fileRef = useRef(null)
   const [step, setStep] = useState('upload') // 'upload' | 'preview' | 'result'
   const [dragOver, setDragOver] = useState(false)
@@ -165,7 +167,7 @@ function BulkImportModal({ onClose, onSuccess }) {
       const res = await fetch('/api/prospects?action=import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prospects: parsed }),
+        body: JSON.stringify({ prospects: parsed, added_by: user?.name || 'Unknown' }),
       })
 
       if (!res.ok) {

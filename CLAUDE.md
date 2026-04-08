@@ -223,6 +223,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
+  - Provenance: `added_by` — set on INSERT only (never overwritten on update/upsert), sourced from authenticated user's name
   - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
   - Timestamps: `created_at`, `updated_at`
 
@@ -395,6 +396,7 @@ The Prospects tab uses a Table/Charts sub-view toggle within the view (not a sep
 - `useAuth()` is the canonical way to get the current user (`{ id, name, email, color, role }`)
 - All hardcoded user arrays have been removed from `Header.jsx`
 - `last_edited_by` on prospect edits now uses the authenticated user's name
+- `added_by` on prospect creation (single add and bulk import) records who added the company — set on INSERT only, never overwritten on update/upsert
 - `transitioned_by` on pipeline stage changes now uses the authenticated user's name
 
 ### Users (4 total)
