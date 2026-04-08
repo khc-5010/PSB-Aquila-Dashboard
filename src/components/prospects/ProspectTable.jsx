@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown } from 'lucide-react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
 
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
@@ -192,7 +192,7 @@ function ProspectTable() {
     if (filters.status !== 'All' && p.prospect_status !== filters.status) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
-      const searchable = [p.company, p.city, p.state, p.category, p.notes, p.suggested_next_step]
+      const searchable = [p.company, p.also_known_as, p.city, p.state, p.category, p.parent_company, p.notes, p.suggested_next_step]
         .filter(Boolean).join(' ').toLowerCase()
       if (!searchable.includes(s)) return false
     }
@@ -418,7 +418,12 @@ function ProspectTable() {
           )}
           <div className="min-w-0">
             <span className="text-sm font-medium text-gray-900">{p.company}</span>
-            {p.also_known_as && <div className="text-xs text-gray-400 italic">fka {p.also_known_as}</div>}
+            {p.also_known_as && (
+              <div className="text-xs text-gray-400 italic flex items-center gap-1">
+                {isChild && <GitMerge className="w-3 h-3 text-gray-400 flex-shrink-0" />}
+                fka {p.also_known_as}
+              </div>
+            )}
           </div>
           {(p.conversion_count ?? 0) > 0 && (
             <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
