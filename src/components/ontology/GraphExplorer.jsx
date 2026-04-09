@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ArrowLeft, Search, X } from 'lucide-react'
+import { ArrowLeft, Search, X, AlertTriangle } from 'lucide-react'
 import ForceGraph, { ENTITY_COLORS } from './ForceGraph'
 
 const TYPE_FILTERS = [
@@ -14,7 +14,7 @@ const TYPE_FILTERS = [
 
 const SPARSE_THRESHOLD = 5
 
-export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId, onLargeNodeClick }) {
+export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId, onLargeNodeClick, stateFilter }) {
   const [expandedEntity, setExpandedEntity] = useState(null)
   const [neighborhoodData, setNeighborhoodData] = useState(null)
   const [neighborLoading, setNeighborLoading] = useState(false)
@@ -23,6 +23,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
   const [showSparseNodes, setShowSparseNodes] = useState(false)
   const containerRef = useRef(null)
   const [dimensions, setDimensions] = useState({ width: 900, height: 600 })
+  const [thresholdMessage, setThresholdMessage] = useState(null)
   const initialExpandDone = useRef(false)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
@@ -39,6 +40,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
           action: 'ontology-neighborhood',
           entity_id: initialCompanyId,
         })
+        if (stateFilter) params.set('state', stateFilter)
         const res = await fetch(`${apiBase}/api/prospects?${params}`)
         if (!res.ok) return
         const data = await res.json()
@@ -76,8 +78,10 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
   const handleNodeClick = useCallback(async (node) => {
     if (!node.isSuper) return
 
-    // Large super-nodes route to query panel instead of expanding
-    if ((node.count || 0) > 25) {
+    // Large super-nodes: show feedback and route to query panel (skip gate when state filter narrows results)
+    if ((node.count || 0) > 25 && !stateFilter) {
+      setThresholdMessage(`${node.label} has ${node.count} companies — use Query Panel to explore`)
+      setTimeout(() => setThresholdMessage(null), 4000)
       if (onLargeNodeClick) {
         onLargeNodeClick(node.type, node.label)
       }
@@ -90,6 +94,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
         action: 'ontology-neighborhood',
         entity_id: node.entityId || node.id,
       })
+      if (stateFilter) params.set('state', stateFilter)
       const res = await fetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
@@ -100,7 +105,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     } finally {
       setNeighborLoading(false)
     }
-  }, [apiBase, onLargeNodeClick])
+  }, [apiBase, onLargeNodeClick, stateFilter])
 
   const handleBackToOverview = useCallback(() => {
     setExpandedEntity(null)
@@ -261,6 +266,14 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
         <div className="px-3 py-1 bg-blue-50 border-b border-blue-100 flex items-center gap-2">
           <div className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs text-blue-600">Loading...</span>
+        </div>
+      )}
+
+      {/* Threshold gate message */}
+      {thresholdMessage && (
+        <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 flex items-center gap-2">
+          <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+          <span>{thresholdMessage}</span>
         </div>
       )}
 

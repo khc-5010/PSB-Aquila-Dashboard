@@ -1,5 +1,41 @@
 import { neon } from '@neondatabase/serverless'
 
+// Certification normalization: map variant names to canonical form
+const CERT_NORMALIZATION = {
+  'iso 9001:2015': 'ISO 9001',
+  'iso 9001:2008': 'ISO 9001',
+  'iso 9001 (since 1998)': 'ISO 9001',
+  'iso 9001:2008 (outdated)': 'ISO 9001',
+  'iso 9000': 'ISO 9001',
+  'iso 9001 pending': 'ISO 9001',
+  'iso 13485:2016': 'ISO 13485',
+  'iso 13485 (pursuing)': 'ISO 13485',
+  'iso 13485 compliance': 'ISO 13485',
+  'iso 13485 (all 5 sites)': 'ISO 13485',
+  'iso 13485:2016; iatf/iso 9001 pending': 'ISO 13485',
+  'iso 13485 (reported)': 'ISO 13485',
+  'iatf 16949:2016': 'IATF 16949',
+  'iso/ts 16949': 'IATF 16949',
+  'ts16949': 'IATF 16949',
+  'iatf-compliant': 'IATF 16949',
+  'as9100:2016': 'AS9100',
+  'as9100c': 'AS9100',
+  'as9100d': 'AS9100D',
+  'iso 14001:2015': 'ISO 14001',
+  'iso 14001': 'ISO 14001',
+  'itar registered': 'ITAR',
+  'cgmp': 'cGMP',
+  'gmp': 'cGMP',
+  'iso 14644 class 7': 'ISO Class 7 Cleanroom',
+  'iso class 8 cleanroom': 'ISO Class 8 Cleanroom',
+}
+
+function normalizeCertName(raw) {
+  const trimmed = raw.trim()
+  const lower = trimmed.toLowerCase()
+  return CERT_NORMALIZATION[lower] || trimmed
+}
+
 // ─── Ontology Layer 1: Full rebuild (all prospects) ─────────────────
 // Clears all Layer 1 entities/relationships and regenerates from prospect_companies.
 // Layer 2 data is never touched. Returns stats object.
@@ -73,9 +109,10 @@ async function rebuildOntologyLayer1(sql) {
     const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
     if (!companyId) continue
 
-    // Parse certifications (comma-separated)
+    // Parse certifications (comma-separated, normalized + deduplicated)
     if (p.key_certifications && p.key_certifications.trim()) {
-      const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+      const rawCerts = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+      const certs = [...new Set(rawCerts.map(normalizeCertName))]
       for (const cert of certs) {
         const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
         if (certId) {
@@ -217,9 +254,10 @@ async function rebuildOntologyForProspect(sql, prospectId) {
 
   // 5. Re-derive relationships from this prospect's current fields
 
-  // Certifications
+  // Certifications (normalized + deduplicated)
   if (p.key_certifications && p.key_certifications.trim()) {
-    const certs = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+    const rawCerts = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+    const certs = [...new Set(rawCerts.map(normalizeCertName))]
     for (const cert of certs) {
       const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
       if (certId) {
@@ -766,7 +804,7 @@ export default async function handler(req, res) {
     // ─── Ontology: Knowledge Graph — 1-hop neighborhood ───
     if (action === 'ontology-neighborhood') {
       try {
-        const { entity_id, depth } = req.query
+        const { entity_id, depth, state } = req.query
         if (!entity_id) {
           return res.status(400).json({ error: 'entity_id is required' })
         }
@@ -903,6 +941,42 @@ export default async function handler(req, res) {
               }
             }
           }
+        }
+
+        // If state filter is active, remove Company nodes not in that state
+        if (state) {
+          const stateUpper = state.toUpperCase()
+          const stateProspects = await sql`
+            SELECT id FROM prospect_companies WHERE UPPER(state) = ${stateUpper}
+          `
+          const stateProspectIds = new Set(stateProspects.map(r => r.id))
+
+          // Keep non-Company nodes and Company nodes in the target state
+          const filteredEntityMap = new Map()
+          for (const [id, entity] of entityMap) {
+            if (entity.type !== 'Company' || !entity.prospectId || stateProspectIds.has(entity.prospectId)) {
+              filteredEntityMap.set(id, entity)
+            }
+          }
+
+          const filteredIds = new Set(filteredEntityMap.keys())
+          const filteredLinks = linkList.filter(l =>
+            filteredIds.has(l.source) && filteredIds.has(l.target)
+          )
+
+          return res.status(200).json({
+            nodes: [...filteredEntityMap.values()],
+            links: filteredLinks,
+            meta: {
+              rootEntityId: Number(entity_id),
+              rootLabel: root.name,
+              rootType: root.type_name,
+              depth: maxDepth,
+              nodeCount: filteredEntityMap.size,
+              linkCount: filteredLinks.length,
+              stateFilter: stateUpper,
+            },
+          })
         }
 
         return res.status(200).json({
