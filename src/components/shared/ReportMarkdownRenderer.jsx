@@ -110,6 +110,13 @@ const reportComponents = {
   h4: ({ children, ...props }) => (
     <h4 className="text-sm font-semibold text-gray-800 mt-3 mb-1" {...props}>{children}</h4>
   ),
+
+  // Links open in new tab to avoid navigating away from the dashboard
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+      {children}
+    </a>
+  ),
 }
 
 /**
