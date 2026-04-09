@@ -654,6 +654,9 @@ SQL migration: `scripts/create-ontology-tables.sql`
 | `parent_company` | Company | subsidiary_of |
 | `category`, `in_house_tooling` | — | Stored as attributes on Company entity |
 
+#### Certification Normalization
+`key_certifications` values are normalized to canonical forms before entity creation in both `rebuildOntologyLayer1` and `rebuildOntologyForProspect`. The `CERT_NORMALIZATION` map (defined near the top of `api/prospects.js`) maps variants like "ISO 9001:2015", "ISO 9001:2008", "ISO 9000" → "ISO 9001". After normalization, duplicates are removed via `[...new Set()]` so a company with both "ISO 9001:2015" and "ISO 9001" creates only one relationship. The `normalizeCertName()` helper does case-insensitive lookup, falling back to the trimmed original if no match. After deploying changes to the normalization map, a full Layer 1 rebuild (`POST ?action=rebuild-ontology-layer1`) is needed to regenerate with normalized certs.
+
 #### API Endpoints (all in `api/prospects.js`)
 - `POST /api/prospects?action=rebuild-ontology-layer1` — Clears all Layer 1 entities/relationships, reads all prospects, regenerates. Idempotent. Returns `{ entities_created, relationships_created, prospects_processed, duration_ms }`.
 - `GET /api/prospects?action=ontology-stats` — Aggregate stats: entity counts by type, relationship counts by type, layer breakdown, last rebuilt timestamp.
@@ -736,9 +739,9 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 - **NeighborhoodPanel.jsx** — Compact neighborhood graph for ProspectDetail. Embedded after Research Brief section. Resolves prospect → ontology entity_id via multi-step lookup (ontology-similar → ontology-graph → probe neighborhood → company neighborhood). Shows company's 1-hop ontology connections in a compact ForceGraph (280px height). Caps at 15 visible nodes with overflow indicator. Clicking non-center nodes shows entity detail line below graph. "View in Knowledge Graph" link navigates to `#knowledge-graph?company={entityId}`. Handles empty/loading/error states.
 
 #### View Modes
-- **Query + Graph** (default): Split layout — 340px query panel + flexible graph area
+- **Query + Graph**: Split layout — 340px query panel + flexible graph area
 - **Full Graph**: Graph only, query panel hidden via CSS `display:none` (NOT unmounted — preserves D3 state)
-- **Query Only**: Query panel full width, graph hidden
+- **Query Only** (default): Query panel full width, graph hidden — optimized for Brett's criteria-based workflow
 
 #### Query Flow
 1. Filter options derived from graph super-nodes (no extra API call)
@@ -749,7 +752,7 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 
 #### API Endpoints (all in `api/prospects.js`)
 - `GET /api/prospects?action=ontology-graph` — Aggregated super-node view. Each non-Company entity becomes a super-node with `count` (connected companies) and `memberIds[]`. Inter-node links computed by shared company overlap (strength ≥ 0.1). Optional `state` and `type` filters. Response: `{ nodes, links, meta }`.
-- `GET /api/prospects?action=ontology-neighborhood` — 1-hop (or 2-hop) neighborhood around a specific entity. Required: `entity_id`. Optional: `depth` (1-2). Response: `{ nodes, links, meta }` with `isSuper: false`.
+- `GET /api/prospects?action=ontology-neighborhood` — 1-hop (or 2-hop) neighborhood around a specific entity. Required: `entity_id`. Optional: `depth` (1-2), `state` (2-letter abbreviation — filters Company nodes to that state only, non-Company entities always included). Response: `{ nodes, links, meta }` with `isSuper: false`.
 - `GET /api/prospects?action=ontology-query` — Find companies matching ontology criteria. AND across categories, OR within. Params: `certifications`, `technologies`, `markets`, `ownership`, `equipment`, `state`. Response: `{ results[], meta }` with matchScore.
 - `GET /api/prospects?action=ontology-similar` — Find companies sharing the most ontology edges with a target. Required: `prospect_id`. Optional: `limit` (default 10). Response: `{ target, similar[] }` with similarity scores.
 
@@ -786,7 +789,7 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 
 **Hover-to-highlight**: Mouseover a node dims unconnected nodes to 0.12 opacity and unconnected links to 0.03. Mouseout restores. Disabled when `highlightNodeIds` is active (query results take priority). Does not interfere with click behavior.
 
-**Super-node threshold gate**: Super-nodes with >25 members are NOT expanded on click. Instead, `GraphExplorer` fires `onLargeNodeClick` which switches `KnowledgeGraph` to split view (showing QueryPanel). Nodes with <=25 members expand normally via neighborhood fetch. Threshold constant: `25` in `GraphExplorer.jsx`.
+**Super-node threshold gate**: Super-nodes with >25 members are NOT expanded on click when no state filter is active. Instead, `GraphExplorer` shows an amber toast message ("X has N companies — use Query Panel to explore", auto-dismisses after 4s) and fires `onLargeNodeClick` which switches `KnowledgeGraph` to split view (showing QueryPanel). When a state filter IS active, the threshold gate is bypassed — the state filter on the `ontology-neighborhood` endpoint keeps results manageable. Nodes with <=25 members always expand normally via neighborhood fetch. Threshold constant: `25` in `GraphExplorer.jsx`.
 
 **Sparse node filtering**: Super-nodes with <5 connections hidden by default in overview. Toggle "Show all (N hidden)" / "Hide sparse" in GraphExplorer toolbar. Only applies to overview (not expanded neighborhoods). Threshold constant: `SPARSE_THRESHOLD = 5` in `GraphExplorer.jsx`.
 

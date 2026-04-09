@@ -14,7 +14,7 @@ export default function KnowledgeGraph() {
   const [graphData, setGraphData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [viewMode, setViewMode] = useState('split')
+  const [viewMode, setViewMode] = useState('query')
   const [highlightNodeIds, setHighlightNodeIds] = useState(null)
   const [stateFilter, setStateFilter] = useState(null)
   const [initialCompanyId, setInitialCompanyId] = useState(null)
@@ -165,6 +165,7 @@ export default function KnowledgeGraph() {
               loading={loading}
               initialCompanyId={initialCompanyId}
               onLargeNodeClick={handleLargeNodeClick}
+              stateFilter={stateFilter}
             />
           </div>
         </div>
