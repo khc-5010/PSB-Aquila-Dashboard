@@ -50,6 +50,7 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
     setResults(null)
     setSimilarData(null)
     onQueryResults(null)
+    onStateFilter(null)
   }
 
   const runQuery = useCallback(async () => {
@@ -212,12 +213,12 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
             <Search className="w-3 h-3" />
             {queryLoading ? 'Searching…' : `Find Companies${totalSelected > 0 ? ` (${totalSelected} filters)` : ''}`}
           </button>
-          {totalSelected > 0 && (
+          {(totalSelected > 0 || stateFilter) && (
             <button
               onClick={clearAll}
-              className="px-2 py-1.5 text-xs text-gray-500 hover:text-gray-700"
+              className="px-2.5 py-1.5 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors font-medium"
             >
-              Clear
+              Clear all
             </button>
           )}
         </div>

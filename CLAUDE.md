@@ -726,7 +726,7 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 #### Components
 - **Directory:** `src/components/ontology/`
 - **KnowledgeGraph.jsx** — Page component. Fetches `ontology-graph` on mount, manages view mode (Query+Graph / Full Graph / Query Only), state filter, and query highlight state. Passes graph data to both QueryPanel (for filter options) and GraphExplorer (for rendering). Route: `/#knowledge-graph`.
-- **QueryPanel.jsx** — Left-panel query builder. Filter sections (Certifications, Technologies, Markets, Equipment, Ownership, Quality Methods) with toggleable chips derived from graph super-nodes. State filter dropdown. Calls `ontology-query` on search, passes matched company IDs up for graph highlighting. Includes "Find Similar" via `ontology-similar`.
+- **QueryPanel.jsx** — Left-panel query builder. Filter sections (Certifications, Technologies, Markets, Equipment, Ownership, Quality Methods) with toggleable chips derived from graph super-nodes. State filter dropdown. Calls `ontology-query` on search, passes matched company IDs up for graph highlighting. Includes "Find Similar" via `ontology-similar`. "Clear all" button resets chips + state filter + results (visible when any filter is active).
 - **QueryResults.jsx** — Result cards within QueryPanel. Shows company name, location, match score, matched edges as tags. "Find similar companies" button per card. Similar results sub-view with back navigation.
 - **GraphExplorer.jsx** — Wraps ForceGraph with expand/collapse state. Click super-node → fetch `ontology-neighborhood` → show expanded view with "Back to overview" button. Entity type filter chips and search input in toolbar. Auto-sizes to container via ResizeObserver. Legend bar at bottom.
 - **ForceGraph.jsx** — Shared reusable D3 force-directed graph component. React owns a container div, D3 renders into a ref'd SVG. Props: `nodes`, `links`, `onNodeClick`, `onBackgroundClick`, `highlightNodeIds` (Set), `width`, `height`, `compact` (boolean). Does NOT fetch data.
@@ -795,7 +795,7 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 
 ### Shared Components
 
-- **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with `remark-gfm` plugin for GFM table support and component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Pipe-delimited markdown tables render as styled HTML tables (borders, padding, header background). Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting.
+- **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with `remark-gfm` plugin for GFM table support and component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Pipe-delimited markdown tables render as styled HTML tables (borders, padding, header background). All links open in a new tab (`target="_blank"`) to avoid navigating away from the dashboard. Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting. `UploadStateReportModal` preview also uses `target="_blank"` links.
 
 ### Category Rename: "Converter+Tooling" → "Mold Maker + Converter"
 - Database category value updated via SQL (already done)

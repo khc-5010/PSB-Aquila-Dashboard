@@ -196,7 +196,15 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
         <div className="flex-1 overflow-y-auto p-5 min-h-0">
           {preview ? (
             <div className="prose prose-sm max-w-none">
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown
+                components={{
+                  a: ({ href, children }) => (
+                    <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {children}
+                    </a>
+                  ),
+                }}
+              >{content}</ReactMarkdown>
             </div>
           ) : inputMode === 'paste' ? (
             <textarea
