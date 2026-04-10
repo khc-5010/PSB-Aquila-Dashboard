@@ -62,6 +62,47 @@ function cwpHeatClass(count) {
   return 'font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded'
 }
 
+function getProspectUrgency(prospect) {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  // Tier 1: Explicit follow-up date
+  if (prospect.follow_up_date) {
+    const followUp = new Date(prospect.follow_up_date + 'T00:00:00')
+    const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }
+    if (diffDays === 0) return { level: 'due_today', label: 'Due today', color: 'amber', priority: 2 }
+    if (diffDays <= 3) return { level: 'due_soon', label: `Due in ${diffDays}d`, color: 'yellow', priority: 3 }
+    if (diffDays <= 7) return { level: 'due_week', label: `Due in ${diffDays}d`, color: 'blue', priority: 4 }
+    return { level: 'scheduled', label: followUp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), color: 'gray', priority: 10 }
+  }
+
+  // Tier 2: Auto-detected staleness (only for active statuses)
+  const parkedStatuses = ['Converted', 'Nurture', 'Identified']
+  if (parkedStatuses.includes(prospect.prospect_status)) return null
+
+  const updatedAt = prospect.updated_at ? new Date(prospect.updated_at) : null
+  const daysSinceUpdate = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null
+
+  // "Outreach Ready" for 14+ days with no update = gone cold
+  if (prospect.prospect_status === 'Outreach Ready' && daysSinceUpdate >= 14) {
+    return { level: 'stale', label: `${daysSinceUpdate}d idle`, color: 'orange', priority: 5 }
+  }
+
+  // "Prioritized" for 14+ days without advancing = stalled research
+  if (prospect.prospect_status === 'Prioritized' && daysSinceUpdate >= 14) {
+    return { level: 'stalled', label: 'Research stalled', color: 'orange', priority: 6 }
+  }
+
+  // "Research Complete" for 7+ days without advancing = not acted on
+  if (prospect.prospect_status === 'Research Complete' && daysSinceUpdate >= 7) {
+    return { level: 'stalled', label: 'Needs outreach', color: 'orange', priority: 7 }
+  }
+
+  return null
+}
+
 function exportToCSV(data, filename) {
   const columns = [
     'company', 'also_known_as', 'category', 'in_house_tooling',
@@ -71,7 +112,7 @@ function exportToCSV(data, filename) {
     'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
     'key_certifications', 'ownership_type', 'recent_ma', 'parent_company', 'decision_location',
     'cwp_contacts', 'psb_connection_notes',
-    'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
+    'engagement_type', 'suggested_next_step', 'follow_up_date', 'legacy_data_potential', 'notes',
     'outreach_group', 'outreach_rank', 'group_notes', 'prospect_status', 'website'
   ]
 
@@ -171,8 +212,22 @@ function ProspectTable() {
       .catch(err => { setError(err.message); setLoading(false) })
   }, [])
 
+  // Action items count (computed from full prospect list, independent of filters)
+  const actionItemCount = prospects.filter(p => {
+    const u = getProspectUrgency(p)
+    return u && u.priority <= 7
+  }).length
+
   // Filter logic
   const filtered = prospects.filter(p => {
+    if (filters.preset === 'action_items') {
+      const urgency = getProspectUrgency(p)
+      if (!urgency || urgency.priority > 7) return false
+    }
+    if (filters.preset === 'stale') {
+      const urgency = getProspectUrgency(p)
+      if (!urgency || (urgency.level !== 'stale' && urgency.level !== 'stalled')) return false
+    }
     if (filters.preset === 'medical') {
       const parentCat = getParentCategory(p.category)
       const isMolder = parentCat === 'Converter' || parentCat === 'Converter + In-House Tooling' || parentCat === 'Mold Maker + Converter'
@@ -206,6 +261,12 @@ function ProspectTable() {
     if (sortConfig.key) {
       let aVal = a[sortConfig.key]
       let bVal = b[sortConfig.key]
+      // follow_up_date: nulls always sort last regardless of direction
+      if (sortConfig.key === 'follow_up_date') {
+        if (!aVal && !bVal) return 0
+        if (!aVal) return 1
+        if (!bVal) return -1
+      }
       if (aVal === null || aVal === undefined) aVal = ''
       if (bVal === null || bVal === undefined) bVal = ''
       // Composite sort: state sorts by "STATE, City" so states group together
@@ -475,6 +536,20 @@ function ProspectTable() {
       <td className="px-3 py-2.5 text-center">
         <span className={`text-sm ${cwpHeatClass(p.cwp_contacts ?? 0)}`}>{displayValue(p.cwp_contacts)}</span>
       </td>
+      <td className="px-2 py-2.5 text-center">
+        {p.follow_up_date ? (
+          <span className={`text-xs font-medium ${
+            getProspectUrgency(p)?.color === 'red' ? 'text-red-600 font-bold' :
+            getProspectUrgency(p)?.color === 'amber' ? 'text-amber-600 font-bold' :
+            getProspectUrgency(p)?.color === 'orange' ? 'text-orange-500' :
+            'text-gray-500'
+          }`}>
+            {new Date(p.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-300">{'\u2014'}</span>
+        )}
+      </td>
       <td className="px-3 py-2.5">
         <span className="text-xs text-gray-600 flex items-center gap-1">
           <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
@@ -490,7 +565,27 @@ function ProspectTable() {
         </span>
       </td>
       <td className="px-3 py-2.5">
-        <span className="text-xs text-gray-600 truncate block max-w-[200px]" title={p.suggested_next_step || ''}>{displayValue(p.suggested_next_step)}</span>
+        {(() => {
+          const urgency = getProspectUrgency(p)
+          if (!urgency) return null
+          const colorMap = {
+            red: 'bg-red-500',
+            amber: 'bg-amber-500',
+            yellow: 'bg-yellow-400',
+            blue: 'bg-blue-400',
+            orange: 'bg-orange-400',
+            gray: 'bg-gray-300',
+          }
+          return (
+            <span
+              className={`inline-flex items-center mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-white ${colorMap[urgency.color]}`}
+              title={urgency.label}
+            >
+              {urgency.label}
+            </span>
+          )
+        })()}
+        <span className="text-xs text-gray-600 truncate inline-block max-w-[160px] align-middle" title={p.suggested_next_step || ''}>{displayValue(p.suggested_next_step)}</span>
       </td>
     </tr>
   )
@@ -535,6 +630,7 @@ function ProspectTable() {
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5 text-center"><span className={`text-sm ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span></td>
+          <td className="px-2 py-2.5" />
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5" />
         </tr>
@@ -637,6 +733,20 @@ function ProspectTable() {
         </td>
         <td className="px-3 py-2.5 text-center">
           <span className={`text-sm font-medium ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span>
+        </td>
+        <td className="px-2 py-2.5 text-center">
+          {parentP.follow_up_date ? (
+            <span className={`text-xs font-medium ${
+              getProspectUrgency(parentP)?.color === 'red' ? 'text-red-600 font-bold' :
+              getProspectUrgency(parentP)?.color === 'amber' ? 'text-amber-600 font-bold' :
+              getProspectUrgency(parentP)?.color === 'orange' ? 'text-orange-500' :
+              'text-gray-500'
+            }`}>
+              {new Date(parentP.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
+          ) : (
+            <span className="text-xs text-gray-300">{'\u2014'}</span>
+          )}
         </td>
         <td className="px-3 py-2.5">
           <span className="text-xs text-gray-600 flex items-center gap-1">
@@ -759,6 +869,7 @@ function ProspectTable() {
         onFilterChange={setFilters}
         totalCount={prospects.length}
         filteredCount={filtered.length}
+        actionItemCount={actionItemCount}
       />
 
       {subView === 'charts' ? (
@@ -808,6 +919,9 @@ function ProspectTable() {
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('cwp_contacts')}>
                 CWP <SortIcon column="cwp_contacts" />
               </th>
+              <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-20 cursor-pointer" onClick={() => handleSort('follow_up_date')}>
+                Due <SortIcon column="follow_up_date" />
+              </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('ownership_type')}>
                 Ownership <SortIcon column="ownership_type" />
               </th>
@@ -819,7 +933,7 @@ function ProspectTable() {
           <tbody className="divide-y divide-gray-100">
             {grouped.length === 0 ? (
               <tr>
-                <td colSpan={14} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
                   {prospects.length === 0
                     ? 'No prospects loaded. Run the seed script or import from Excel.'
                     : 'No prospects match the current filters.'}

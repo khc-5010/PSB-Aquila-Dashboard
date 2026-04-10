@@ -230,6 +230,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
   - Provenance: `added_by` — set on INSERT only (never overwritten on update/upsert), sourced from authenticated user's name
   - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
+  - Follow-up: `follow_up_date` (DATE, nullable) — user-set follow-up date for CRM tracking
   - Timestamps: `created_at`, `updated_at`
 
 ### State Research Tables
@@ -283,6 +284,36 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - **Outreach Ready** — Ready for initial contact
 - **Converted** — Moved to opportunity pipeline
 - **Nurture** — Not ready now, maintain relationship
+
+### Follow-Up Tracking & Staleness Detection
+
+Two-tier "attention needed" system combining explicit follow-up dates with auto-detected staleness.
+
+**Database:** `follow_up_date DATE` column on `prospect_companies` (nullable, day-precision only). Added to PATCH `allowedFields` in `api/prospects.js`.
+
+**Tier 1 — Explicit Follow-Up Dates:**
+- Date picker in ProspectDetail Engagement Planning section (after Suggested Next Step)
+- Quick-set buttons: Tomorrow, +3 days, +1 week, +2 weeks, +1 month
+- "Due" column in ProspectTable (between CWP and Ownership), sortable with nulls-last
+- Urgency levels: overdue (red, priority 1), due_today (amber, 2), due_soon ≤3d (yellow, 3), due_week ≤7d (blue, 4), scheduled (gray, 10)
+
+**Tier 2 — Auto-Detected Staleness (client-side only, no DB columns):**
+- Computed from `updated_at`, `prospect_status`, and current date via `getProspectUrgency()` in ProspectTable
+- Outreach Ready + 14d idle → "stale" (orange, priority 5)
+- Prioritized + 14d idle → "Research stalled" (orange, priority 6)
+- Research Complete + 7d idle → "Needs outreach" (orange, priority 7)
+- **Parked statuses exempt:** Converted, Nurture, Identified — never show staleness
+
+**Visual indicators:**
+- Colored urgency badge in Next Step column (before next-step text)
+- Color-coded date in Due column
+- Action items count badge in filter bar (red pill, always visible regardless of active filter)
+
+**Filter presets:**
+- "Action Items" (first preset) — shows all prospects with urgency priority ≤ 7 (overdue + due today + due soon + stale + stalled)
+- "Stale" — shows only auto-detected stale/stalled prospects
+
+**CSV export** includes `follow_up_date` field.
 
 ### CWP Warm Lead Visuals
 - **CWP heat thresholds**: 0=gray, 1-4=amber, 5-9=warm badge (amber bg), 10-19=hot (orange bg), 20+=very hot (red bg)

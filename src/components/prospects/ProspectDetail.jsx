@@ -313,6 +313,50 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
                 multiline
               />
 
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Follow-Up Date</dt>
+                <dd className="mt-0.5">
+                  <div className="flex items-center">
+                    <input
+                      type="date"
+                      value={p.follow_up_date ? p.follow_up_date.split('T')[0] : ''}
+                      onChange={(e) => onUpdate(p.id, 'follow_up_date', e.target.value || null)}
+                      className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                    />
+                    {p.follow_up_date && (
+                      <button
+                        onClick={() => onUpdate(p.id, 'follow_up_date', null)}
+                        className="ml-2 text-xs text-gray-400 hover:text-red-500"
+                        title="Clear follow-up date"
+                      >
+                        clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {[
+                      { label: 'Tomorrow', days: 1 },
+                      { label: '+3 days', days: 3 },
+                      { label: '+1 week', days: 7 },
+                      { label: '+2 weeks', days: 14 },
+                      { label: '+1 month', days: 30 },
+                    ].map(({ label, days }) => (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          const d = new Date()
+                          d.setDate(d.getDate() + days)
+                          onUpdate(p.id, 'follow_up_date', d.toISOString().split('T')[0])
+                        }}
+                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </dd>
+              </div>
+
               <EditableField
                 label="Group Notes"
                 value={p.group_notes}

@@ -2246,7 +2246,7 @@ export default async function handler(req, res) {
       'key_certifications', 'ownership_type', 'recent_ma', 'cwp_contacts', 'psb_connection_notes',
       'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
       'outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by', 'prospect_status',
-      'parent_company', 'decision_location',
+      'parent_company', 'decision_location', 'follow_up_date',
     ]
 
     const setClauses = []
