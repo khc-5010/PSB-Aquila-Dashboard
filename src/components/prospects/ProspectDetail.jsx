@@ -9,6 +9,7 @@ import ConvertToOpportunityModal from './ConvertToOpportunityModal'
 import ExtractionPromptModal from './ExtractionPromptModal'
 import ImportOntologyModal from './ImportOntologyModal'
 import NeighborhoodPanel from '../ontology/NeighborhoodPanel'
+import FdaEnrichment from './FdaEnrichment'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -57,7 +58,7 @@ function buildHookLine(p) {
     hooks.push('PE-backed')
   }
 
-  if (p.medical_device_mfg === 'Yes') hooks.push('medical device mfg')
+  if (p.medical_device_mfg?.startsWith('Yes')) hooks.push('medical device mfg')
 
   if ((p.cwp_contacts ?? 0) >= 20) hooks.push('deep PSB relationship')
   else if ((p.cwp_contacts ?? 0) >= 5) hooks.push('warm PSB lead')
@@ -439,6 +440,11 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
                 </dd>
               </div>
             </dl>
+          </Section>
+
+          {/* FDA Intelligence */}
+          <Section title="FDA Intelligence" defaultOpen={false}>
+            <FdaEnrichment prospect={p} onUpdate={onUpdate} />
           </Section>
 
           {/* PSB Relationship */}

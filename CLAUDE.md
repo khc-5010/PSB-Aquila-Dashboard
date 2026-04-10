@@ -23,7 +23,8 @@ src/
 │   │   ├── charts/      # Chart components: GroupSummary, CategoryBreakdown, GeographyMap, SignalAnalysis, ReadinessScorecard, OwnershipProfile
 │   │   ├── AddCompanyModal.jsx    # Single-company add form (POST /api/prospects)
 │   │   ├── BulkImportModal.jsx    # Excel/CSV upload → preview → import (POST /api/prospects?action=import)
-│   │   └── ConvertToOpportunityModal.jsx  # Promote prospect → pipeline opportunity
+│   │   ├── ConvertToOpportunityModal.jsx  # Promote prospect → pipeline opportunity
+│   │   └── FdaEnrichment.jsx     # Client-side FDA API enrichment (510k clearances, facilities)
 │   ├── national-map/    # National Map tab: interactive US state choropleth
 │   │   ├── NationalMap.jsx       # Main container (data fetch, metric selector, map, legend, detail panel)
 │   │   ├── USMap.jsx             # SVG map component (state paths, hover/click, color fills)
@@ -227,7 +228,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `id` (SERIAL, PK)
   - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `geography_tier`, `source_report`, `priority`
   - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`
-  - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg`, `key_certifications`
+  - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg` (values: `'Yes'`, `'Yes (confirmed)'`, `'No'`, or NULL), `key_certifications`
   - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
@@ -396,6 +397,29 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
 **`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
 
 **`CERT_COLORS`** mapping and `getCertColor()` use case-insensitive partial match against certification string.
+
+### FDA Intelligence (Client-Side Enrichment)
+
+**Component**: `src/components/prospects/FdaEnrichment.jsx` — client-side FDA API enrichment panel in ProspectDetail, between Signals & Readiness and PSB Relationship sections. Uses `<Section title="FDA Intelligence" defaultOpen={false}>`.
+
+**How it works**: Queries the FDA's public openFDA API (no auth key needed, supports CORS) for 510(k) device clearances and registered manufacturing establishments. Results are NOT persisted — fetched fresh each session and cached in component state.
+
+**FDA API endpoints used (client-side `fetch`):**
+- `https://api.fda.gov/device/510k.json?search=applicant:{name}&limit=10`
+- `https://api.fda.gov/device/registrationlisting.json?search=registration.owner_operator.firm_name:{name}&limit=10`
+
+**Search cascade**: Tries `prospect.company`, then `prospect.also_known_as`, then `prospect.parent_company`. Merges and deduplicates results across all name variants.
+
+**"Yes (confirmed)" value**: When FDA data is found, Brett can click "Update to Yes (confirmed)" which:
+1. Sets `medical_device_mfg` to `'Yes (confirmed)'` via existing PATCH route (auto-triggers ontology rebuild)
+2. Appends 510(k) numbers to `notes` field: `[FDA 2026-04-10] 510(k): K123456, K789012`
+
+**Codebase-wide pattern for `medical_device_mfg`:**
+- **JS**: Use `value?.startsWith('Yes')` to match both `'Yes'` and `'Yes (confirmed)'`
+- **SQL**: Use `medical_device_mfg LIKE 'Yes%'` instead of `= 'Yes'`
+- All existing checks were updated in the ripple audit: ontology rebuild, data audit, analytics, Medical Molders filter, ShieldCheck icon, NeighborhoodPanel probe
+
+**No new serverless functions** — zero API route changes beyond the `LIKE 'Yes%'` ripple updates.
 
 ### Manufacturing Corridors (replaced Geography Tiers)
 The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from the `state` column at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.

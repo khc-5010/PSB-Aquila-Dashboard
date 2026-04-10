@@ -87,7 +87,7 @@ function SignalAnalysis({ signals, loading }) {
             ]
             if (d.press_count) lines.push(`Press Mentions: ${d.press_count}`)
             if (d.revenue) lines.push(`Est. Revenue: $${d.revenue}M`)
-            if (d.medical === 'Yes') lines.push('Medical Device Mfg')
+            if (d.medical?.startsWith('Yes')) lines.push('Medical Device Mfg')
             return lines
           },
         },

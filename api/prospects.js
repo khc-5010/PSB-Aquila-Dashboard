@@ -208,7 +208,7 @@ async function rebuildOntologyLayer1(sql) {
     }
 
     // Medical device manufacturing → Market Vertical
-    if (p.medical_device_mfg === 'Yes') {
+    if (p.medical_device_mfg?.startsWith('Yes')) {
       const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
       if (marketId) {
         await insertRelationship(relMap['serves_market'], companyId, marketId, source)
@@ -353,7 +353,7 @@ async function rebuildOntologyForProspect(sql, prospectId) {
   }
 
   // Medical device manufacturing
-  if (p.medical_device_mfg === 'Yes') {
+  if (p.medical_device_mfg?.startsWith('Yes')) {
     const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
     if (marketId) {
       await insertRelationship(relMap['serves_market'], companyId, marketId, source)
@@ -1486,7 +1486,7 @@ export default async function handler(req, res) {
           FROM prospect_companies`,
           sql`SELECT
             COUNT(*) FILTER (WHERE (rjg_cavity_pressure ILIKE '%yes%' OR rjg_cavity_pressure ILIKE '%confirmed%') AND (signal_count IS NULL OR signal_count = 0))::int as rjg_no_signal,
-            COUNT(*) FILTER (WHERE medical_device_mfg = 'Yes' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%'))::int as medical_no_cert,
+            COUNT(*) FILTER (WHERE medical_device_mfg LIKE 'Yes%' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%'))::int as medical_no_cert,
             COUNT(*) FILTER (WHERE employees_approx > 200 AND (press_count IS NULL OR press_count = 0))::int as large_no_press,
             COUNT(*) FILTER (WHERE category ILIKE '%converter%' AND (press_count IS NULL OR press_count = 0))::int as converter_no_press,
             COUNT(*) FILTER (WHERE parent_company IS NOT NULL AND parent_company != '' AND (ownership_type IS NULL OR ownership_type = ''))::int as parent_no_ownership,
@@ -1581,7 +1581,7 @@ export default async function handler(req, res) {
               SELECT 'medical_no_cert' as rule_id, id, company, COALESCE(state, '') as state,
                 'medical=Yes, certs=' || COALESCE(key_certifications, 'NULL') as detail
               FROM prospect_companies
-              WHERE medical_device_mfg = 'Yes' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%')
+              WHERE medical_device_mfg LIKE 'Yes%' AND (key_certifications IS NULL OR key_certifications NOT ILIKE '%13485%')
               ORDER BY company LIMIT 5
             ) f
             UNION ALL SELECT * FROM (
@@ -1729,8 +1729,7 @@ export default async function handler(req, res) {
           }
         }
         if (medical_device_mfg) {
-          params.push(medical_device_mfg)
-          conditions.push(`medical_device_mfg = $${params.length}`)
+          conditions.push(`medical_device_mfg LIKE 'Yes%'`)
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -1826,7 +1825,7 @@ export default async function handler(req, res) {
           const bucket = rjg.includes('Yes') || rjg.includes('confirmed') ? 'Confirmed'
             : rjg === 'Likely' ? 'Likely' : 'Unknown'
           if (!readinessGrouped[bucket]) readinessGrouped[bucket] = { medical: 0, nonMedical: 0 }
-          if (row.medical_device_mfg === 'Yes') {
+          if (row.medical_device_mfg?.startsWith('Yes')) {
             readinessGrouped[bucket].medical += row.count
           } else {
             readinessGrouped[bucket].nonMedical += row.count
@@ -1841,7 +1840,7 @@ export default async function handler(req, res) {
         const goldResult = await sql.query(
           `SELECT company FROM prospect_companies
            ${goldWhereBase} (rjg_cavity_pressure LIKE '%Yes%' OR rjg_cavity_pressure LIKE '%confirmed%')
-             AND medical_device_mfg = 'Yes'
+             AND medical_device_mfg LIKE 'Yes%'
            ORDER BY signal_count DESC NULLS LAST LIMIT 10`,
           params
         )
@@ -1932,8 +1931,7 @@ export default async function handler(req, res) {
           }
         }
         if (medical_device_mfg) {
-          params.push(medical_device_mfg)
-          conditions.push(`medical_device_mfg = $${params.length}`)
+          conditions.push(`medical_device_mfg LIKE 'Yes%'`)
         }
         if (prospect_status) {
           params.push(prospect_status)

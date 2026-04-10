@@ -231,7 +231,7 @@ function ProspectTable() {
     if (filters.preset === 'medical') {
       const parentCat = getParentCategory(p.category)
       const isMolder = parentCat === 'Converter' || parentCat === 'Converter + In-House Tooling' || parentCat === 'Mold Maker + Converter'
-      if (!isMolder || p.medical_device_mfg !== 'Yes') return false
+      if (!isMolder || !p.medical_device_mfg?.startsWith('Yes')) return false
     }
     if (filters.preset === 'warm_leads') {
       if ((p.cwp_contacts ?? 0) < 5) return false
@@ -525,8 +525,8 @@ function ProspectTable() {
         )}
       </td>
       <td className="px-3 py-2.5 text-center">
-        {p.medical_device_mfg === 'Yes' ? (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
+        {p.medical_device_mfg?.startsWith('Yes') ? (
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title={p.medical_device_mfg === 'Yes (confirmed)' ? 'Medical device manufacturer (FDA confirmed)' : 'Medical device manufacturer'}>
             <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
           </span>
         ) : (
@@ -725,8 +725,8 @@ function ProspectTable() {
           ) : dash}
         </td>
         <td className="px-3 py-2.5 text-center">
-          {parentP.medical_device_mfg === 'Yes' ? (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title="Medical device manufacturer">
+          {parentP.medical_device_mfg?.startsWith('Yes') ? (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-100" title={parentP.medical_device_mfg === 'Yes (confirmed)' ? 'Medical device manufacturer (FDA confirmed)' : 'Medical device manufacturer'}>
               <ShieldCheck className="w-3.5 h-3.5 text-blue-700" />
             </span>
           ) : dash}
