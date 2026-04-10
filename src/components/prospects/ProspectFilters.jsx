@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } from 'lucide-react'
+import { PARENT_CATEGORY_OPTIONS } from '../../utils/categoryGroups'
 
 const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
 const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
-const CATEGORY_OPTIONS = ['All', 'Mold Maker + Converter', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
 const GEO_OPTIONS = ['All', 'Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
 const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -179,7 +179,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
           onChange={(e) => onFilterChange({ ...filters, category: e.target.value, preset: null })}
           className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
         >
-          {CATEGORY_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Categories' : o}</option>)}
+          {PARENT_CATEGORY_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Categories' : o}</option>)}
         </select>
 
         <select

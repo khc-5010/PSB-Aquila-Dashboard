@@ -8,46 +8,27 @@ import {
   Legend,
 } from 'chart.js'
 import { Bar } from 'react-chartjs-2'
+import { getParentCategory } from '../../../utils/categoryGroups'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
 const CATEGORY_COLORS = {
   'Mold Maker + Converter': '#041E42',
   'Converter + In-House Tooling': '#0a2a52',
-  'Captive Converter': '#122d4f',
+  'Captive/OEM': '#122d4f',
   'Converter': '#1e3a5f',
   'Mold Maker': '#2563eb',
   'Hot Runner Systems': '#7c3aed',
   'Knowledge Sector': '#0d9488',
   'Catalog/Standards': '#f59e0b',
   'Strategic Partner': '#ec4899',
+  'Ecosystem/Channel': '#06b6d4',
   'Thermoformer': '#d97706',
+  'Does Not Fit': '#6b7280',
   'Other': '#9CA3AF',
 }
 
 const TOP_N = 8
-
-const CATEGORY_PARENT_RULES = [
-  { prefix: 'Mold Maker + Converter', parent: 'Mold Maker + Converter' },
-  { prefix: 'Converter + In-House Tooling', parent: 'Converter + In-House Tooling' },
-  { prefix: 'Captive Converter', parent: 'Captive Converter' },
-  { prefix: 'Converter', parent: 'Converter' },
-  { prefix: 'Mold Maker', parent: 'Mold Maker' },
-  { prefix: 'Hot Runner Systems', parent: 'Hot Runner Systems' },
-  { prefix: 'Knowledge Sector', parent: 'Knowledge Sector' },
-  { prefix: 'Catalog/Standards', parent: 'Catalog/Standards' },
-  { prefix: 'Strategic Partner', parent: 'Strategic Partner' },
-  { prefix: 'Thermoformer', parent: 'Thermoformer' },
-]
-
-function getParentCategory(category) {
-  for (const rule of CATEGORY_PARENT_RULES) {
-    if (category === rule.prefix || category.startsWith(rule.prefix)) {
-      return rule.parent
-    }
-  }
-  return 'Other'
-}
 
 function groupByParent(rawData) {
   const map = {}
@@ -126,9 +107,8 @@ function CategoryBreakdown({ categories, loading, onCategoryClick }) {
     if (elements.length > 0 && onCategoryClick) {
       const idx = elements[0].index
       const group = displayData[idx]
-      // Filter to the largest child category within the parent
-      const largestChild = group.children.reduce((a, b) => (b.count > a.count ? b : a), group.children[0])
-      onCategoryClick(largestChild.category)
+      // Send parent group name (or 'Other' for the overflow bucket)
+      onCategoryClick(group.isOverflow ? 'Other' : group.parent)
     }
   }
 

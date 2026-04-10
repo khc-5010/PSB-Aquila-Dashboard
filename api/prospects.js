@@ -36,6 +36,76 @@ function normalizeCertName(raw) {
   return CERT_NORMALIZATION[lower] || trimmed
 }
 
+// ─── Category parent-group rules for filter matching ─────────────────
+// SYNC: Keep in sync with src/utils/categoryGroups.js
+// ORDER MATTERS: More specific prefixes MUST come before generic ones.
+const CATEGORY_PARENT_RULES = [
+  { prefix: 'Mold Maker + Converter', parent: 'Mold Maker + Converter' },
+  { prefix: 'Mold Maker', parent: 'Mold Maker' },
+  { prefix: 'Mold/Tool Maker', parent: 'Mold Maker' },
+  { prefix: 'Mold/Tool', parent: 'Mold Maker' },
+  { prefix: 'Toolmaker + Converter', parent: 'Mold Maker + Converter' },
+  { prefix: 'Toolmaker', parent: 'Mold Maker' },
+  { prefix: 'Tool & Die', parent: 'Mold Maker' },
+  { prefix: 'Converter + In-House Tooling', parent: 'Converter + In-House Tooling' },
+  { prefix: 'Converter + Mold Maker', parent: 'Mold Maker + Converter' },
+  { prefix: 'Converter + Mold Design', parent: 'Mold Maker + Converter' },
+  { prefix: 'Captive Converter', parent: 'Captive/OEM' },
+  { prefix: 'Captive OEM', parent: 'Captive/OEM' },
+  { prefix: 'Captive Molder', parent: 'Captive/OEM' },
+  { prefix: 'OEM + Converter', parent: 'Captive/OEM' },
+  { prefix: 'OEM + Captive', parent: 'Captive/OEM' },
+  { prefix: 'OEM Converter', parent: 'Captive/OEM' },
+  { prefix: 'Automotive Tier 1', parent: 'Captive/OEM' },
+  { prefix: 'Contract Manufacturer', parent: 'Converter' },
+  { prefix: 'Converter', parent: 'Converter' },
+  { prefix: 'Micro Injection', parent: 'Converter' },
+  { prefix: 'Medical OEM', parent: 'Converter' },
+  { prefix: 'Hot Runner', parent: 'Hot Runner Systems' },
+  { prefix: 'Knowledge Sector', parent: 'Knowledge Sector' },
+  { prefix: 'Catalog/Standards', parent: 'Catalog/Standards' },
+  { prefix: 'Strategic', parent: 'Strategic Partner' },
+  { prefix: 'Ecosystem', parent: 'Ecosystem/Channel' },
+  { prefix: 'Thermoformer', parent: 'Thermoformer' },
+  { prefix: 'Does Not Fit', parent: 'Does Not Fit' },
+  { prefix: 'Enterprise', parent: 'Does Not Fit' },
+]
+
+function buildCategoryCondition(parentGroupName, params) {
+  if (!parentGroupName || parentGroupName === 'All') return null
+  if (parentGroupName === 'Other') {
+    // "Other" = anything not matching any known parent rule
+    const excludeClauses = CATEGORY_PARENT_RULES.map(r => {
+      params.push(r.prefix + '%')
+      return `category NOT LIKE $${params.length}`
+    })
+    return `(category IS NULL OR (${excludeClauses.join(' AND ')}))`
+  }
+  const myPrefixes = CATEGORY_PARENT_RULES.filter(r => r.parent === parentGroupName).map(r => r.prefix)
+  if (myPrefixes.length === 0) {
+    // Unknown parent — exact match fallback
+    params.push(parentGroupName)
+    return `category = $${params.length}`
+  }
+  // For each of our prefixes, build a LIKE clause and exclude any more-specific
+  // prefixes from OTHER parent groups that share the same start.
+  // e.g., "Converter%" must exclude "Converter + In-House Tooling%" and "Converter + Mold Maker%"
+  const otherPrefixes = CATEGORY_PARENT_RULES.filter(r => r.parent !== parentGroupName).map(r => r.prefix)
+  const likeClauses = myPrefixes.map(p => {
+    params.push(p + '%')
+    const likeParam = `category LIKE $${params.length}`
+    // Find other-group prefixes that would be caught by this LIKE
+    const conflicts = otherPrefixes.filter(op => op.startsWith(p) && op !== p)
+    if (conflicts.length === 0) return likeParam
+    const excludes = conflicts.map(c => {
+      params.push(c + '%')
+      return `category NOT LIKE $${params.length}`
+    })
+    return `(${likeParam} AND ${excludes.join(' AND ')})`
+  })
+  return `(${likeClauses.join(' OR ')})`
+}
+
 // ─── Ontology Layer 1: Full rebuild (all prospects) ─────────────────
 // Clears all Layer 1 entities/relationships and regenerates from prospect_companies.
 // Layer 2 data is never touched. Returns stats object.
@@ -1425,8 +1495,8 @@ export default async function handler(req, res) {
           conditions.push(`outreach_group = $${params.length}`)
         }
         if (category) {
-          params.push(category)
-          conditions.push(`category = $${params.length}`)
+          const catCondition = buildCategoryCondition(category, params)
+          if (catCondition) conditions.push(catCondition)
         }
         if (priority) {
           params.push(priority)
@@ -1628,8 +1698,8 @@ export default async function handler(req, res) {
           conditions.push(`outreach_group = $${params.length}`)
         }
         if (category) {
-          params.push(category)
-          conditions.push(`category = $${params.length}`)
+          const catCondition = buildCategoryCondition(category, params)
+          if (catCondition) conditions.push(catCondition)
         }
         if (priority) {
           params.push(priority)

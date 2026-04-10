@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
 
+import { getParentCategory } from '../../utils/categoryGroups'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
@@ -173,7 +174,8 @@ function ProspectTable() {
   // Filter logic
   const filtered = prospects.filter(p => {
     if (filters.preset === 'medical') {
-      const isMolder = p.category === 'Mold Maker + Converter' || p.category === 'Converter'
+      const parentCat = getParentCategory(p.category)
+      const isMolder = parentCat === 'Converter' || parentCat === 'Converter + In-House Tooling' || parentCat === 'Mold Maker + Converter'
       if (!isMolder || p.medical_device_mfg !== 'Yes') return false
     }
     if (filters.preset === 'warm_leads') {
@@ -183,7 +185,7 @@ function ProspectTable() {
       if (p.prospect_status !== 'Prioritized') return false
     }
     if (filters.group !== 'All' && p.outreach_group !== filters.group) return false
-    if (filters.category !== 'All' && p.category !== filters.category) return false
+    if (filters.category !== 'All' && getParentCategory(p.category) !== filters.category) return false
     if (filters.priority !== 'All' && p.priority !== filters.priority) return false
     if (filters.geo !== 'All') {
       const corridor = p.state ? (STATE_TO_CORRIDOR[p.state] || 'Mountain / Central') : 'Unknown'

@@ -54,6 +54,7 @@ src/
 │   └── utils.js         # Helper functions
 ├── pages/               # Route-level components
 ├── context/             # React context providers
+├── utils/               # Shared utilities (categoryGroups.js)
 ├── constants/           # Project types, stages, stakeholder mappings
 ├── App.jsx
 ├── main.jsx
@@ -797,11 +798,17 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 
 - **`src/components/shared/ReportMarkdownRenderer.jsx`** — Custom ReactMarkdown wrapper with `remark-gfm` plugin for GFM table support and component overrides for research report formatting. Detects numbered company entries (`N. **CompanyName**`) and renders company names at header size with indented data fields below. Pipe-delimited markdown tables render as styled HTML tables (borders, padding, header background). All links open in a new tab (`target="_blank"`) to avoid navigating away from the dashboard. Used by both `StateReportModal` (state reports) and `ResearchBriefPanel` (company briefs) for consistent formatting. `UploadStateReportModal` preview also uses `target="_blank"` links.
 
-### Category Rename: "Converter+Tooling" → "Mold Maker + Converter"
-- Database category value updated via SQL (already done)
-- UI code updated in: `CategoryBreakdown.jsx` (colors + parent rules), `ProspectFilters.jsx` (options + presets), `ProspectTable.jsx` (medical filter logic), `AddCompanyModal.jsx` (category dropdown)
-- **"Mold Maker + Converter"** is distinct from **"Converter + In-House Tooling"** — do NOT merge these categories
-- Seed data in `api/prospects.js` and `scripts/seed-prospects.js` still references old value — these are for initial seeding only, not runtime
+### Category Parent-Group Filtering
+The database has 65+ distinct `category` values. The filter system collapses these into ~12 parent groups using prefix-matching rules.
+
+- **Shared utility**: `src/utils/categoryGroups.js` — source of truth for `CATEGORY_PARENT_RULES`, `getParentCategory()`, and `PARENT_CATEGORY_OPTIONS`
+- **SYNC requirement**: `api/prospects.js` duplicates `CATEGORY_PARENT_RULES` and `buildCategoryCondition()` because Vercel serverless can't import from `src/`. Both files have `// SYNC` comments — keep them in sync when adding new rules.
+- **Filter behavior**: Category dropdown shows parent groups (not raw values). Selecting "Converter" matches all Converter variants (376+ companies). Raw category values still display in the table.
+- **Medical Molders preset**: Checks parent group membership — includes Converter, Converter + In-House Tooling, and Mold Maker + Converter companies with `medical_device_mfg = 'Yes'`
+- **Chart click-to-filter**: `CategoryBreakdown.jsx` sends parent group name (not largest child) on bar click
+- **Key constraint**: "Converter + In-House Tooling" and "Mold Maker + Converter" are intentionally separate parent groups — do NOT merge them
+- **SQL overlap handling**: `buildCategoryCondition()` in `api/prospects.js` adds NOT LIKE exclusions for cross-group prefix overlaps (e.g., `LIKE 'Converter%' AND NOT LIKE 'Converter + In-House Tooling%'`)
+- Seed data in `api/prospects.js` and `scripts/seed-prospects.js` still references old category values — these are for initial seeding only, not runtime
 
 ## Notes
 
