@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Building2, Kanban, Map, Share2 } from 'lucide-react'
+import { Building2, Kanban, Map, Share2, Bell } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
+import DigestPrefsModal from '../notifications/DigestPrefsModal'
 
 function Header({ activeView, onViewChange }) {
   const { user, logout, authFetch } = useAuth()
   const [showAdmin, setShowAdmin] = useState(false)
   const [showChangePin, setShowChangePin] = useState(false)
+  const [showDigestPrefs, setShowDigestPrefs] = useState(false)
   const [teamUsers, setTeamUsers] = useState([])
 
   // Fetch active team members for avatar display
@@ -122,6 +124,15 @@ function Header({ activeView, onViewChange }) {
               </div>
             )}
 
+            {/* Digest preferences */}
+            <button
+              onClick={() => setShowDigestPrefs(true)}
+              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title="Notification Preferences"
+            >
+              <Bell className="w-5 h-5" />
+            </button>
+
             {/* Admin icon */}
             {user?.role === 'admin' && (
               <button
@@ -161,9 +172,10 @@ function Header({ activeView, onViewChange }) {
         </div>
       </header>
 
-      {/* Admin Panel Modal */}
+      {/* Modals */}
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       {showChangePin && <ChangePinModal onClose={() => setShowChangePin(false)} />}
+      {showDigestPrefs && <DigestPrefsModal onClose={() => setShowDigestPrefs(false)} />}
     </>
   )
 }
