@@ -10,6 +10,8 @@ const GEO_OPTIONS = ['All', 'Great Lakes Auto', 'Northeast Tool', 'Southeast Gro
 const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 const PRESETS = [
+  { label: 'Action Items', filter: { preset: 'action_items' } },
+  { label: 'Stale', filter: { preset: 'stale' } },
   { label: 'Group 1', filter: { group: 'Group 1' } },
   { label: 'Group 2', filter: { group: 'Group 2' } },
   { label: 'Time-Sensitive', filter: { group: 'Time-Sensitive' } },
@@ -20,7 +22,7 @@ const PRESETS = [
   { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },
 ]
 
-function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount }) {
+function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, actionItemCount = 0 }) {
   const [searchText, setSearchText] = useState('')
   const [showLegend, setShowLegend] = useState(() => {
     try { return localStorage.getItem(LEGEND_KEY) !== 'true' } catch { return true }
@@ -37,7 +39,11 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
   }
 
   const handlePreset = (preset) => {
-    if (preset.filter.preset === 'medical') {
+    if (preset.filter.preset === 'action_items') {
+      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' })
+    } else if (preset.filter.preset === 'stale') {
+      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'stale' })
+    } else if (preset.filter.preset === 'medical') {
       onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'medical' })
     } else if (preset.filter.preset === 'warm_leads') {
       onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'warm_leads' })
@@ -63,6 +69,8 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
   }
 
   const isActivePreset = (preset) => {
+    if (preset.filter.preset === 'action_items') return filters.preset === 'action_items'
+    if (preset.filter.preset === 'stale') return filters.preset === 'stale'
     if (preset.filter.preset === 'medical') return filters.preset === 'medical'
     if (preset.filter.preset === 'warm_leads') return filters.preset === 'warm_leads'
     if (preset.filter.preset === 'ready_for_research') return filters.preset === 'ready_for_research'
@@ -129,10 +137,15 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount })
           </button>
         )}
 
-        <span className="ml-auto text-sm text-gray-500">
+        <span className="ml-auto flex items-center gap-2 text-sm text-gray-500">
           {filteredCount === totalCount
             ? `${totalCount} companies`
             : `${filteredCount} of ${totalCount} companies`}
+          {actionItemCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+              {actionItemCount} action item{actionItemCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </span>
       </div>
 
