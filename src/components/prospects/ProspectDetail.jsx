@@ -9,6 +9,7 @@ import ConvertToOpportunityModal from './ConvertToOpportunityModal'
 import ExtractionPromptModal from './ExtractionPromptModal'
 import ImportOntologyModal from './ImportOntologyModal'
 import NeighborhoodPanel from '../ontology/NeighborhoodPanel'
+import FdaEnrichment from './FdaEnrichment'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -439,6 +440,11 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
                 </dd>
               </div>
             </dl>
+          </Section>
+
+          {/* FDA Intelligence */}
+          <Section title="FDA Intelligence" defaultOpen={false}>
+            <FdaEnrichment prospect={p} onUpdate={onUpdate} />
           </Section>
 
           {/* PSB Relationship */}
