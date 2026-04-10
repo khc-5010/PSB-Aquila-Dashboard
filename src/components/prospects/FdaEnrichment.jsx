@@ -19,12 +19,12 @@ async function fetchFda(url) {
 
 async function searchFda510k(name) {
   const encoded = encodeURIComponent(name)
-  return fetchFda(`https://api.fda.gov/device/510k.json?search=applicant:"${encoded}"&limit=10`)
+  return fetchFda(`https://api.fda.gov/device/510k.json?search=applicant:${encoded}&limit=10`)
 }
 
 async function searchFdaRegistration(name) {
   const encoded = encodeURIComponent(name)
-  return fetchFda(`https://api.fda.gov/device/registrationlisting.json?search=registration.owner_operator.firm_name:"${encoded}"&limit=10`)
+  return fetchFda(`https://api.fda.gov/device/registrationlisting.json?search=registration.owner_operator.firm_name:${encoded}&limit=10`)
 }
 
 async function runFdaCheck(prospect) {
