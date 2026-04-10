@@ -413,6 +413,9 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
 **"Yes (confirmed)" value**: When FDA data is found, Brett can click "Update to Yes (confirmed)" which:
 1. Sets `medical_device_mfg` to `'Yes (confirmed)'` via existing PATCH route (auto-triggers ontology rebuild)
 2. Appends 510(k) numbers to `notes` field: `[FDA 2026-04-10] 510(k): K123456, K789012`
+3. Saves an FDA snapshot as a `prospect_attachment` (see below)
+
+**FDA Snapshot Persistence**: FDA query results are saved as `prospect_attachments` with `attachment_type: 'fda_snapshot'`. Content is a JSON string: `{ clearances, facilities, searchedNames, checkedAt }`. One snapshot per prospect (replace pattern — old snapshot deleted before saving new). On subsequent visits, saved snapshot loads automatically into the tab UI with a "Checked on {date} by {user}" timestamp. "Re-check FDA" button runs a live query without auto-saving — user must click "Update to Yes (confirmed)" to persist. Props from ProspectDetail: `attachments` (full array) and `onSnapshotSaved` (re-fetches attachments).
 
 **Codebase-wide pattern for `medical_device_mfg`:**
 - **JS**: Use `value?.startsWith('Yes')` to match both `'Yes'` and `'Yes (confirmed)'`
