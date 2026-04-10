@@ -390,11 +390,49 @@ const ONTOLOGY_FIELDS = [
   'ownership_type', 'parent_company', 'category', 'in_house_tooling',
 ]
 
+// SYNC: Keep in sync with getProspectUrgency() in ProspectTable.jsx
+function getProspectUrgency(prospect) {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  // Tier 1: Explicit follow-up date
+  if (prospect.follow_up_date) {
+    const followUp = new Date(prospect.follow_up_date + 'T00:00:00')
+    const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }
+    if (diffDays === 0) return { level: 'due_today', label: 'Due today', color: 'amber', priority: 2 }
+    if (diffDays <= 3) return { level: 'due_soon', label: `Due in ${diffDays}d`, color: 'yellow', priority: 3 }
+    if (diffDays <= 7) return { level: 'due_week', label: `Due in ${diffDays}d`, color: 'blue', priority: 4 }
+    return { level: 'scheduled', label: 'Scheduled', color: 'gray', priority: 10 }
+  }
+
+  // Tier 2: Auto-detected staleness (only for active statuses)
+  const parkedStatuses = ['Converted', 'Nurture', 'Identified']
+  if (parkedStatuses.includes(prospect.prospect_status)) return null
+
+  const updatedAt = prospect.updated_at ? new Date(prospect.updated_at) : null
+  const daysSinceUpdate = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null
+
+  if (prospect.prospect_status === 'Outreach Ready' && daysSinceUpdate >= 14) {
+    return { level: 'stale', label: `${daysSinceUpdate}d idle`, color: 'orange', priority: 5 }
+  }
+  if (prospect.prospect_status === 'Prioritized' && daysSinceUpdate >= 14) {
+    return { level: 'stalled', label: 'Research stalled', color: 'orange', priority: 6 }
+  }
+  if (prospect.prospect_status === 'Research Complete' && daysSinceUpdate >= 7) {
+    return { level: 'stalled', label: 'Needs outreach', color: 'orange', priority: 7 }
+  }
+
+  return null
+}
+
 /**
  * Consolidated prospect API — single serverless function.
  *
  * GET  /api/prospects           — list all (with optional filter query params)
  * GET  /api/prospects?id=123    — get single prospect
+ * GET  /api/prospects?action=daily-digest — cron-secured daily digest email sender
  * POST /api/prospects           — create single prospect
  * POST /api/prospects?action=import — bulk import/upsert (preserves user-edited fields)
  * PATCH /api/prospects?id=123   — update single prospect
@@ -405,6 +443,180 @@ export default async function handler(req, res) {
 
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
+
+    // ── Daily Digest (cron-secured) ─────────────────────
+    if (action === 'daily-digest') {
+      const authHeader = req.headers.authorization
+      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        return res.status(401).json({ error: 'Unauthorized' })
+      }
+
+      try {
+        // 1. Get all active users with digest enabled
+        const users = await sql`
+          SELECT id, name, email, digest_enabled, digest_preferences
+          FROM users
+          WHERE is_active = true AND digest_enabled = true
+        `
+
+        if (users.length === 0) {
+          return res.status(200).json({ message: 'No users with digest enabled', sent: 0 })
+        }
+
+        // 2. Get prospects with fields needed for urgency computation
+        const prospects = await sql`
+          SELECT id, company, city, state, category, prospect_status,
+                 suggested_next_step, follow_up_date, updated_at,
+                 ownership_type, recent_ma, outreach_group, signal_count,
+                 parent_company
+          FROM prospect_companies
+        `
+
+        // 3. Compute urgency for each prospect
+        const actionItems = prospects
+          .map(p => ({ ...p, urgency: getProspectUrgency(p) }))
+          .filter(p => p.urgency !== null)
+          .sort((a, b) => a.urgency.priority - b.urgency.priority)
+
+        // 4. Identify PE window prospects
+        const peWindowProspects = prospects.filter(p =>
+          p.ownership_type?.includes('PE') && p.recent_ma
+        )
+
+        // 5. Send personalized digest to each user
+        const results = []
+        const dashboardUrl = 'https://psb-aquila-dashboard.vercel.app'
+
+        for (const user of users) {
+          const prefs = user.digest_preferences || { overdue: true, due_soon: true, stale: true, pe_windows: true }
+
+          // Build sections based on user preferences
+          const sections = []
+
+          if (prefs.overdue) {
+            const items = actionItems.filter(p => p.urgency.level === 'overdue')
+            if (items.length > 0) sections.push({ title: 'Overdue Follow-Ups', emoji: '🔴', items, color: '#DC2626' })
+          }
+
+          if (prefs.due_soon) {
+            const items = actionItems.filter(p => ['due_today', 'due_soon', 'due_week'].includes(p.urgency.level))
+            if (items.length > 0) sections.push({ title: 'Due This Week', emoji: '🟡', items, color: '#F59E0B' })
+          }
+
+          if (prefs.stale) {
+            const items = actionItems.filter(p => ['stale', 'stalled'].includes(p.urgency.level))
+            if (items.length > 0) sections.push({ title: 'Stale / Stalled', emoji: '🟠', items, color: '#F97316' })
+          }
+
+          if (prefs.pe_windows && peWindowProspects.length > 0) {
+            sections.push({
+              title: 'PE Window Watch',
+              emoji: '⏱️',
+              items: peWindowProspects.map(p => ({ ...p, urgency: { label: p.recent_ma?.substring(0, 60) || 'PE-backed' } })),
+              color: '#7C3AED',
+            })
+          }
+
+          // Skip if nothing to report
+          if (sections.length === 0) {
+            results.push({ user: user.name, status: 'skipped', reason: 'no items' })
+            continue
+          }
+
+          // Build email HTML
+          const totalItems = sections.reduce((sum, s) => sum + s.items.length, 0)
+          const subject = `Pipeline Digest: ${totalItems} item${totalItems !== 1 ? 's' : ''} need attention`
+
+          const sectionHtml = sections.map(section => `
+            <div style="margin-bottom: 24px;">
+              <h2 style="font-size: 16px; color: ${section.color}; margin: 0 0 12px 0; border-bottom: 2px solid ${section.color}; padding-bottom: 6px;">
+                ${section.emoji} ${section.title} (${section.items.length})
+              </h2>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                ${section.items.slice(0, 15).map(item => `
+                  <tr style="border-bottom: 1px solid #E5E7EB;">
+                    <td style="padding: 8px 4px; font-weight: 600; color: #111827;">${item.company}</td>
+                    <td style="padding: 8px 4px; color: #6B7280;">${item.city ? item.city + ', ' : ''}${item.state || ''}</td>
+                    <td style="padding: 8px 4px; color: ${section.color}; font-size: 12px; font-weight: 600;">${item.urgency.label}</td>
+                  </tr>
+                `).join('')}
+                ${section.items.length > 15 ? `
+                  <tr><td colspan="3" style="padding: 8px 4px; color: #9CA3AF; font-style: italic;">
+                    + ${section.items.length - 15} more...
+                  </td></tr>
+                ` : ''}
+              </table>
+            </div>
+          `).join('')
+
+          const emailHtml = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: #041E42; color: white; padding: 16px 20px; border-radius: 8px 8px 0 0;">
+                <h1 style="margin: 0; font-size: 18px;">PSB-Aquila Pipeline Digest</h1>
+                <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.8;">
+                  ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+              <div style="border: 1px solid #E5E7EB; border-top: none; border-radius: 0 0 8px 8px; padding: 20px;">
+                <p style="color: #374151; font-size: 14px; margin: 0 0 20px 0;">
+                  Hi ${user.name}, here's your pipeline update:
+                </p>
+                ${sectionHtml}
+                <div style="margin-top: 24px; text-align: center;">
+                  <a href="${dashboardUrl}" style="display: inline-block; background: #041E42; color: white; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600;">
+                    Open Dashboard
+                  </a>
+                </div>
+                <p style="margin-top: 20px; font-size: 11px; color: #9CA3AF; text-align: center;">
+                  Manage your digest preferences in the dashboard header menu.
+                </p>
+              </div>
+            </div>
+          `
+
+          // Send via Resend
+          try {
+            const sendRes = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: 'PSB-Aquila Dashboard <onboarding@resend.dev>',
+                to: user.email,
+                subject,
+                html: emailHtml,
+              }),
+            })
+
+            if (sendRes.ok) {
+              results.push({ user: user.name, status: 'sent', items: totalItems })
+            } else {
+              const err = await sendRes.text()
+              console.error(`Resend failed for ${user.name}:`, err)
+              results.push({ user: user.name, status: 'failed', error: err })
+            }
+          } catch (sendErr) {
+            console.error(`Resend error for ${user.name}:`, sendErr)
+            results.push({ user: user.name, status: 'failed', error: sendErr.message })
+          }
+        }
+
+        return res.status(200).json({
+          message: 'Digest run complete',
+          results,
+          sent: results.filter(r => r.status === 'sent').length,
+          skipped: results.filter(r => r.status === 'skipped').length,
+          failed: results.filter(r => r.status === 'failed').length,
+        })
+
+      } catch (error) {
+        console.error('Daily digest error:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // State-level aggregations for National Map
     if (action === 'state-stats') {
       try {

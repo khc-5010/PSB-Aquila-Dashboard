@@ -43,6 +43,7 @@ src/
 │   │   ├── QueryResults.jsx         # Result cards with "Find similar" button
 │   │   ├── NeighborhoodPanel.jsx    # Compact graph for ProspectDetail (entity resolution + neighborhood)
 │   │   └── ForceGraphTestPage.jsx   # Temporary test harness (remove after Session 2)
+│   ├── notifications/   # DigestPrefsModal (daily digest email preferences)
 │   ├── opportunities/   # Detail panel, forms, stakeholder alerts
 │   └── layout/          # Header, sidebar, navigation
 ├── hooks/               # Custom React hooks
@@ -214,6 +215,8 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 
 - **`users`** - Dashboard user accounts (4 users)
   - `id` (SERIAL, PK), `name`, `email` (unique), `pin_hash`, `color`, `role` (admin/member), `is_active`, `created_at`, `last_login_at`
+  - `digest_enabled` (BOOLEAN, default true) — master toggle for daily digest emails
+  - `digest_preferences` (JSONB, default `{"overdue": true, "due_soon": true, "stale": true, "pe_windows": true}`) — per-section toggles
 
 - **`sessions`** - Active login sessions (persist until logout)
   - `id` (TEXT, PK — random UUID token), `user_id` (FK), `created_at`
@@ -493,6 +496,49 @@ The Prospects tab uses a Table/Charts sub-view toggle within the view (not a sep
 ### Initial Setup
 Run `node scripts/setup-admin.js` to create auth tables and the initial admin (Kyle) account. The script generates a 6-digit PIN displayed once. Kyle then creates other users via the admin panel.
 
+## Daily Digest Email System
+
+### Overview
+Automated daily email digests notify users about action items in their prospect pipeline. Uses Vercel Cron to trigger and Resend API to deliver personalized HTML emails.
+
+### Architecture
+- **Cron trigger:** Vercel Cron (`vercel.json`) → `GET /api/prospects?action=daily-digest` at 12:00 UTC (8:00 AM ET), weekdays only
+- **Email delivery:** Resend API via plain `fetch` (no npm package). From address: `PSB-Aquila Dashboard <onboarding@resend.dev>` (shared test domain)
+- **Cron security:** `Authorization: Bearer {CRON_SECRET}` header required. Returns 401 if missing/wrong.
+- **Server-side urgency:** `getProspectUrgency()` function in `api/prospects.js` — SYNC with client-side copy in `ProspectTable.jsx`
+
+### Email Sections (user-configurable)
+| Section | Preference Key | What It Shows |
+|---------|---------------|---------------|
+| Overdue Follow-Ups | `overdue` | Prospects past their `follow_up_date` |
+| Due This Week | `due_soon` | Follow-ups due today or within 7 days |
+| Stale / Stalled | `stale` | Prospects idle too long for their status |
+| PE Window Watch | `pe_windows` | PE-backed companies with recent M&A activity |
+
+### User Preferences
+- Stored on `users` table: `digest_enabled` (boolean), `digest_preferences` (JSONB)
+- Self-service: any user can toggle via bell icon in header → `DigestPrefsModal`
+- API: `PATCH /api/auth?action=update-preferences` (authenticated, updates own prefs)
+- Empty digests are NOT sent — users with zero matching items are skipped
+
+### API Routes
+- `GET /api/prospects?action=daily-digest` — Cron-secured endpoint. Queries prospects, computes urgency, sends emails via Resend. Returns `{ sent, skipped, failed, results[] }`.
+- `PATCH /api/auth?action=update-preferences` — Authenticated. Body: `{ digest_enabled, digest_preferences }`. Updates own user record.
+
+### UI Components
+- `src/components/notifications/DigestPrefsModal.jsx` — Modal with master toggle + section checkboxes
+- `Header.jsx` — Bell icon (`lucide-react` `Bell`) opens DigestPrefsModal
+
+### Environment Variables
+- `RESEND_API_KEY` — Resend API key (set in Vercel)
+- `CRON_SECRET` — Vercel Cron secret for securing the digest endpoint (set in Vercel)
+
+### Database Migration (run once in Neon SQL Editor)
+```sql
+ALTER TABLE users ADD COLUMN digest_enabled BOOLEAN DEFAULT true;
+ALTER TABLE users ADD COLUMN digest_preferences JSONB DEFAULT '{"overdue": true, "due_soon": true, "stale": true, "pe_windows": true}'::jsonb;
+```
+
 ## Keeping This File Current
 
 This file is only useful if it stays accurate. Maintain it actively:
@@ -510,6 +556,8 @@ This file is only useful if it stays accurate. Maintain it actively:
 ```
 DATABASE_URL=            # Neon PostgreSQL connection string
 VITE_API_URL=            # API base URL (if separate backend)
+RESEND_API_KEY=          # Resend API key for daily digest emails
+CRON_SECRET=             # Vercel Cron secret for securing digest endpoint
 ```
 
 ## Conventions

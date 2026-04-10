@@ -77,8 +77,12 @@ export function AuthProvider({ children }) {
 
   const clearSessionError = useCallback(() => setSessionError(null), [])
 
+  const updateUser = useCallback((fields) => {
+    setUser(prev => prev ? { ...prev, ...fields } : prev)
+  }, [])
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, sessionError, clearSessionError, authFetch }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, sessionError, clearSessionError, authFetch, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

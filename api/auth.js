@@ -11,6 +11,7 @@ import crypto from 'crypto'
  * GET  /api/auth?action=me           — get current user profile
  * POST /api/auth?action=create-user  — admin: add new user
  * PATCH /api/auth?action=update-user&id=X — admin: edit user
+ * PATCH /api/auth?action=update-preferences — update own digest notification preferences
  * POST /api/auth?action=reset-pin&id=X   — admin: generate new PIN
  * GET  /api/auth?action=list-users   — admin: get all users
  * POST /api/auth?action=setup        — one-time: create tables + admin user
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
     if (!authHeader?.startsWith('Bearer ')) return null
     const token = authHeader.slice(7)
     const rows = await sql`
-      SELECT u.id, u.name, u.email, u.color, u.role, u.is_active
+      SELECT u.id, u.name, u.email, u.color, u.role, u.is_active, u.digest_enabled, u.digest_preferences
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.id = ${token} AND u.is_active = true
@@ -58,7 +59,7 @@ export default async function handler(req, res) {
         }
 
         const users = await sql`
-          SELECT id, name, email, pin_hash, color, role, is_active
+          SELECT id, name, email, pin_hash, color, role, is_active, digest_enabled, digest_preferences
           FROM users WHERE email = ${email.toLowerCase().trim()}
         `
         if (users.length === 0) {
@@ -82,7 +83,7 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
           token: sessionId,
-          user: { id: user.id, name: user.name, email: user.email, color: user.color, role: user.role },
+          user: { id: user.id, name: user.name, email: user.email, color: user.color, role: user.role, digest_enabled: user.digest_enabled, digest_preferences: user.digest_preferences },
         })
       } catch (err) {
         console.error('Login error:', err)
@@ -201,14 +202,14 @@ export default async function handler(req, res) {
     if (action === 'validate') {
       const user = await getSessionUser()
       if (!user) return res.status(401).json({ valid: false })
-      return res.status(200).json({ valid: true, user: { id: user.id, name: user.name, email: user.email, color: user.color, role: user.role } })
+      return res.status(200).json({ valid: true, user: { id: user.id, name: user.name, email: user.email, color: user.color, role: user.role, digest_enabled: user.digest_enabled, digest_preferences: user.digest_preferences } })
     }
 
     // ── Get current user ─────────────────────────────────
     if (action === 'me') {
       const user = await getSessionUser()
       if (!user) return res.status(401).json({ error: 'Not authenticated' })
-      return res.status(200).json({ id: user.id, name: user.name, email: user.email, color: user.color, role: user.role })
+      return res.status(200).json({ id: user.id, name: user.name, email: user.email, color: user.color, role: user.role, digest_enabled: user.digest_enabled, digest_preferences: user.digest_preferences })
     }
 
     // ── List users (admin only) ──────────────────────────
@@ -218,7 +219,7 @@ export default async function handler(req, res) {
 
       try {
         const users = await sql`
-          SELECT id, name, email, color, role, is_active, created_at, last_login_at
+          SELECT id, name, email, color, role, is_active, created_at, last_login_at, digest_enabled, digest_preferences
           FROM users ORDER BY created_at ASC
         `
         return res.status(200).json(users)
@@ -278,6 +279,32 @@ export default async function handler(req, res) {
       } catch (err) {
         console.error('Update user error:', err)
         return res.status(500).json({ error: 'Failed to update user' })
+      }
+    }
+
+    // ── Update own notification preferences ──────────────
+    if (action === 'update-preferences') {
+      const user = await getSessionUser()
+      if (!user) return res.status(401).json({ error: 'Not authenticated' })
+
+      try {
+        const { digest_enabled, digest_preferences } = req.body || {}
+
+        if (digest_enabled !== undefined) {
+          await sql`UPDATE users SET digest_enabled = ${Boolean(digest_enabled)} WHERE id = ${user.id}`
+        }
+        if (digest_preferences !== undefined) {
+          await sql`UPDATE users SET digest_preferences = ${JSON.stringify(digest_preferences)}::jsonb WHERE id = ${user.id}`
+        }
+
+        const updated = await sql`
+          SELECT id, name, email, color, role, digest_enabled, digest_preferences
+          FROM users WHERE id = ${user.id}
+        `
+        return res.status(200).json(updated[0])
+      } catch (err) {
+        console.error('Update preferences error:', err)
+        return res.status(500).json({ error: 'Failed to update preferences' })
       }
     }
   }
