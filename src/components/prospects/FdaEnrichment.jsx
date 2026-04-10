@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Search, RefreshCw, ExternalLink, CheckCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Search, RefreshCw, CheckCircle } from 'lucide-react'
 import InfoTooltip from '../national-map/InfoTooltip'
+import { useAuth } from '../../context/AuthContext'
 
 async function fetchFda(url) {
   const controller = new AbortController()
@@ -46,7 +47,6 @@ async function runFdaCheck(prospect) {
     allFacilities.push(...facilities)
   }
 
-  // Deduplicate clearances by k_number
   const seen = new Set()
   allClearances = allClearances.filter(c => {
     if (seen.has(c.k_number)) return false
@@ -54,7 +54,6 @@ async function runFdaCheck(prospect) {
     return true
   })
 
-  // Deduplicate facilities by registration number
   const seenFac = new Set()
   allFacilities = allFacilities.filter(f => {
     const key = f.registration?.registration_number
@@ -66,19 +65,41 @@ async function runFdaCheck(prospect) {
   return { clearances: allClearances, facilities: allFacilities }
 }
 
-function FdaEnrichment({ prospect, onUpdate }) {
+function FdaEnrichment({ prospect, onUpdate, attachments = [], onSnapshotSaved }) {
+  const { user } = useAuth()
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('510k')
   const [retryName, setRetryName] = useState('')
   const [confirmed, setConfirmed] = useState(false)
+  const [snapshotMeta, setSnapshotMeta] = useState(null) // { checkedAt, createdBy, attachmentId }
 
   const p = prospect
+  const snapshot = attachments.find(a => a.attachment_type === 'fda_snapshot')
+
+  // Load saved snapshot into state
+  useEffect(() => {
+    if (snapshot && !results && !loading) {
+      try {
+        const parsed = JSON.parse(snapshot.content)
+        setResults({ clearances: parsed.clearances || [], facilities: parsed.facilities || [] })
+        setActiveTab((parsed.clearances || []).length > 0 ? '510k' : 'facilities')
+        setSnapshotMeta({
+          checkedAt: parsed.checkedAt || snapshot.created_at,
+          createdBy: snapshot.created_by,
+          attachmentId: snapshot.id,
+        })
+      } catch {
+        // Corrupted snapshot — ignore, let user re-check
+      }
+    }
+  }, [snapshot?.id])
 
   async function handleCheck() {
     setLoading(true)
     setError(null)
+    setSnapshotMeta(null)
     try {
       const data = await runFdaCheck(p)
       setResults(data)
@@ -94,6 +115,7 @@ function FdaEnrichment({ prospect, onUpdate }) {
     if (!retryName.trim()) return
     setLoading(true)
     setError(null)
+    setSnapshotMeta(null)
     try {
       const [clearances, facilities] = await Promise.all([
         searchFda510k(retryName.trim()),
@@ -108,10 +130,11 @@ function FdaEnrichment({ prospect, onUpdate }) {
     }
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
+    // 1. Update medical_device_mfg field
     onUpdate(p.id, 'medical_device_mfg', 'Yes (confirmed)')
 
-    // Append 510(k) numbers to notes
+    // 2. Append 510(k) numbers to notes
     if (results?.clearances?.length > 0) {
       const kNumbers = results.clearances.map(c => c.k_number).filter(Boolean).join(', ')
       const dateStr = new Date().toISOString().slice(0, 10)
@@ -121,6 +144,43 @@ function FdaEnrichment({ prospect, onUpdate }) {
       onUpdate(p.id, 'notes', newNotes)
     }
 
+    // 3. Save FDA snapshot as attachment (replace existing)
+    try {
+      const existing = attachments.find(a => a.attachment_type === 'fda_snapshot')
+      if (existing) {
+        await fetch(`/api/prospects?action=delete-attachment&attachmentId=${existing.id}`, { method: 'DELETE' })
+      }
+
+      const snapshotContent = JSON.stringify({
+        clearances: results.clearances,
+        facilities: results.facilities,
+        searchedNames: [p.company, p.also_known_as, p.parent_company].filter(Boolean),
+        checkedAt: new Date().toISOString(),
+      })
+
+      await fetch('/api/prospects?action=attach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prospect_id: p.id,
+          attachment_type: 'fda_snapshot',
+          title: `FDA Snapshot — ${p.company}`,
+          content: snapshotContent,
+          created_by: user?.name || null,
+        }),
+      })
+
+      setSnapshotMeta({
+        checkedAt: new Date().toISOString(),
+        createdBy: user?.name || null,
+        attachmentId: null,
+      })
+
+      if (onSnapshotSaved) onSnapshotSaved()
+    } catch (err) {
+      console.error('Error saving FDA snapshot:', err)
+    }
+
     setConfirmed(true)
   }
 
@@ -128,7 +188,6 @@ function FdaEnrichment({ prospect, onUpdate }) {
   const hasResults = totalResults > 0
   const alreadyConfirmed = p.medical_device_mfg === 'Yes (confirmed)'
 
-  // Badge for section header
   const badge = !results ? (
     <span className="text-xs text-gray-400 font-normal ml-2">Not checked</span>
   ) : hasResults ? (
@@ -182,6 +241,23 @@ function FdaEnrichment({ prospect, onUpdate }) {
         <div>
           {hasResults ? (
             <>
+              {/* Snapshot timestamp + re-check */}
+              {snapshotMeta && (
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-400">
+                    Checked on {new Date(snapshotMeta.checkedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {snapshotMeta.createdBy ? ` by ${snapshotMeta.createdBy}` : ''}
+                  </span>
+                  <button
+                    onClick={handleCheck}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Re-check FDA
+                  </button>
+                </div>
+              )}
+
               {/* Tab bar */}
               <div className="flex gap-1 mb-3 border-b border-gray-100">
                 <button
@@ -204,13 +280,15 @@ function FdaEnrichment({ prospect, onUpdate }) {
                 >
                   Facilities ({results.facilities.length})
                 </button>
-                <button
-                  onClick={handleCheck}
-                  className="ml-auto px-2 py-1 text-xs text-gray-400 hover:text-gray-600"
-                  title="Refresh"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                </button>
+                {!snapshotMeta && (
+                  <button
+                    onClick={handleCheck}
+                    className="ml-auto px-2 py-1 text-xs text-gray-400 hover:text-gray-600"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                )}
               </div>
 
               {/* 510(k) clearances */}
@@ -262,7 +340,7 @@ function FdaEnrichment({ prospect, onUpdate }) {
               )}
 
               {/* Confirm bar */}
-              {!alreadyConfirmed && !confirmed && p.medical_device_mfg !== 'Yes (confirmed)' && (
+              {!alreadyConfirmed && !confirmed && (
                 <div className="mt-3 p-2.5 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                   <span className="text-xs text-green-800">FDA data found. Update medical device status?</span>
                   <button

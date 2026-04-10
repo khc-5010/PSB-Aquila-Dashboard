@@ -444,7 +444,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
 
           {/* FDA Intelligence */}
           <Section title="FDA Intelligence" defaultOpen={false}>
-            <FdaEnrichment prospect={p} onUpdate={onUpdate} />
+            <FdaEnrichment prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
           </Section>
 
           {/* PSB Relationship */}
