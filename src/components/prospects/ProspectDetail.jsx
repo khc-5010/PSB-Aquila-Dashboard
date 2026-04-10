@@ -57,7 +57,7 @@ function buildHookLine(p) {
     hooks.push('PE-backed')
   }
 
-  if (p.medical_device_mfg === 'Yes') hooks.push('medical device mfg')
+  if (p.medical_device_mfg?.startsWith('Yes')) hooks.push('medical device mfg')
 
   if ((p.cwp_contacts ?? 0) >= 20) hooks.push('deep PSB relationship')
   else if ((p.cwp_contacts ?? 0) >= 5) hooks.push('warm PSB lead')

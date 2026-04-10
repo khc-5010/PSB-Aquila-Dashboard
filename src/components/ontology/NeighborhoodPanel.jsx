@@ -74,7 +74,7 @@ export default function NeighborhoodPanel({ prospect }) {
           }
         }
         if (!probeNode) {
-          if (prospect.medical_device_mfg === 'Yes') {
+          if (prospect.medical_device_mfg?.startsWith('Yes')) {
             probeNode = (graph.nodes || []).find(n => n.isSuper && n.type === 'Market Vertical' && n.label.toLowerCase().includes('medical'))
           }
         }
