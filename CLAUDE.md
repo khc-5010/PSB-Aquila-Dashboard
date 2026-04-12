@@ -354,7 +354,7 @@ Companies that share a `parent_company` value are grouped into expandable/collap
 - Filtering works on the flat prospect list first, grouping applies to filtered results — search for "Synventive" shows it even though it's a subsidiary
 - CSV export remains flat (exports the filtered array, not grouped structure)
 - `filtered.length` count reflects individual prospects, not grouped row count
-- Column widths unchanged — grouped rows use the same 14-column structure
+- Column widths unchanged — grouped rows use the same 17-column structure
 - Charts sub-view unaffected — grouping only applies to table view
 
 **Key test cases:**
@@ -381,7 +381,9 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
 
 **Files modified:** `ProspectTable.jsx`, `ProspectDetail.jsx`
 
-1. **Press Count Column** — "Presses" column between Sig and RJG in table. Sortable. Universal sizing metric in plastics.
+1. **Press Count Column** — "Presses" column between Sig and Sites in table. Sortable. Universal sizing metric in plastics.
+1b. **Sites Column** — "Sites" column between Presses and Acq. Sortable by `site_count`. Shows dash when null.
+1c. **Acquisitions Column** — "Acq" column between Sites and RJG. Sortable by `acquisition_count`. Shows dash when null. Both columns aggregate in parent group rows.
 2. **Tooling Indicator** — 🔧 icon in Category cell when `in_house_tooling === 'Yes'`. Tooltip: "In-house tooling — controls their own molds."
 3. **Gold RJG Treatment** — Confirmed RJG users show gold/amber star (★) instead of green checkmark. Matches Brett's "gold signal" mental model. Likely still shows yellow tilde.
 4. **Ownership Urgency Indicators** — Icons after ownership text: red ⏱ (PE + recent M&A, 6-18mo window), amber ⏱ (PE, 3-5yr hold), orange ◈ (family 30+ years, succession), blue ◈ (ESOP). Ownership text truncated to ~100px in table.
