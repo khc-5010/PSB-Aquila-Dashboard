@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
@@ -162,7 +163,7 @@ function EditableField({ label, value, onSave, multiline = false }) {
   )
 }
 
-function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
+function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate }) {
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -187,6 +188,27 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
     fetchAttachments()
   }, [fetchAttachments])
 
+  // Escape key — close modal only if no sub-modal is open
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal
+        if (!anySubModalOpen) {
+          onClose()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal])
+
+  // Prev/next navigation
+  const currentIndex = prospectNavList ? prospectNavList.indexOf(prospect?.id) : -1
+  const hasPrev = currentIndex > 0
+  const hasNext = currentIndex >= 0 && currentIndex < (prospectNavList?.length ?? 0) - 1
+  const navigatePrev = () => { if (hasPrev && onNavigate) onNavigate(prospectNavList[currentIndex - 1]) }
+  const navigateNext = () => { if (hasNext && onNavigate) onNavigate(prospectNavList[currentIndex + 1]) }
+
   if (!prospect) return null
 
   const p = prospect
@@ -206,347 +228,387 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/20 z-40 transition-opacity"
+        className="fixed inset-0 bg-black/30 z-40"
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-white shadow-2xl z-50 flex flex-col transform transition-transform duration-200 ease-out">
-        {/* Header */}
-        <div className="flex-shrink-0 bg-[#041E42] px-5 py-4">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
-                <StatusBadge status={p.prospect_status} />
-              </div>
-              {p.also_known_as && (
-                <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
-              )}
-              {buildHookLine(p) && (
-                <p className="text-sm text-white/60 mt-1 italic">{buildHookLine(p)}</p>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <OutreachGroupBadge group={p.outreach_group} />
-                {p.outreach_rank && (
-                  <span className="text-white/70 text-sm">Rank #{p.outreach_rank}</span>
+      {/* Modal positioning wrapper */}
+      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 lg:p-10 pointer-events-none">
+        <div
+          className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex-shrink-0 bg-[#041E42] px-6 py-4 rounded-t-xl">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
+                  <StatusBadge status={p.prospect_status} />
+                </div>
+                {p.also_known_as && (
+                  <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
                 )}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white/70 hover:text-white ml-3 mt-1 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* Promote to Pipeline button */}
-        {(p.prospect_status === 'Outreach Ready' || p.prospect_status === 'Converted') && (
-          <div className="flex-shrink-0 px-5 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
-            <button
-              onClick={() => setShowConvertModal(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#041E42] rounded-lg hover:bg-[#041E42]/90 transition-colors shadow-sm"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              Promote to Pipeline
-              {p.prospect_status === 'Converted' && (
-                <span className="text-xs text-white/60 ml-1">(add another)</span>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Engagement Planning - editable section at top */}
-          <Section title="Engagement Planning" defaultOpen={true}>
-            <div className="space-y-3">
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Group</dt>
-                <dd className="mt-0.5">
-                  <select
-                    value={p.outreach_group || 'Unassigned'}
-                    onChange={(e) => onUpdate(p.id, 'outreach_group', e.target.value)}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                  >
-                    {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
-                  </select>
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</dt>
-                <dd className="mt-0.5">
-                  <select
-                    value={p.prospect_status || 'Identified'}
-                    onChange={(e) => onUpdate(p.id, 'prospect_status', e.target.value)}
-                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                  >
-                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </dd>
-              </div>
-
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Rank</dt>
-                <dd className="mt-0.5">
-                  <input
-                    type="number"
-                    min="1"
-                    value={p.outreach_rank ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                      onUpdate(p.id, 'outreach_rank', val)
-                    }}
-                    placeholder="Set rank..."
-                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                  />
-                </dd>
-              </div>
-
-              <EditableField
-                label="Suggested Next Step"
-                value={p.suggested_next_step}
-                onSave={(val) => onUpdate(p.id, 'suggested_next_step', val)}
-                multiline
-              />
-
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Follow-Up Date</dt>
-                <dd className="mt-0.5">
-                  <div className="flex items-center">
-                    <input
-                      type="date"
-                      value={p.follow_up_date ? p.follow_up_date.split('T')[0] : ''}
-                      onChange={(e) => onUpdate(p.id, 'follow_up_date', e.target.value || null)}
-                      className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                    />
-                    {p.follow_up_date && (
-                      <button
-                        onClick={() => onUpdate(p.id, 'follow_up_date', null)}
-                        className="ml-2 text-xs text-gray-400 hover:text-red-500"
-                        title="Clear follow-up date"
-                      >
-                        clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {[
-                      { label: 'Tomorrow', days: 1 },
-                      { label: '+3 days', days: 3 },
-                      { label: '+1 week', days: 7 },
-                      { label: '+2 weeks', days: 14 },
-                      { label: '+1 month', days: 30 },
-                    ].map(({ label, days }) => (
-                      <button
-                        key={label}
-                        onClick={() => {
-                          const d = new Date()
-                          d.setDate(d.getDate() + days)
-                          onUpdate(p.id, 'follow_up_date', d.toISOString().split('T')[0])
-                        }}
-                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </dd>
-              </div>
-
-              <EditableField
-                label="Group Notes"
-                value={p.group_notes}
-                onSave={(val) => onUpdate(p.id, 'group_notes', val)}
-                multiline
-              />
-
-              <EditableField
-                label="Notes"
-                value={p.notes}
-                onSave={(val) => onUpdate(p.id, 'notes', val)}
-                multiline
-              />
-
-              <Field label="Engagement Type" value={p.engagement_type} />
-              <Field label="Legacy Data Potential" value={p.legacy_data_potential} />
-            </div>
-          </Section>
-
-          {/* Company Info */}
-          <Section title="Company Info" defaultOpen={true}>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Field label="Category" value={p.category} />
-              <Field label="In-House Tooling" value={p.in_house_tooling} />
-              <Field label="City" value={p.city} />
-              <Field label="State" value={p.state} />
-              <Field label="Geography Tier" value={p.geography_tier} />
-              <Field label="Website" value={p.website} className="col-span-2" />
-              <Field label="Source Report" value={p.source_report} className="col-span-2" />
-              <Field label="Priority" value={p.priority} />
-              <Field label="Ownership Type" value={p.ownership_type} />
-              <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
-              <EditableField
-                label="Parent Company"
-                value={p.parent_company}
-                onSave={(val) => onUpdate(p.id, 'parent_company', val)}
-              />
-              <EditableField
-                label="Decision Location"
-                value={p.decision_location}
-                onSave={(val) => onUpdate(p.id, 'decision_location', val)}
-              />
-            </dl>
-          </Section>
-
-          {/* Company Metrics */}
-          <Section title="Company Metrics" defaultOpen={false}>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Field label="Employees (Approx)" value={p.employees_approx} />
-              <Field label="Year Founded" value={p.year_founded} />
-              <Field label="Years in Business" value={p.years_in_business} />
-              <Field label="Revenue Known" value={p.revenue_known} />
-              <Field label="Revenue Est ($M)" value={p.revenue_est_m} />
-              <Field label="Press Count" value={p.press_count} />
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
-                <dd className="mt-0.5">
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.site_count ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                      onUpdate(p.id, 'site_count', val)
-                    }}
-                    placeholder="—"
-                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisitions</dt>
-                <dd className="mt-0.5">
-                  <input
-                    type="number"
-                    min="0"
-                    value={p.acquisition_count ?? ''}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                      onUpdate(p.id, 'acquisition_count', val)
-                    }}
-                    placeholder="—"
-                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                  />
-                </dd>
-              </div>
-            </dl>
-          </Section>
-
-          {/* Signals & Readiness */}
-          <Section title="Signals & Readiness" defaultOpen={true}>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-              <Field label="Signal Count" value={p.signal_count} />
-              <Field label="Top Signal" value={p.top_signal} />
-              <Field label="RJG Cavity Pressure" value={p.rjg_cavity_pressure} />
-              <Field label="Medical Device Mfg" value={p.medical_device_mfg} />
-              <div className="col-span-2">
-                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Key Certifications</dt>
-                <dd className="mt-1 flex flex-wrap">
-                  {p.key_certifications ? (
-                    p.key_certifications.split(',').map(cert => cert.trim()).filter(Boolean).map((cert, i) => {
-                      const colors = getCertColor(cert)
-                      return (
-                        <span key={i} className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mr-1.5 mb-1.5 ${colors.bg} ${colors.text}`}>
-                          {cert}
-                        </span>
-                      )
-                    })
-                  ) : (
-                    <span className="text-sm text-gray-900">{'\u2014'}</span>
+                {buildHookLine(p) && (
+                  <p className="text-sm text-white/60 mt-1 italic">{buildHookLine(p)}</p>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <OutreachGroupBadge group={p.outreach_group} />
+                  {p.outreach_rank && (
+                    <span className="text-white/70 text-sm">Rank #{p.outreach_rank}</span>
                   )}
-                </dd>
-              </div>
-            </dl>
-          </Section>
-
-          {/* FDA Intelligence */}
-          <Section title="FDA Intelligence" defaultOpen={false}>
-            <FdaEnrichment prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
-          </Section>
-
-          {/* PSB Relationship */}
-          <Section title="PSB Relationship" defaultOpen={(p.cwp_contacts ?? 0) >= 5}>
-            {(p.cwp_contacts ?? 0) > 0 && (
-              <div className={`mb-3 px-3 py-2 rounded-lg text-sm ${
-                (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-50 text-red-800 border border-red-200' :
-                (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-50 text-orange-800 border border-orange-200' :
-                (p.cwp_contacts ?? 0) >= 5  ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                'bg-gray-50 text-gray-600 border border-gray-200'
-              }`}>
-                <span className="font-semibold">{p.cwp_contacts} CWP contacts</span>
-                {' — '}
-                {(p.cwp_contacts ?? 0) >= 20 ? 'Very strong existing relationship' :
-                 (p.cwp_contacts ?? 0) >= 10 ? 'Strong existing relationship' :
-                 (p.cwp_contacts ?? 0) >= 5  ? 'Warm lead — existing relationship' :
-                 'Some PSB connection'}
-              </div>
-            )}
-            <dl className="space-y-3">
-              <Field label="CWP Contacts" value={p.cwp_contacts} />
-              <Field label="PSB Connection Notes" value={p.psb_connection_notes} />
-            </dl>
-          </Section>
-
-          {/* Research Brief */}
-          <div className="border-t border-gray-200">
-            {researchBrief ? (
-              <Section title="Research Brief" defaultOpen={true}>
-                <ResearchBriefPanel
-                  attachment={researchBrief}
-                  onDelete={handleDeleteBrief}
-                  onExtractOntology={() => setShowExtractionModal(true)}
-                  onImportOntology={() => setShowImportModal(true)}
-                />
-              </Section>
-            ) : (
-              <div className="px-5 py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-gray-700">Research Brief</h3>
-                  <span className="text-xs text-gray-400">No research attached</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowPromptModal(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-[#041E42] text-white rounded-lg hover:bg-[#041E42]/90"
-                  >
-                    Generate Research Prompt
-                  </button>
-                  <button
-                    onClick={() => setShowAttachModal(true)}
-                    className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Attach Research Brief
-                  </button>
                 </div>
               </div>
-            )}
+
+              {/* Navigation + Close */}
+              <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                {prospectNavList && prospectNavList.length > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={navigatePrev}
+                      disabled={!hasPrev}
+                      className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Previous prospect"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-xs text-white/50 tabular-nums min-w-[3rem] text-center">
+                      {currentIndex + 1} / {prospectNavList.length}
+                    </span>
+                    <button
+                      onClick={navigateNext}
+                      disabled={!hasNext}
+                      className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Next prospect"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Ontology Neighborhood */}
-          <div className="border-t border-gray-200 px-5 py-4">
-            <NeighborhoodPanel prospect={p} />
+          {/* Promote to Pipeline button */}
+          {(p.prospect_status === 'Outreach Ready' || p.prospect_status === 'Converted') && (
+            <div className="flex-shrink-0 px-5 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100">
+              <button
+                onClick={() => setShowConvertModal(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#041E42] rounded-lg hover:bg-[#041E42]/90 transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+                Promote to Pipeline
+                {p.prospect_status === 'Converted' && (
+                  <span className="text-xs text-white/60 ml-1">(add another)</span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Two-column body */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-x divide-gray-100">
+
+              {/* LEFT COLUMN — Action sections */}
+              <div className="divide-y divide-gray-100">
+                {/* Engagement Planning */}
+                <Section title="Engagement Planning" defaultOpen={true}>
+                  <div className="space-y-3">
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Group</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.outreach_group || 'Unassigned'}
+                          onChange={(e) => onUpdate(p.id, 'outreach_group', e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                        </select>
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.prospect_status || 'Identified'}
+                          onChange={(e) => onUpdate(p.id, 'prospect_status', e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Rank</dt>
+                      <dd className="mt-0.5">
+                        <input
+                          type="number"
+                          min="1"
+                          value={p.outreach_rank ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                            onUpdate(p.id, 'outreach_rank', val)
+                          }}
+                          placeholder="Set rank..."
+                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        />
+                      </dd>
+                    </div>
+
+                    <EditableField
+                      label="Suggested Next Step"
+                      value={p.suggested_next_step}
+                      onSave={(val) => onUpdate(p.id, 'suggested_next_step', val)}
+                      multiline
+                    />
+
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Follow-Up Date</dt>
+                      <dd className="mt-0.5">
+                        <div className="flex items-center">
+                          <input
+                            type="date"
+                            value={p.follow_up_date ? p.follow_up_date.split('T')[0] : ''}
+                            onChange={(e) => onUpdate(p.id, 'follow_up_date', e.target.value || null)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          />
+                          {p.follow_up_date && (
+                            <button
+                              onClick={() => onUpdate(p.id, 'follow_up_date', null)}
+                              className="ml-2 text-xs text-gray-400 hover:text-red-500"
+                              title="Clear follow-up date"
+                            >
+                              clear
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {[
+                            { label: 'Tomorrow', days: 1 },
+                            { label: '+3 days', days: 3 },
+                            { label: '+1 week', days: 7 },
+                            { label: '+2 weeks', days: 14 },
+                            { label: '+1 month', days: 30 },
+                          ].map(({ label, days }) => (
+                            <button
+                              key={label}
+                              onClick={() => {
+                                const d = new Date()
+                                d.setDate(d.getDate() + days)
+                                onUpdate(p.id, 'follow_up_date', d.toISOString().split('T')[0])
+                              }}
+                              className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </dd>
+                    </div>
+
+                    <EditableField
+                      label="Group Notes"
+                      value={p.group_notes}
+                      onSave={(val) => onUpdate(p.id, 'group_notes', val)}
+                      multiline
+                    />
+
+                    <EditableField
+                      label="Notes"
+                      value={p.notes}
+                      onSave={(val) => onUpdate(p.id, 'notes', val)}
+                      multiline
+                    />
+
+                    <Field label="Engagement Type" value={p.engagement_type} />
+                    <Field label="Legacy Data Potential" value={p.legacy_data_potential} />
+                  </div>
+                </Section>
+
+                {/* Research Brief */}
+                <div>
+                  {researchBrief ? (
+                    <Section title="Research Brief" defaultOpen={true}>
+                      <ResearchBriefPanel
+                        attachment={researchBrief}
+                        onDelete={handleDeleteBrief}
+                        onExtractOntology={() => setShowExtractionModal(true)}
+                        onImportOntology={() => setShowImportModal(true)}
+                      />
+                    </Section>
+                  ) : (
+                    <div className="px-5 py-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-700">Research Brief</h3>
+                        <span className="text-xs text-gray-400">No research attached</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowPromptModal(true)}
+                          className="px-3 py-1.5 text-xs font-medium bg-[#041E42] text-white rounded-lg hover:bg-[#041E42]/90"
+                        >
+                          Generate Research Prompt
+                        </button>
+                        <button
+                          onClick={() => setShowAttachModal(true)}
+                          className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Attach Research Brief
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ontology Neighborhood */}
+                <div className="px-5 py-4">
+                  <NeighborhoodPanel prospect={p} />
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN — Reference sections */}
+              <div className="divide-y divide-gray-100">
+                {/* Company Info */}
+                <Section title="Company Info" defaultOpen={true}>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <Field label="Category" value={p.category} />
+                    <Field label="In-House Tooling" value={p.in_house_tooling} />
+                    <Field label="City" value={p.city} />
+                    <Field label="State" value={p.state} />
+                    <Field label="Geography Tier" value={p.geography_tier} />
+                    <Field label="Website" value={p.website} className="col-span-2" />
+                    <Field label="Source Report" value={p.source_report} className="col-span-2" />
+                    <Field label="Priority" value={p.priority} />
+                    <Field label="Ownership Type" value={p.ownership_type} />
+                    <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
+                    <EditableField
+                      label="Parent Company"
+                      value={p.parent_company}
+                      onSave={(val) => onUpdate(p.id, 'parent_company', val)}
+                    />
+                    <EditableField
+                      label="Decision Location"
+                      value={p.decision_location}
+                      onSave={(val) => onUpdate(p.id, 'decision_location', val)}
+                    />
+                  </dl>
+                </Section>
+
+                {/* Company Metrics */}
+                <Section title="Company Metrics" defaultOpen={false}>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <Field label="Employees (Approx)" value={p.employees_approx} />
+                    <Field label="Year Founded" value={p.year_founded} />
+                    <Field label="Years in Business" value={p.years_in_business} />
+                    <Field label="Revenue Known" value={p.revenue_known} />
+                    <Field label="Revenue Est ($M)" value={p.revenue_est_m} />
+                    <Field label="Press Count" value={p.press_count} />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
+                      <dd className="mt-0.5">
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.site_count ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                            onUpdate(p.id, 'site_count', val)
+                          }}
+                          placeholder="—"
+                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisitions</dt>
+                      <dd className="mt-0.5">
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.acquisition_count ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                            onUpdate(p.id, 'acquisition_count', val)
+                          }}
+                          placeholder="—"
+                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        />
+                      </dd>
+                    </div>
+                  </dl>
+                </Section>
+
+                {/* Signals & Readiness */}
+                <Section title="Signals & Readiness" defaultOpen={true}>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <Field label="Signal Count" value={p.signal_count} />
+                    <Field label="Top Signal" value={p.top_signal} />
+                    <Field label="RJG Cavity Pressure" value={p.rjg_cavity_pressure} />
+                    <Field label="Medical Device Mfg" value={p.medical_device_mfg} />
+                    <div className="col-span-2">
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Key Certifications</dt>
+                      <dd className="mt-1 flex flex-wrap">
+                        {p.key_certifications ? (
+                          p.key_certifications.split(',').map(cert => cert.trim()).filter(Boolean).map((cert, i) => {
+                            const colors = getCertColor(cert)
+                            return (
+                              <span key={i} className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mr-1.5 mb-1.5 ${colors.bg} ${colors.text}`}>
+                                {cert}
+                              </span>
+                            )
+                          })
+                        ) : (
+                          <span className="text-sm text-gray-900">{'\u2014'}</span>
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+                </Section>
+
+                {/* FDA Intelligence */}
+                <Section title="FDA Intelligence" defaultOpen={false}>
+                  <FdaEnrichment prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
+                </Section>
+
+                {/* PSB Relationship */}
+                <Section title="PSB Relationship" defaultOpen={(p.cwp_contacts ?? 0) >= 5}>
+                  {(p.cwp_contacts ?? 0) > 0 && (
+                    <div className={`mb-3 px-3 py-2 rounded-lg text-sm ${
+                      (p.cwp_contacts ?? 0) >= 20 ? 'bg-red-50 text-red-800 border border-red-200' :
+                      (p.cwp_contacts ?? 0) >= 10 ? 'bg-orange-50 text-orange-800 border border-orange-200' :
+                      (p.cwp_contacts ?? 0) >= 5  ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                      'bg-gray-50 text-gray-600 border border-gray-200'
+                    }`}>
+                      <span className="font-semibold">{p.cwp_contacts} CWP contacts</span>
+                      {' — '}
+                      {(p.cwp_contacts ?? 0) >= 20 ? 'Very strong existing relationship' :
+                       (p.cwp_contacts ?? 0) >= 10 ? 'Strong existing relationship' :
+                       (p.cwp_contacts ?? 0) >= 5  ? 'Warm lead — existing relationship' :
+                       'Some PSB connection'}
+                    </div>
+                  )}
+                  <dl className="space-y-3">
+                    <Field label="CWP Contacts" value={p.cwp_contacts} />
+                    <Field label="PSB Connection Notes" value={p.psb_connection_notes} />
+                  </dl>
+                </Section>
+              </div>
+
+            </div>
           </div>
 
-          {/* Meta */}
-          <div className="px-5 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100 space-y-1">
+          {/* Meta footer */}
+          <div className="flex-shrink-0 px-6 py-3 bg-gray-50 text-xs text-gray-400 border-t border-gray-100 rounded-b-xl space-y-1">
             <div className="flex justify-between">
               <span>Added by: {p.added_by || 'Unknown'}{p.created_at ? ` · ${new Date(p.created_at).toLocaleDateString()}` : ''}</span>
               <span>Updated: {p.updated_at ? new Date(p.updated_at).toLocaleDateString() : 'N/A'}</span>
@@ -556,47 +618,47 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
             </div>
           </div>
         </div>
-
-        {/* Modals */}
-        {showPromptModal && (
-          <ResearchPromptModal
-            prospect={p}
-            onClose={() => setShowPromptModal(false)}
-          />
-        )}
-        {showAttachModal && (
-          <AttachResearchModal
-            prospect={p}
-            onClose={() => setShowAttachModal(false)}
-            onSaved={handleBriefSaved}
-          />
-        )}
-        {showConvertModal && (
-          <ConvertToOpportunityModal
-            prospect={p}
-            onClose={() => setShowConvertModal(false)}
-            onSuccess={() => {
-              if (onRefresh) onRefresh()
-            }}
-          />
-        )}
-        {showExtractionModal && researchBrief && (
-          <ExtractionPromptModal
-            prospect={p}
-            attachment={researchBrief}
-            onClose={() => setShowExtractionModal(false)}
-          />
-        )}
-        {showImportModal && (
-          <ImportOntologyModal
-            prospect={p}
-            onClose={() => setShowImportModal(false)}
-            onImported={() => {
-              if (onRefresh) onRefresh()
-            }}
-          />
-        )}
       </div>
+
+      {/* Sub-modals (render outside modal container for correct z-stacking) */}
+      {showPromptModal && (
+        <ResearchPromptModal
+          prospect={p}
+          onClose={() => setShowPromptModal(false)}
+        />
+      )}
+      {showAttachModal && (
+        <AttachResearchModal
+          prospect={p}
+          onClose={() => setShowAttachModal(false)}
+          onSaved={handleBriefSaved}
+        />
+      )}
+      {showConvertModal && (
+        <ConvertToOpportunityModal
+          prospect={p}
+          onClose={() => setShowConvertModal(false)}
+          onSuccess={() => {
+            if (onRefresh) onRefresh()
+          }}
+        />
+      )}
+      {showExtractionModal && researchBrief && (
+        <ExtractionPromptModal
+          prospect={p}
+          attachment={researchBrief}
+          onClose={() => setShowExtractionModal(false)}
+        />
+      )}
+      {showImportModal && (
+        <ImportOntologyModal
+          prospect={p}
+          onClose={() => setShowImportModal(false)}
+          onImported={() => {
+            if (onRefresh) onRefresh()
+          }}
+        />
+      )}
     </>
   )
 }
