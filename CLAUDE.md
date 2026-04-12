@@ -227,7 +227,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - **`prospect_companies`** - 179-company prospect database for alliance outreach
   - `id` (SERIAL, PK)
   - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `geography_tier`, `source_report`, `priority`
-  - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`
+  - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`, `site_count`, `acquisition_count`
   - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg` (values: `'Yes'`, `'Yes (confirmed)'`, `'No'`, or NULL), `key_certifications`
   - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
@@ -392,11 +392,34 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
    - Green: Environmental (ISO 14001)
    - Cyan: Cleanroom (ISO Class)
    - Gray-light: General QMS (ISO 9001) and default
-6. **"Why This Company" Hook Line** — Computed one-liner in detail panel header (white/60 italic). Built from: RJG status → tooling integration → press count/employees → legacy years → PE/M&A → medical → CWP warmth → top_signal fallback. Max 4 hooks, separated by middle dot (·).
+6. **"Why This Company" Hook Line** — Computed one-liner in detail panel header (white/60 italic). Built from: RJG status → tooling integration → press count/employees → site count (≥10) → acquisition count (≥5) → legacy years → PE/M&A → medical → CWP warmth → top_signal fallback. Max 4 hooks, separated by middle dot (·).
 
-**`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
+**`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → site count (≥10) → acquisition count (≥5) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
 
 **`CERT_COLORS`** mapping and `getCertColor()` use case-insensitive partial match against certification string.
+
+### Company Hover Card (CompanyHoverCard)
+
+**Component**: Inline in `ProspectTable.jsx` — renders a compact corporate profile card on company name hover in the prospect table.
+
+**Behavior**:
+- 250ms delay before showing (prevents flicker on casual mouse movement). Timeout cleared on mouse leave.
+- `pointer-events-none` on the card so it doesn't intercept row clicks
+- Wraps ONLY the company name `<span>`, not the entire company cell (preserves CWP dots, AKA text, badges, expand toggles)
+- Appears on standalone rows, child rows, and real parent group header rows
+- Does NOT appear on virtual parent rows (no prospect data)
+- If no data fields are populated, renders as a passthrough (just children)
+
+**Content** (rows shown only when data exists):
+- Presses + Employees
+- Sites + Acquisitions (`site_count`, `acquisition_count`)
+- Founded + Revenue
+- Ownership + Geography Tier
+- Parent Company
+- Certification badges (same color scheme as ProspectDetail)
+- Top Signal (footer, italic)
+
+**Editable fields**: `site_count` (INTEGER) and `acquisition_count` (INTEGER) are editable in ProspectDetail Company Metrics section as always-visible number inputs (same pattern as `outreach_rank`). Data entered here appears in the hover card and in `buildHookLine()` (≥10 sites, ≥5 acquisitions).
 
 ### FDA Intelligence (Client-Side Enrichment)
 
