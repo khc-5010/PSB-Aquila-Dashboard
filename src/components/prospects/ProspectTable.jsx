@@ -538,6 +538,8 @@ function ProspectTable() {
           children: g.children,
           aggregates: {
             totalPresses: all.reduce((s, m) => s + (m.press_count || 0), 0),
+            totalSites: all.reduce((s, m) => s + (m.site_count || 0), 0),
+            totalAcquisitions: all.reduce((s, m) => s + (m.acquisition_count || 0), 0),
             totalEmployees: all.reduce((s, m) => s + (m.employees_approx || 0), 0),
             totalCWP: all.reduce((s, m) => s + (m.cwp_contacts || 0), 0),
             totalSignal: all.reduce((s, m) => s + (m.signal_count || 0), 0),
@@ -704,6 +706,8 @@ function ProspectTable() {
       </td>
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.signal_count)}</span></td>
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.press_count)}</span></td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.site_count || '\u2014'}</span></td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.acquisition_count || '\u2014'}</span></td>
       <td className="px-3 py-2.5 text-center">
         {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
@@ -818,6 +822,8 @@ function ProspectTable() {
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalSignal || '\u2014'}</span></td>
           <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalPresses || '\u2014'}</span></td>
+          <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalSites || '\u2014'}</span></td>
+          <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-500">{aggregates.totalAcquisitions || '\u2014'}</span></td>
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5 text-center"><span className={`text-sm ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span></td>
@@ -908,6 +914,8 @@ function ProspectTable() {
         </td>
         <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalSignal || '\u2014'}</span></td>
         <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalPresses || '\u2014'}</span></td>
+        <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalSites || '\u2014'}</span></td>
+        <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalAcquisitions || '\u2014'}</span></td>
         <td className="px-3 py-2.5 text-center">
           {parentP.rjg_cavity_pressure === 'Yes' || parentP.rjg_cavity_pressure === 'Yes (confirmed)' ? (
             <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
@@ -1103,6 +1111,12 @@ function ProspectTable() {
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('press_count')}>
                 Presses <SortIcon column="press_count" />
               </th>
+              <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('site_count')}>
+                Sites <SortIcon column="site_count" />
+              </th>
+              <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('acquisition_count')}>
+                Acq <SortIcon column="acquisition_count" />
+              </th>
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16">
                 RJG
               </th>
@@ -1126,7 +1140,7 @@ function ProspectTable() {
           <tbody className="divide-y divide-gray-100">
             {grouped.length === 0 ? (
               <tr>
-                <td colSpan={15} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={17} className="px-6 py-12 text-center text-gray-500">
                   {prospects.length === 0
                     ? 'No prospects loaded. Run the seed script or import from Excel.'
                     : 'No prospects match the current filters.'}
