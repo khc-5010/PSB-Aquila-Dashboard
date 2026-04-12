@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
 
@@ -366,6 +366,38 @@ function ProspectTable() {
       .catch(err => { setError(err.message); setLoading(false) })
   }, [])
 
+  // Hash routing — auto-select prospect from URL on load
+  useEffect(() => {
+    if (prospects.length === 0) return
+    const hash = window.location.hash
+    const qIdx = hash.indexOf('?')
+    if (qIdx === -1) return
+    const params = new URLSearchParams(hash.slice(qIdx + 1))
+    const idParam = params.get('id')
+    if (idParam) {
+      const found = prospects.find(p => p.id === Number(idParam))
+      if (found) {
+        setSelectedProspect(found)
+      } else {
+        window.history.replaceState(null, '', '#prospects')
+      }
+    }
+  }, [prospects])
+
+  // Hash routing — update URL when selection changes
+  useEffect(() => {
+    if (selectedProspect) {
+      const newHash = `prospects?id=${selectedProspect.id}`
+      if (window.location.hash !== `#${newHash}`) {
+        window.history.replaceState(null, '', `#${newHash}`)
+      }
+    } else {
+      if (window.location.hash.includes('?id=')) {
+        window.history.replaceState(null, '', '#prospects')
+      }
+    }
+  }, [selectedProspect])
+
   // Action items count (computed from full prospect list, independent of filters)
   const actionItemCount = prospects.filter(p => {
     const u = getProspectUrgency(p)
@@ -445,6 +477,9 @@ function ProspectTable() {
     const sigB = b.signal_count ?? 0
     return sigB - sigA
   })
+
+  // Navigation list for ProspectDetail prev/next (flat, filtered+sorted order)
+  const prospectNavList = useMemo(() => sorted.map(p => p.id), [sorted])
 
   // Group by parent company (client-side, after filter + sort)
   const grouped = (() => {
@@ -1113,13 +1148,20 @@ function ProspectTable() {
         </table>
       </div>
 
-      {/* Detail Panel */}
-      <ProspectDetail
-        prospect={selectedProspect}
-        onClose={() => setSelectedProspect(null)}
-        onUpdate={updateProspect}
-        onRefresh={refreshProspects}
-      />
+      {/* Detail Modal */}
+      {selectedProspect && (
+        <ProspectDetail
+          prospect={selectedProspect}
+          onClose={() => setSelectedProspect(null)}
+          onUpdate={updateProspect}
+          onRefresh={refreshProspects}
+          prospectNavList={prospectNavList}
+          onNavigate={(id) => {
+            const found = prospects.find(p => p.id === id)
+            if (found) setSelectedProspect(found)
+          }}
+        />
+      )}
       </>
       )}
 
