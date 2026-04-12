@@ -2457,6 +2457,7 @@ export default async function handler(req, res) {
       'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
       'outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by', 'prospect_status',
       'parent_company', 'decision_location', 'follow_up_date',
+      'site_count', 'acquisition_count',
     ]
 
     const setClauses = []
