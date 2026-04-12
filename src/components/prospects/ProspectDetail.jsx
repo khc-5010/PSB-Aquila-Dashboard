@@ -486,7 +486,23 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <Field label="City" value={p.city} />
                     <Field label="State" value={p.state} />
                     <Field label="Geography Tier" value={p.geography_tier} />
-                    <Field label="Website" value={p.website} className="col-span-2" />
+                    <div className="col-span-2">
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Website</dt>
+                      <dd className="mt-0.5 text-sm">
+                        {p.website ? (
+                          <a
+                            href={p.website.startsWith('http') ? p.website : `https://${p.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            {p.website}
+                          </a>
+                        ) : (
+                          <span className="text-gray-900">{'\u2014'}</span>
+                        )}
+                      </dd>
+                    </div>
                     <Field label="Source Report" value={p.source_report} className="col-span-2" />
                     <Field label="Priority" value={p.priority} />
                     <Field label="Ownership Type" value={p.ownership_type} />
