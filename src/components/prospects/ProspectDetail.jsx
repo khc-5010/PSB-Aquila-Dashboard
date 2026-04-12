@@ -50,6 +50,9 @@ function buildHookLine(p) {
   if (p.press_count) hooks.push(`${p.press_count}-press operation`)
   else if ((p.employees_approx ?? 0) >= 500) hooks.push(`${p.employees_approx}+ employees`)
 
+  if ((p.site_count ?? 0) >= 10) hooks.push(`${p.site_count} sites`)
+  if ((p.acquisition_count ?? 0) >= 5) hooks.push(`${p.acquisition_count} acquisitions`)
+
   if ((p.years_in_business ?? 0) >= 30) hooks.push(`${p.years_in_business}-year legacy`)
 
   if (p.ownership_type?.includes('PE') && p.recent_ma) {
@@ -412,6 +415,38 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh }) {
               <Field label="Revenue Known" value={p.revenue_known} />
               <Field label="Revenue Est ($M)" value={p.revenue_est_m} />
               <Field label="Press Count" value={p.press_count} />
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
+                <dd className="mt-0.5">
+                  <input
+                    type="number"
+                    min="0"
+                    value={p.site_count ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                      onUpdate(p.id, 'site_count', val)
+                    }}
+                    placeholder="—"
+                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisitions</dt>
+                <dd className="mt-0.5">
+                  <input
+                    type="number"
+                    min="0"
+                    value={p.acquisition_count ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
+                      onUpdate(p.id, 'acquisition_count', val)
+                    }}
+                    placeholder="—"
+                    className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                  />
+                </dd>
+              </div>
             </dl>
           </Section>
 

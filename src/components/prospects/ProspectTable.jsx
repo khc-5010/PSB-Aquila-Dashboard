@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
 
@@ -109,6 +109,7 @@ function exportToCSV(data, filename) {
     'city', 'state', 'geography_tier', 'source_report', 'priority',
     'employees_approx', 'year_founded', 'years_in_business',
     'revenue_known', 'revenue_est_m', 'press_count',
+    'site_count', 'acquisition_count',
     'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
     'key_certifications', 'ownership_type', 'recent_ma', 'parent_company', 'decision_location',
     'cwp_contacts', 'psb_connection_notes',
@@ -134,6 +135,159 @@ function exportToCSV(data, filename) {
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+const HOVER_CERT_COLORS = {
+  'ISO 13485': 'bg-purple-100 text-purple-700',
+  'FDA': 'bg-purple-100 text-purple-700',
+  'MedAccred': 'bg-purple-100 text-purple-700',
+  'IATF 16949': 'bg-blue-100 text-blue-700',
+  'TS 16949': 'bg-blue-100 text-blue-700',
+  'AS9100': 'bg-gray-200 text-gray-700',
+  'NADCAP': 'bg-gray-200 text-gray-700',
+  'ITAR': 'bg-gray-200 text-gray-700',
+  'ISO 14001': 'bg-green-100 text-green-700',
+  'ISO 9001': 'bg-gray-100 text-gray-600',
+  'ISO Class': 'bg-cyan-100 text-cyan-700',
+}
+
+function getHoverCertColor(cert) {
+  const cl = cert.toLowerCase()
+  for (const [key, cls] of Object.entries(HOVER_CERT_COLORS)) {
+    if (cl.includes(key.toLowerCase())) return cls
+  }
+  return 'bg-gray-100 text-gray-600'
+}
+
+function CompanyHoverCard({ prospect, children }) {
+  const [show, setShow] = useState(false)
+  const timeoutRef = useRef(null)
+
+  const handleMouseEnter = () => {
+    timeoutRef.current = setTimeout(() => setShow(true), 250)
+  }
+
+  const handleMouseLeave = () => {
+    clearTimeout(timeoutRef.current)
+    setShow(false)
+  }
+
+  const p = prospect
+  const hasData = p.employees_approx || p.press_count ||
+    p.site_count || p.acquisition_count ||
+    p.year_founded || p.revenue_est_m ||
+    p.ownership_type || p.key_certifications ||
+    p.top_signal || p.parent_company
+
+  if (!hasData) return <>{children}</>
+
+  const certs = p.key_certifications
+    ? p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
+    : []
+
+  const row1 = (p.press_count || p.employees_approx)
+  const row2 = (p.site_count || p.acquisition_count)
+  const row3 = (p.year_founded || p.revenue_est_m)
+  const row4 = (p.ownership_type || p.geography_tier)
+  const row5 = p.parent_company
+
+  return (
+    <span
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+      {show && (
+        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-72 pointer-events-none">
+          {row1 && (
+            <div className="flex gap-4 mb-1.5">
+              {p.press_count != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Presses</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.press_count}</div>
+                </div>
+              )}
+              {p.employees_approx != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Employees</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.employees_approx.toLocaleString()}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {row2 && (
+            <div className="flex gap-4 mb-1.5">
+              {p.site_count != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Sites</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.site_count}</div>
+                </div>
+              )}
+              {p.acquisition_count != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Acquisitions</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.acquisition_count}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {row3 && (
+            <div className="flex gap-4 mb-1.5">
+              {p.year_founded != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Founded</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.year_founded}</div>
+                </div>
+              )}
+              {p.revenue_est_m != null && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Revenue</span>
+                  <div className="text-xs text-gray-700 font-medium">${p.revenue_est_m}M</div>
+                </div>
+              )}
+            </div>
+          )}
+          {row4 && (
+            <div className="flex gap-4 mb-1.5">
+              {p.ownership_type && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Ownership</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.ownership_type}</div>
+                </div>
+              )}
+              {p.geography_tier && (
+                <div>
+                  <span className="text-[10px] text-gray-400 uppercase tracking-wider">Geo Tier</span>
+                  <div className="text-xs text-gray-700 font-medium">{p.geography_tier}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {row5 && (
+            <div className="mb-1.5">
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Parent</span>
+              <div className="text-xs text-gray-700 font-medium">{p.parent_company}</div>
+            </div>
+          )}
+          {certs.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {certs.map((cert, i) => (
+                <span key={i} className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full ${getHoverCertColor(cert)}`}>
+                  {cert}
+                </span>
+              ))}
+            </div>
+          )}
+          {p.top_signal && (
+            <div className="border-t border-gray-100 pt-1.5 mt-1">
+              <span className="text-[10px] text-gray-400 italic">{p.top_signal}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  )
 }
 
 function ProspectTable() {
@@ -480,7 +634,9 @@ function ProspectTable() {
             }`} title={`${p.cwp_contacts} CWP contacts`} />
           )}
           <div className="min-w-0">
-            <span className="text-sm font-medium text-gray-900">{p.company}</span>
+            <CompanyHoverCard prospect={p}>
+              <span className="text-sm font-medium text-gray-900">{p.company}</span>
+            </CompanyHoverCard>
             {p.also_known_as && (
               <div className="text-xs text-gray-400 italic flex items-center gap-1">
                 {isChild && <GitMerge className="w-3 h-3 text-gray-400 flex-shrink-0" />}
@@ -688,7 +844,9 @@ function ProspectTable() {
               }`} title={`${parentP.cwp_contacts} CWP contacts`} />
             )}
             <div className="min-w-0">
-              <span className="text-sm font-semibold text-gray-900">{parentP.company}</span>
+              <CompanyHoverCard prospect={parentP}>
+                <span className="text-sm font-semibold text-gray-900">{parentP.company}</span>
+              </CompanyHoverCard>
               {parentP.also_known_as && <div className="text-xs text-gray-400 italic">fka {parentP.also_known_as}</div>}
             </div>
             {badge}
