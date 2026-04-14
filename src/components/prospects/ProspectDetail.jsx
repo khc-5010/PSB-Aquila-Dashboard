@@ -406,7 +406,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                               onClick={() => {
                                 const d = new Date()
                                 d.setDate(d.getDate() + days)
-                                onUpdate(p.id, 'follow_up_date', d.toISOString().split('T')[0])
+                                const yyyy = d.getFullYear()
+                                const mm = String(d.getMonth() + 1).padStart(2, '0')
+                                const dd = String(d.getDate()).padStart(2, '0')
+                                onUpdate(p.id, 'follow_up_date', `${yyyy}-${mm}-${dd}`)
                               }}
                               className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
                             >

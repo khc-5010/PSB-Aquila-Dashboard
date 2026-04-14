@@ -390,6 +390,16 @@ const ONTOLOGY_FIELDS = [
   'ownership_type', 'parent_company', 'category', 'in_house_tooling',
 ]
 
+// Parse a DATE-only string (YYYY-MM-DD or ISO timestamp) safely in local timezone.
+// SYNC: Also exists in ProspectTable.jsx — keep both copies identical.
+function parseLocalDate(val) {
+  if (!val) return null
+  const str = typeof val === 'string' ? val : val instanceof Date ? val.toISOString() : String(val)
+  const [y, m, d] = str.split('T')[0].split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
 // SYNC: Keep in sync with getProspectUrgency() in ProspectTable.jsx
 function getProspectUrgency(prospect) {
   const now = new Date()
@@ -397,7 +407,8 @@ function getProspectUrgency(prospect) {
 
   // Tier 1: Explicit follow-up date
   if (prospect.follow_up_date) {
-    const followUp = new Date(prospect.follow_up_date + 'T00:00:00')
+    const followUp = parseLocalDate(prospect.follow_up_date)
+    if (!followUp || isNaN(followUp)) return null
     const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }

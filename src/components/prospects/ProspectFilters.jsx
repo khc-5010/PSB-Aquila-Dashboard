@@ -39,6 +39,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
   }
 
   const handlePreset = (preset) => {
+    setSearchText('')
     if (preset.filter.preset === 'action_items') {
       onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' })
     } else if (preset.filter.preset === 'stale') {
@@ -142,12 +143,13 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
             ? `${totalCount} companies`
             : `${filteredCount} of ${totalCount} companies`}
           {actionItemCount > 0 && (
-            <span
-              onClick={() => onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' })}
+            <button
+              type="button"
+              onClick={() => { setSearchText(''); onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' }) }}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 cursor-pointer hover:bg-red-200 transition-colors"
             >
               {actionItemCount} action item{actionItemCount !== 1 ? 's' : ''}
-            </span>
+            </button>
           )}
         </span>
       </div>
