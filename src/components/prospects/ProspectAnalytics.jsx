@@ -16,12 +16,12 @@ function ProspectAnalytics({ filters, onFilterChange }) {
     setLoading(true)
     setError(null)
 
-    // Build query params from filters
+    // Build query params from filters (multi-select: arrays joined as comma-separated)
     const params = new URLSearchParams({ action: 'analytics' })
-    if (filters.group && filters.group !== 'All') params.set('outreach_group', filters.group)
-    if (filters.category && filters.category !== 'All') params.set('category', filters.category)
-    if (filters.geo && filters.geo !== 'All') params.set('corridor', filters.geo)
-    if (filters.priority && filters.priority !== 'All') params.set('priority', filters.priority)
+    if (filters.group && filters.group.length > 0) params.set('outreach_group', filters.group.join(','))
+    if (filters.category && filters.category.length > 0) params.set('category', filters.category.join(','))
+    if (filters.geo && filters.geo.length > 0) params.set('corridor', filters.geo.join(','))
+    if (filters.priority && filters.priority.length > 0) params.set('priority', filters.priority.join(','))
     if (filters.preset === 'medical') params.set('medical_device_mfg', 'Yes')
 
     fetch(`/api/prospects?${params}`)
@@ -38,15 +38,15 @@ function ProspectAnalytics({ filters, onFilterChange }) {
   }, [filters])
 
   const handleGroupClick = (group) => {
-    onFilterChange({ group, category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
+    onFilterChange({ group: [group], category: [], priority: [], geo: [], status: [], search: '', preset: null })
   }
 
   const handleCategoryClick = (category) => {
-    onFilterChange({ group: 'All', category, priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
+    onFilterChange({ group: [], category: [category], priority: [], geo: [], status: [], search: '', preset: null })
   }
 
   const handleGeoClick = (geo) => {
-    onFilterChange({ group: 'All', category: 'All', priority: 'All', geo, status: 'All', search: '', preset: null })
+    onFilterChange({ group: [], category: [], priority: [], geo: [geo], status: [], search: '', preset: null })
   }
 
   if (error) {

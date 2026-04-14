@@ -1714,30 +1714,55 @@ export default async function handler(req, res) {
         const params = []
 
         if (outreach_group) {
-          params.push(outreach_group)
-          conditions.push(`outreach_group = $${params.length}`)
+          const groups = outreach_group.split(',').map(s => s.trim()).filter(Boolean)
+          if (groups.length === 1) {
+            params.push(groups[0])
+            conditions.push(`outreach_group = $${params.length}`)
+          } else if (groups.length > 1) {
+            const placeholders = groups.map(g => { params.push(g); return `$${params.length}` }).join(',')
+            conditions.push(`outreach_group IN (${placeholders})`)
+          }
         }
         if (category) {
-          const catCondition = buildCategoryCondition(category, params)
-          if (catCondition) conditions.push(catCondition)
+          const cats = category.split(',').map(s => s.trim()).filter(Boolean)
+          if (cats.length === 1) {
+            const catCondition = buildCategoryCondition(cats[0], params)
+            if (catCondition) conditions.push(catCondition)
+          } else if (cats.length > 1) {
+            const catClauses = cats.map(c => buildCategoryCondition(c, params)).filter(Boolean)
+            if (catClauses.length > 0) conditions.push(`(${catClauses.join(' OR ')})`)
+          }
         }
         if (priority) {
-          params.push(priority)
-          conditions.push(`priority = $${params.length}`)
+          const pris = priority.split(',').map(s => s.trim()).filter(Boolean)
+          if (pris.length === 1) {
+            params.push(pris[0])
+            conditions.push(`priority = $${params.length}`)
+          } else if (pris.length > 1) {
+            const placeholders = pris.map(p => { params.push(p); return `$${params.length}` }).join(',')
+            conditions.push(`priority IN (${placeholders})`)
+          }
         }
         if (geography_tier) {
           params.push(geography_tier)
           conditions.push(`geography_tier = $${params.length}`)
         }
         if (corridor) {
-          const states = CORRIDOR_TO_STATES[corridor]
-          if (states) {
-            const placeholders = states.map((s, i) => `$${params.length + i + 1}`).join(',')
-            params.push(...states)
-            conditions.push(`state IN (${placeholders})`)
-          } else if (corridor === 'Unknown') {
-            conditions.push(`(state IS NULL OR state = '')`)
+          const corridors = corridor.split(',').map(s => s.trim()).filter(Boolean)
+          const allStates = []
+          let hasUnknown = false
+          for (const c of corridors) {
+            const states = CORRIDOR_TO_STATES[c]
+            if (states) allStates.push(...states)
+            else if (c === 'Unknown') hasUnknown = true
           }
+          const stateConditions = []
+          if (allStates.length > 0) {
+            const placeholders = allStates.map(s => { params.push(s); return `$${params.length}` }).join(',')
+            stateConditions.push(`state IN (${placeholders})`)
+          }
+          if (hasUnknown) stateConditions.push(`(state IS NULL OR state = '')`)
+          if (stateConditions.length > 0) conditions.push(`(${stateConditions.join(' OR ')})`)
         }
         if (medical_device_mfg) {
           conditions.push(`medical_device_mfg LIKE 'Yes%'`)
@@ -1916,30 +1941,55 @@ export default async function handler(req, res) {
         const params = []
 
         if (outreach_group) {
-          params.push(outreach_group)
-          conditions.push(`outreach_group = $${params.length}`)
+          const groups = outreach_group.split(',').map(s => s.trim()).filter(Boolean)
+          if (groups.length === 1) {
+            params.push(groups[0])
+            conditions.push(`outreach_group = $${params.length}`)
+          } else if (groups.length > 1) {
+            const placeholders = groups.map(g => { params.push(g); return `$${params.length}` }).join(',')
+            conditions.push(`outreach_group IN (${placeholders})`)
+          }
         }
         if (category) {
-          const catCondition = buildCategoryCondition(category, params)
-          if (catCondition) conditions.push(catCondition)
+          const cats = category.split(',').map(s => s.trim()).filter(Boolean)
+          if (cats.length === 1) {
+            const catCondition = buildCategoryCondition(cats[0], params)
+            if (catCondition) conditions.push(catCondition)
+          } else if (cats.length > 1) {
+            const catClauses = cats.map(c => buildCategoryCondition(c, params)).filter(Boolean)
+            if (catClauses.length > 0) conditions.push(`(${catClauses.join(' OR ')})`)
+          }
         }
         if (priority) {
-          params.push(priority)
-          conditions.push(`priority = $${params.length}`)
+          const pris = priority.split(',').map(s => s.trim()).filter(Boolean)
+          if (pris.length === 1) {
+            params.push(pris[0])
+            conditions.push(`priority = $${params.length}`)
+          } else if (pris.length > 1) {
+            const placeholders = pris.map(p => { params.push(p); return `$${params.length}` }).join(',')
+            conditions.push(`priority IN (${placeholders})`)
+          }
         }
         if (geography_tier) {
           params.push(geography_tier)
           conditions.push(`geography_tier = $${params.length}`)
         }
         if (listCorridor) {
-          const states = CORRIDOR_TO_STATES_LIST[listCorridor]
-          if (states) {
-            const placeholders = states.map((s, i) => `$${params.length + i + 1}`).join(',')
-            params.push(...states)
-            conditions.push(`state IN (${placeholders})`)
-          } else if (listCorridor === 'Unknown') {
-            conditions.push(`(state IS NULL OR state = '')`)
+          const corridors = listCorridor.split(',').map(s => s.trim()).filter(Boolean)
+          const allStates = []
+          let hasUnknown = false
+          for (const c of corridors) {
+            const states = CORRIDOR_TO_STATES_LIST[c]
+            if (states) allStates.push(...states)
+            else if (c === 'Unknown') hasUnknown = true
           }
+          const stateConditions = []
+          if (allStates.length > 0) {
+            const placeholders = allStates.map(s => { params.push(s); return `$${params.length}` }).join(',')
+            stateConditions.push(`state IN (${placeholders})`)
+          }
+          if (hasUnknown) stateConditions.push(`(state IS NULL OR state = '')`)
+          if (stateConditions.length > 0) conditions.push(`(${stateConditions.join(' OR ')})`)
         }
         if (medical_device_mfg) {
           conditions.push(`medical_device_mfg LIKE 'Yes%'`)
