@@ -169,6 +169,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [showExtractionModal, setShowExtractionModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [editingBrief, setEditingBrief] = useState(null)
   const [attachments, setAttachments] = useState([])
 
   const fetchAttachments = useCallback(async () => {
@@ -192,7 +193,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal
+        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal || editingBrief
         if (!anySubModalOpen) {
           onClose()
         }
@@ -200,7 +201,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal])
+  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal, editingBrief])
 
   // Prev/next navigation
   const currentIndex = prospectNavList ? prospectNavList.indexOf(prospect?.id) : -1
@@ -442,6 +443,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       <ResearchBriefPanel
                         attachment={researchBrief}
                         onDelete={handleDeleteBrief}
+                        onEdit={() => setEditingBrief(researchBrief)}
                         onExtractOntology={() => setShowExtractionModal(true)}
                         onImportOntology={() => setShowImportModal(true)}
                       />
@@ -648,6 +650,17 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
           prospect={p}
           onClose={() => setShowAttachModal(false)}
           onSaved={handleBriefSaved}
+        />
+      )}
+      {editingBrief && (
+        <AttachResearchModal
+          prospect={p}
+          existingAttachment={editingBrief}
+          onClose={() => setEditingBrief(null)}
+          onSaved={() => {
+            setEditingBrief(null)
+            handleBriefSaved()
+          }}
         />
       )}
       {showConvertModal && (

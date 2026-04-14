@@ -2188,6 +2188,35 @@ export default async function handler(req, res) {
       }
     }
 
+    // Update an existing attachment (edit mode — no status auto-advancement)
+    if (action === 'update-attachment') {
+      try {
+        const { attachment_id, content, updated_by } = req.body
+        if (!attachment_id || !content) {
+          return res.status(400).json({ error: 'attachment_id and content are required' })
+        }
+
+        const result = await sql`
+          UPDATE prospect_attachments
+          SET content = ${content.trim()},
+              title = COALESCE(${req.body.title || null}, title)
+          WHERE id = ${attachment_id}
+          RETURNING *
+        `
+
+        if (!result || result.length === 0) {
+          return res.status(404).json({ error: 'Attachment not found' })
+        }
+
+        // NOTE: Do NOT auto-advance prospect_status here — that only happens on initial attach
+
+        return res.status(200).json(result[0])
+      } catch (error) {
+        console.error('Error updating attachment:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Attach content to a prospect
     if (action === 'attach') {
       try {
