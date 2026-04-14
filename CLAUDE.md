@@ -269,7 +269,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
-- `ProspectFilters` — Filter bar with preset buttons (Group 1, Group 2, Time-Sensitive, Medical Molders, Mold Maker + Converter, Home Turf, Warm Leads, Ready for Research) + dropdown filters for group, category, priority, geography, and status
+- `ProspectFilters` — Filter bar with preset buttons (Group 1, Group 2, Time-Sensitive, Medical Molders, Mold Maker + Converter, Home Turf, Warm Leads, Ready for Research) + **multi-select** dropdown filters for group, category, priority, geography, and status. Uses `MultiSelectFilter` component (inline in ProspectFilters.jsx) with checkbox dropdowns, click-outside-to-close, Escape to close, select all / clear links. Active filters highlighted with navy border/background tint and count badge.
 - `ProspectDetail` — Near-full-screen modal (was 480px sidebar) with two-column layout. Left column: action sections (Engagement Planning, Research Brief, Connections/NeighborhoodPanel). Right column: reference sections (Company Info, Company Metrics, Signals & Readiness, FDA Intelligence, PSB Relationship). Prev/next navigation through filtered prospect list. URL hash routing: `#prospects?id=123` deep-links to a prospect. Sub-modals (ResearchPromptModal, AttachResearchModal, ConvertToOpportunityModal, ExtractionPromptModal, ImportOntologyModal) stack at z-[60] above the prospect detail modal at z-40. Escape key respects modal stacking (sub-modal closes first, then prospect detail).
 - `OutreachGroupBadge` — Colored badge: Group 1=green, Group 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
 - `StatusBadge` — Prospect lifecycle badge: Identified=gray, Prioritized=blue, Research Complete=amber, Outreach Ready=green, Converted=purple, Nurture=gray italic
@@ -481,6 +481,26 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 
 ### Sub-View Toggle Pattern
 The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state, affecting both table and chart views.
+
+### Multi-Select Filter State Shape
+Filter state uses **arrays** (not strings). Empty array = no filter (show all).
+
+```javascript
+// Filter state shape (ProspectTable.jsx)
+{ group: [], category: [], priority: [], geo: [], status: [], search: '', preset: null }
+
+// Example with selections:
+{ group: ['Group 1', 'Time-Sensitive'], category: [], priority: [], geo: [], status: [], search: '', preset: null }
+```
+
+**Key patterns:**
+- **Empty array = "All"**: `filters.group.length === 0` means no group filter active
+- **Client-side filtering**: `filters.group.length > 0 && !filters.group.includes(p.outreach_group)` → exclude
+- **Presets use arrays**: `{ filter: { group: ['Group 1'] } }` not `{ filter: { group: 'Group 1' } }`
+- **Analytics query params**: Arrays joined as comma-separated strings: `?outreach_group=Group+1,Time-Sensitive`
+- **Server-side SQL**: `api/prospects.js` splits comma-separated params and uses `IN (...)` for multi-values
+- **Chart click handlers**: Set single-element arrays: `onFilterChange({ group: [clickedGroup], ... })`
+- **MultiSelectFilter component**: Inline in `ProspectFilters.jsx`. Props: `label`, `options`, `selected` (array), `onChange` (receives new array)
 
 ### Data Quality Audit
 - **API**: `GET /api/prospects?action=data-audit` — Read-only diagnostic scan of the prospect database

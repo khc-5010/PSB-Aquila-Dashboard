@@ -1,26 +1,99 @@
-import { useState } from 'react'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ChevronDown } from 'lucide-react'
 import { PARENT_CATEGORY_OPTIONS } from '../../utils/categoryGroups'
 
 const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
-const GROUP_OPTIONS = ['All', 'Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
-const PRIORITY_OPTIONS = ['All', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
-const GEO_OPTIONS = ['All', 'Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
-const STATUS_OPTIONS = ['All', 'Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
+const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
+const PRIORITY_OPTIONS = ['HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
+const GEO_OPTIONS = ['Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
+const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
+const CATEGORY_OPTIONS = PARENT_CATEGORY_OPTIONS.filter(o => o !== 'All')
 
 const PRESETS = [
   { label: 'Action Items', filter: { preset: 'action_items' } },
   { label: 'Stale', filter: { preset: 'stale' } },
-  { label: 'Group 1', filter: { group: 'Group 1' } },
-  { label: 'Group 2', filter: { group: 'Group 2' } },
-  { label: 'Time-Sensitive', filter: { group: 'Time-Sensitive' } },
+  { label: 'Group 1', filter: { group: ['Group 1'] } },
+  { label: 'Group 2', filter: { group: ['Group 2'] } },
+  { label: 'Time-Sensitive', filter: { group: ['Time-Sensitive'] } },
   { label: 'Medical Molders', filter: { preset: 'medical' } },
-  { label: 'Mold Maker + Converter', filter: { category: 'Mold Maker + Converter' } },
-  { label: 'Home Turf', filter: { geo: 'Northeast Tool' } },
+  { label: 'Mold Maker + Converter', filter: { category: ['Mold Maker + Converter'] } },
+  { label: 'Home Turf', filter: { geo: ['Northeast Tool'] } },
   { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
   { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },
 ]
+
+function MultiSelectFilter({ label, options, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  const toggle = (value) => {
+    if (selected.includes(value)) {
+      onChange(selected.filter(v => v !== value))
+    } else {
+      onChange([...selected, value])
+    }
+  }
+
+  const displayText = selected.length === 0
+    ? `All ${label}`
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} ${label}`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className={`text-sm border rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-colors focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42] ${
+          selected.length > 0
+            ? 'border-[#041E42] bg-[#041E42]/5 text-[#041E42]'
+            : 'border-gray-300 text-gray-700 hover:border-gray-400'
+        }`}
+      >
+        <span className="truncate max-w-[160px]">{displayText}</span>
+        {selected.length > 1 && (
+          <span className="bg-[#041E42] text-white text-xs rounded-full px-1.5 py-0.5 leading-none font-medium">
+            {selected.length}
+          </span>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1 min-w-[200px] max-h-[280px] overflow-auto">
+          <div className="px-3 py-1.5 flex justify-between text-xs text-gray-500 border-b border-gray-100">
+            <button onClick={() => onChange([...options])} className="hover:text-[#041E42] transition-colors">Select all</button>
+            <button onClick={() => onChange([])} className="hover:text-[#041E42] transition-colors">Clear</button>
+          </div>
+          {options.map(option => (
+            <label key={option} className="flex items-center px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => toggle(option)}
+                className="mr-2 rounded border-gray-300 text-[#041E42] focus:ring-[#041E42]/20"
+              />
+              {option}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, actionItemCount = 0 }) {
   const [searchText, setSearchText] = useState('')
@@ -38,20 +111,14 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
     try { localStorage.removeItem(LEGEND_KEY) } catch {}
   }
 
+  const emptyFilters = { group: [], category: [], priority: [], geo: [], status: [], search: '', preset: null }
+
   const handlePreset = (preset) => {
     setSearchText('')
-    if (preset.filter.preset === 'action_items') {
-      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' })
-    } else if (preset.filter.preset === 'stale') {
-      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'stale' })
-    } else if (preset.filter.preset === 'medical') {
-      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'medical' })
-    } else if (preset.filter.preset === 'warm_leads') {
-      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'warm_leads' })
-    } else if (preset.filter.preset === 'ready_for_research') {
-      onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'ready_for_research' })
+    if (preset.filter.preset) {
+      onFilterChange({ ...emptyFilters, preset: preset.filter.preset })
     } else {
-      const newFilters = { group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null }
+      const newFilters = { ...emptyFilters }
       if (preset.filter.group) newFilters.group = preset.filter.group
       if (preset.filter.category) newFilters.category = preset.filter.category
       if (preset.filter.geo) newFilters.geo = preset.filter.geo
@@ -61,7 +128,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
 
   const handleClear = () => {
     setSearchText('')
-    onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null })
+    onFilterChange({ ...emptyFilters })
   }
 
   const handleSearch = (value) => {
@@ -69,20 +136,18 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
     onFilterChange({ ...filters, search: value })
   }
 
+  const arraysEqual = (a, b) => a.length === b.length && a.every(v => b.includes(v))
+
   const isActivePreset = (preset) => {
-    if (preset.filter.preset === 'action_items') return filters.preset === 'action_items'
-    if (preset.filter.preset === 'stale') return filters.preset === 'stale'
-    if (preset.filter.preset === 'medical') return filters.preset === 'medical'
-    if (preset.filter.preset === 'warm_leads') return filters.preset === 'warm_leads'
-    if (preset.filter.preset === 'ready_for_research') return filters.preset === 'ready_for_research'
-    if (preset.filter.group) return filters.group === preset.filter.group
-    if (preset.filter.category) return filters.category === preset.filter.category
-    if (preset.filter.geo) return filters.geo === preset.filter.geo
+    if (preset.filter.preset) return filters.preset === preset.filter.preset
+    if (preset.filter.group) return arraysEqual(filters.group, preset.filter.group) && filters.category.length === 0 && filters.priority.length === 0 && filters.geo.length === 0 && filters.status.length === 0 && !filters.preset
+    if (preset.filter.category) return arraysEqual(filters.category, preset.filter.category) && filters.group.length === 0 && filters.priority.length === 0 && filters.geo.length === 0 && filters.status.length === 0 && !filters.preset
+    if (preset.filter.geo) return arraysEqual(filters.geo, preset.filter.geo) && filters.group.length === 0 && filters.category.length === 0 && filters.priority.length === 0 && filters.status.length === 0 && !filters.preset
     return false
   }
 
-  const hasActiveFilters = filters.group !== 'All' || filters.category !== 'All' ||
-    filters.priority !== 'All' || filters.geo !== 'All' || filters.status !== 'All' || filters.search || filters.preset
+  const hasActiveFilters = filters.group.length > 0 || filters.category.length > 0 ||
+    filters.priority.length > 0 || filters.geo.length > 0 || filters.status.length > 0 || filters.search || filters.preset
 
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-4 space-y-3">
@@ -145,7 +210,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
           {actionItemCount > 0 && (
             <button
               type="button"
-              onClick={() => { setSearchText(''); onFilterChange({ group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: 'action_items' }) }}
+              onClick={() => { setSearchText(''); onFilterChange({ ...emptyFilters, preset: 'action_items' }) }}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 cursor-pointer hover:bg-red-200 transition-colors"
             >
               {actionItemCount} action item{actionItemCount !== 1 ? 's' : ''}
@@ -180,49 +245,44 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
         </div>
       )}
 
-      {/* Bottom row: Dropdown filters */}
+      {/* Bottom row: Multi-select dropdown filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Filters:</label>
 
-        <select
-          value={filters.group}
-          onChange={(e) => onFilterChange({ ...filters, group: e.target.value, preset: null })}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
-        >
-          {GROUP_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Groups' : o}</option>)}
-        </select>
+        <MultiSelectFilter
+          label="Groups"
+          options={GROUP_OPTIONS}
+          selected={filters.group}
+          onChange={(val) => onFilterChange({ ...filters, group: val, preset: null })}
+        />
 
-        <select
-          value={filters.category}
-          onChange={(e) => onFilterChange({ ...filters, category: e.target.value, preset: null })}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
-        >
-          {PARENT_CATEGORY_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Categories' : o}</option>)}
-        </select>
+        <MultiSelectFilter
+          label="Categories"
+          options={CATEGORY_OPTIONS}
+          selected={filters.category}
+          onChange={(val) => onFilterChange({ ...filters, category: val, preset: null })}
+        />
 
-        <select
-          value={filters.priority}
-          onChange={(e) => onFilterChange({ ...filters, priority: e.target.value, preset: null })}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
-        >
-          {PRIORITY_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Priorities' : o}</option>)}
-        </select>
+        <MultiSelectFilter
+          label="Priorities"
+          options={PRIORITY_OPTIONS}
+          selected={filters.priority}
+          onChange={(val) => onFilterChange({ ...filters, priority: val, preset: null })}
+        />
 
-        <select
-          value={filters.geo}
-          onChange={(e) => onFilterChange({ ...filters, geo: e.target.value, preset: null })}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
-        >
-          {GEO_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Corridors' : o}</option>)}
-        </select>
+        <MultiSelectFilter
+          label="Corridors"
+          options={GEO_OPTIONS}
+          selected={filters.geo}
+          onChange={(val) => onFilterChange({ ...filters, geo: val, preset: null })}
+        />
 
-        <select
-          value={filters.status}
-          onChange={(e) => onFilterChange({ ...filters, status: e.target.value, preset: null })}
-          className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
-        >
-          {STATUS_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Statuses' : o}</option>)}
-        </select>
+        <MultiSelectFilter
+          label="Statuses"
+          options={STATUS_OPTIONS}
+          selected={filters.status}
+          onChange={(val) => onFilterChange({ ...filters, status: val, preset: null })}
+        />
       </div>
     </div>
   )

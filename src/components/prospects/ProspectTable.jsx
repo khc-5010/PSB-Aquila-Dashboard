@@ -309,7 +309,7 @@ function ProspectTable() {
   const [error, setError] = useState(null)
   const [selectedProspect, setSelectedProspect] = useState(null)
   const [filters, setFilters] = useState({
-    group: 'All', category: 'All', priority: 'All', geo: 'All', status: 'All', search: '', preset: null,
+    group: [], category: [], priority: [], geo: [], status: [], search: '', preset: null,
   })
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [editingRank, setEditingRank] = useState(null)
@@ -437,14 +437,14 @@ function ProspectTable() {
     if (filters.preset === 'ready_for_research') {
       if (p.prospect_status !== 'Prioritized') return false
     }
-    if (filters.group !== 'All' && p.outreach_group !== filters.group) return false
-    if (filters.category !== 'All' && getParentCategory(p.category) !== filters.category) return false
-    if (filters.priority !== 'All' && p.priority !== filters.priority) return false
-    if (filters.geo !== 'All') {
+    if (filters.group.length > 0 && !filters.group.includes(p.outreach_group)) return false
+    if (filters.category.length > 0 && !filters.category.includes(getParentCategory(p.category))) return false
+    if (filters.priority.length > 0 && !filters.priority.includes(p.priority)) return false
+    if (filters.geo.length > 0) {
       const corridor = p.state ? (STATE_TO_CORRIDOR[p.state] || 'Mountain / Central') : 'Unknown'
-      if (corridor !== filters.geo) return false
+      if (!filters.geo.includes(corridor)) return false
     }
-    if (filters.status !== 'All' && p.prospect_status !== filters.status) return false
+    if (filters.status.length > 0 && !filters.status.includes(p.prospect_status)) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
       const searchable = [p.company, p.also_known_as, p.city, p.state, p.category, p.parent_company, p.notes, p.suggested_next_step]
