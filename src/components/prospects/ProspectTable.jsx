@@ -14,6 +14,17 @@ import DataAuditModal from './DataAuditModal'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
+// Parse a DATE-only string (YYYY-MM-DD or ISO timestamp) safely in local timezone.
+// Handles: "2026-04-21", "2026-04-21T00:00:00.000Z", Date objects, null.
+// SYNC: Also exists in api/prospects.js — keep both copies identical.
+function parseLocalDate(val) {
+  if (!val) return null
+  const str = typeof val === 'string' ? val : val instanceof Date ? val.toISOString() : String(val)
+  const [y, m, d] = str.split('T')[0].split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
 const STATE_TO_CORRIDOR = {
   'MI': 'Great Lakes Auto', 'OH': 'Great Lakes Auto', 'IN': 'Great Lakes Auto',
   'IL': 'Great Lakes Auto', 'WI': 'Great Lakes Auto',
@@ -68,7 +79,8 @@ function getProspectUrgency(prospect) {
 
   // Tier 1: Explicit follow-up date
   if (prospect.follow_up_date) {
-    const followUp = new Date(prospect.follow_up_date + 'T00:00:00')
+    const followUp = parseLocalDate(prospect.follow_up_date)
+    if (!followUp || isNaN(followUp)) return null
     const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }
@@ -739,7 +751,7 @@ function ProspectTable() {
             getProspectUrgency(p)?.color === 'orange' ? 'text-orange-500' :
             'text-gray-500'
           }`}>
-            {new Date(p.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {parseLocalDate(p.follow_up_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '\u2014'}
           </span>
         ) : (
           <span className="text-xs text-gray-300">{'\u2014'}</span>
@@ -943,7 +955,7 @@ function ProspectTable() {
               getProspectUrgency(parentP)?.color === 'orange' ? 'text-orange-500' :
               'text-gray-500'
             }`}>
-              {new Date(parentP.follow_up_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {parseLocalDate(parentP.follow_up_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '\u2014'}
             </span>
           ) : (
             <span className="text-xs text-gray-300">{'\u2014'}</span>

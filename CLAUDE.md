@@ -298,25 +298,32 @@ Two-tier "attention needed" system combining explicit follow-up dates with auto-
 
 **Tier 1 — Explicit Follow-Up Dates:**
 - Date picker in ProspectDetail Engagement Planning section (after Suggested Next Step)
-- Quick-set buttons: Tomorrow, +3 days, +1 week, +2 weeks, +1 month
+- Quick-set buttons: Tomorrow, +3 days, +1 week, +2 weeks, +1 month. Uses local-timezone date formatting (not `toISOString()`) to avoid UTC off-by-one errors.
 - "Due" column in ProspectTable (between CWP and Ownership), sortable with nulls-last
 - Urgency levels: overdue (red, priority 1), due_today (amber, 2), due_soon ≤3d (yellow, 3), due_week ≤7d (blue, 4), scheduled (gray, 10)
 
 **Tier 2 — Auto-Detected Staleness (client-side only, no DB columns):**
 - Computed from `updated_at`, `prospect_status`, and current date via `getProspectUrgency()` in ProspectTable
 - Outreach Ready + 14d idle → "stale" (orange, priority 5)
-- Prioritized + 14d idle → "Research stalled" (orange, priority 6)
+- Prioritized + 14d idle → **"Research stalled"** (orange, priority 6) — triggers when a prospect has `prospect_status = 'Prioritized'` and `updated_at` is 14+ days ago. This means someone marked it for research but no progress has been recorded. Any edit to the prospect resets the timer by updating `updated_at`.
 - Research Complete + 7d idle → "Needs outreach" (orange, priority 7)
 - **Parked statuses exempt:** Converted, Nurture, Identified — never show staleness
+
+**`parseLocalDate()` — Date Parsing Utility (critical pattern):**
+- PostgreSQL `DATE` columns may come back as `"2026-04-21"` or `"2026-04-21T00:00:00.000Z"` depending on driver serialization
+- `parseLocalDate(val)` safely handles both formats (plus Date objects and null) by splitting on `'T'` first, then parsing `YYYY-MM-DD` components into a local-timezone Date
+- **SYNC**: Exists in both `ProspectTable.jsx` and `api/prospects.js` — keep identical
+- **Rule**: Never use `new Date(follow_up_date + 'T00:00:00')` — always use `parseLocalDate()` for any DATE column parsing
 
 **Visual indicators:**
 - Colored urgency badge in Next Step column (before next-step text)
 - Color-coded date in Due column
-- Action items count badge in filter bar (red pill, always visible regardless of active filter)
+- Action items count badge in filter bar (red pill `<button>`, clickable to activate Action Items preset, always visible regardless of active filter)
 
 **Filter presets:**
 - "Action Items" (first preset) — shows all prospects with urgency priority ≤ 7 (overdue + due today + due soon + stale + stalled)
 - "Stale" — shows only auto-detected stale/stalled prospects
+- All presets and the action items badge clear the search text input when clicked
 
 **CSV export** includes `follow_up_date` field.
 
