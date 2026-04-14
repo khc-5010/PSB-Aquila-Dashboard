@@ -59,7 +59,7 @@ function SectionAccordion({ title, content, defaultOpen = true }) {
   )
 }
 
-export default function ResearchBriefPanel({ attachment, onDelete, onExtractOntology, onImportOntology }) {
+export default function ResearchBriefPanel({ attachment, onDelete, onEdit, onExtractOntology, onImportOntology }) {
   const [copied, setCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -111,6 +111,17 @@ export default function ResearchBriefPanel({ attachment, onDelete, onExtractOnto
           {createdDate && ` on ${createdDate}`}
         </p>
         <div className="flex items-center gap-2">
+          {onEdit && (
+            <>
+              <button
+                onClick={onEdit}
+                className="text-xs text-[#041E42] hover:text-[#041E42]/70 font-medium"
+              >
+                Edit Brief
+              </button>
+              <span className="text-gray-300">|</span>
+            </>
+          )}
           <button
             onClick={handleCopy}
             className="text-xs text-blue-600 hover:text-blue-800 font-medium"
