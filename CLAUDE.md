@@ -291,6 +291,58 @@ Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumon
 - **Converted** — Moved to opportunity pipeline
 - **Nurture** — Not ready now, maintain relationship
 
+### Prospect Activity Log
+
+Append-only running history of contact/outreach updates per prospect. Replaces the old overwriteable `suggested_next_step` field with a timestamped, author-tracked log.
+
+**Database table:** `prospect_activity_log`
+- `id` (SERIAL, PK)
+- `prospect_id` (INTEGER, FK → prospect_companies.id, ON DELETE CASCADE)
+- `entry_text` (TEXT, NOT NULL) — The log entry content
+- `created_by` (TEXT, NOT NULL) — Authenticated user's name
+- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
+- Indexes: `idx_prospect_activity_prospect` (prospect_id), `idx_prospect_activity_created` (created_at DESC)
+
+**Auto-sync pattern:** When a new activity log entry is created, the API also updates `prospect_companies.suggested_next_step` to the latest entry text. This keeps the ProspectTable "Next Step" column working without changes. The `suggested_next_step` column is NOT deleted — it serves as the denormalized "current" value.
+
+**Data migration:** Existing `suggested_next_step` values were seeded into `prospect_activity_log` as initial entries (run once in Neon SQL Editor).
+
+**API endpoints** (all in `api/prospects.js`):
+- `GET /api/prospects?action=get-activity-log&id=X` — All entries for a prospect, newest first
+- `POST /api/prospects?action=add-activity` — Body: `{ prospect_id, entry_text, created_by }`. Inserts entry + auto-syncs `suggested_next_step`.
+
+**UI** (ProspectDetail.jsx, Engagement Planning section):
+- Textarea for new entries with user name auto-displayed and "Add" button
+- Chronological feed (newest first) with date, author, entry text
+- Flag entries (starting with ⚑) get amber left border; resolve entries (starting with ✓) get green left border
+- Optimistic UI: entries appear immediately, revert on error
+- Max height 48 (12rem) with overflow scroll
+
+### Flag for Review
+
+Quick-flag system for tagging companies as "needs attention." All users see flags. Creates an activity log entry automatically.
+
+**Database columns** (on `prospect_companies`):
+- `needs_review` (BOOLEAN, DEFAULT false)
+- `review_note` (TEXT) — Description of what needs attention
+- `review_flagged_by` (TEXT) — Who flagged it
+- `review_flagged_at` (TIMESTAMPTZ) — When flagged
+
+All four columns added to PATCH `allowedFields` in `api/prospects.js`.
+
+**API endpoints** (all in `api/prospects.js`):
+- `POST /api/prospects?action=flag-for-review` — Body: `{ prospect_id, review_note, flagged_by }`. Atomic: sets flag columns + inserts activity log entry ("⚑ Flagged for review: {note}").
+- `POST /api/prospects?action=resolve-review` — Body: `{ prospect_id, resolved_by }`. Clears all flag columns + inserts activity log entry ("✓ Review resolved").
+
+**UI:**
+- **ProspectDetail** (Engagement Planning section): Amber banner when `needs_review === true` showing flagger, date, note, and "Resolve" button. Flag button (⚑ icon) next to Outreach Group opens inline note input.
+- **ProspectTable**: Amber `Flag` icon (lucide-react) next to company name when `needs_review === true`, with tooltip showing the review note.
+- **ProspectFilters**: "Needs Review" preset button (`{ preset: 'needs_review' }`). Filter logic in ProspectTable: `if (!p.needs_review) return false`.
+
+**Digest integration (future):** When Resend domain verification completes, add to daily-digest handler:
+- `SELECT * FROM prospect_activity_log WHERE created_at > NOW() - INTERVAL '24 hours'` for recent activity
+- `SELECT * FROM prospect_companies WHERE needs_review = true` for flagged companies
+
 ### Follow-Up Tracking & Staleness Detection
 
 Two-tier "attention needed" system combining explicit follow-up dates with auto-detected staleness.

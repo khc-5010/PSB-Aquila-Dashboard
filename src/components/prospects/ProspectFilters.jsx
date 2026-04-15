@@ -21,6 +21,7 @@ const PRESETS = [
   { label: 'Home Turf', filter: { geo: ['Northeast Tool'] } },
   { label: 'Warm Leads', filter: { preset: 'warm_leads' } },
   { label: 'Ready for Research', filter: { preset: 'ready_for_research' } },
+  { label: 'Needs Review', filter: { preset: 'needs_review' } },
 ]
 
 function MultiSelectFilter({ label, options, selected, onChange }) {

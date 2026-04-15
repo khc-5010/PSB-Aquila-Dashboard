@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flag } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
 import OutreachGroupBadge from './OutreachGroupBadge'
@@ -165,6 +166,7 @@ function EditableField({ label, value, onSave, multiline = false }) {
 }
 
 function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate }) {
+  const { user } = useAuth()
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [showAttachModal, setShowAttachModal] = useState(false)
   const [showConvertModal, setShowConvertModal] = useState(false)
@@ -172,6 +174,15 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   const [showImportModal, setShowImportModal] = useState(false)
   const [editingBrief, setEditingBrief] = useState(null)
   const [attachments, setAttachments] = useState([])
+
+  // Activity log state
+  const [activityLog, setActivityLog] = useState([])
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [newEntry, setNewEntry] = useState('')
+  const [submittingEntry, setSubmittingEntry] = useState(false)
+  // Flag for review state
+  const [showFlagInput, setShowFlagInput] = useState(false)
+  const [flagNote, setFlagNote] = useState('')
 
   const fetchAttachments = useCallback(async () => {
     if (!prospect?.id) return
@@ -186,15 +197,32 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     }
   }, [prospect?.id])
 
+  const fetchActivityLog = useCallback(async () => {
+    if (!prospect?.id) return
+    setActivityLoading(true)
+    try {
+      const res = await fetch(`/api/prospects?action=get-activity-log&id=${prospect.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setActivityLog(data)
+      }
+    } catch (err) {
+      console.error('Error fetching activity log:', err)
+    } finally {
+      setActivityLoading(false)
+    }
+  }, [prospect?.id])
+
   useEffect(() => {
     fetchAttachments()
-  }, [fetchAttachments])
+    fetchActivityLog()
+  }, [fetchAttachments, fetchActivityLog])
 
   // Escape key — close modal only if no sub-modal is open
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal || editingBrief
+        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal || editingBrief || showFlagInput
         if (!anySubModalOpen) {
           onClose()
         }
@@ -202,7 +230,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal, editingBrief])
+  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal, editingBrief, showFlagInput])
 
   // Prev/next navigation
   const currentIndex = prospectNavList ? prospectNavList.indexOf(prospect?.id) : -1
@@ -224,6 +252,89 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   function handleDeleteBrief() {
     fetchAttachments()
     if (onRefresh) onRefresh()
+  }
+
+  async function handleAddActivity() {
+    if (!newEntry.trim() || submittingEntry) return
+    const entryText = newEntry.trim()
+    const authorName = user?.name || 'Unknown'
+    setSubmittingEntry(true)
+
+    // Optimistic: add to top of log immediately
+    const optimisticEntry = {
+      id: Date.now(),
+      prospect_id: p.id,
+      entry_text: entryText,
+      created_by: authorName,
+      created_at: new Date().toISOString(),
+    }
+    setActivityLog(prev => [optimisticEntry, ...prev])
+    setNewEntry('')
+
+    try {
+      const res = await fetch('/api/prospects?action=add-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: p.id, entry_text: entryText, created_by: authorName }),
+      })
+      if (!res.ok) throw new Error('Failed to add activity')
+      // Refresh both activity log and prospect data (for suggested_next_step sync)
+      fetchActivityLog()
+      if (onRefresh) onRefresh()
+    } catch (err) {
+      console.error('Error adding activity:', err)
+      // Revert optimistic update
+      setActivityLog(prev => prev.filter(e => e.id !== optimisticEntry.id))
+      setNewEntry(entryText)
+    } finally {
+      setSubmittingEntry(false)
+    }
+  }
+
+  async function handleFlagForReview() {
+    if (!flagNote.trim()) return
+    const authorName = user?.name || 'Unknown'
+    try {
+      const res = await fetch('/api/prospects?action=flag-for-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: p.id, review_note: flagNote.trim(), flagged_by: authorName }),
+      })
+      if (!res.ok) throw new Error('Failed to flag')
+      setFlagNote('')
+      setShowFlagInput(false)
+      fetchActivityLog()
+      if (onRefresh) onRefresh()
+    } catch (err) {
+      console.error('Error flagging:', err)
+    }
+  }
+
+  async function handleResolveReview() {
+    const authorName = user?.name || 'Unknown'
+    try {
+      const res = await fetch('/api/prospects?action=resolve-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: p.id, resolved_by: authorName }),
+      })
+      if (!res.ok) throw new Error('Failed to resolve')
+      fetchActivityLog()
+      if (onRefresh) onRefresh()
+    } catch (err) {
+      console.error('Error resolving:', err)
+    }
+  }
+
+  function formatActivityDate(dateStr) {
+    const d = new Date(dateStr)
+    const now = new Date()
+    const month = d.toLocaleDateString('en-US', { month: 'short' })
+    const day = d.getDate()
+    if (d.getFullYear() !== now.getFullYear()) {
+      return `${month} ${day}, ${d.getFullYear()}`
+    }
+    return `${month} ${day}`
   }
 
   return (
@@ -324,18 +435,88 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                 {/* Engagement Planning */}
                 <Section title="Engagement Planning" defaultOpen={true}>
                   <div className="space-y-3">
-                    <div>
-                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Group</dt>
-                      <dd className="mt-0.5">
-                        <select
-                          value={p.outreach_group || 'Unassigned'}
-                          onChange={(e) => onUpdate(p.id, 'outreach_group', e.target.value)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                    {/* Flag for Review banner */}
+                    {p.needs_review && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            <Flag className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-amber-800">
+                              <span className="font-medium">Flagged by {p.review_flagged_by || 'Unknown'}</span>
+                              {p.review_flagged_at && (
+                                <span className="text-amber-600"> on {formatActivityDate(p.review_flagged_at)}</span>
+                              )}
+                              <div className="text-amber-700 mt-0.5">{p.review_note}</div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleResolveReview}
+                            className="flex-shrink-0 text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-700 font-medium"
+                          >
+                            Resolve
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Group</dt>
+                        <dd className="mt-0.5">
+                          <select
+                            value={p.outreach_group || 'Unassigned'}
+                            onChange={(e) => onUpdate(p.id, 'outreach_group', e.target.value)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          >
+                            {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
+                          </select>
+                        </dd>
+                      </div>
+                      {/* Flag for Review button */}
+                      {!p.needs_review && !showFlagInput && (
+                        <button
+                          onClick={() => setShowFlagInput(true)}
+                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-amber-500 mt-4"
+                          title="Flag for review"
                         >
-                          {GROUP_OPTIONS.map(w => <option key={w} value={w}>{w}</option>)}
-                        </select>
-                      </dd>
+                          <Flag className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
+
+                    {/* Flag note input (inline) */}
+                    {showFlagInput && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 p-2 space-y-2">
+                        <div className="text-xs font-medium text-amber-700">Flag for review — what needs attention?</div>
+                        <textarea
+                          autoFocus
+                          rows={2}
+                          value={flagNote}
+                          onChange={(e) => setFlagNote(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') { setShowFlagInput(false); setFlagNote('') }
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleFlagForReview() }
+                          }}
+                          placeholder="Describe the issue..."
+                          className="w-full text-sm border border-amber-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleFlagForReview}
+                            disabled={!flagNote.trim()}
+                            className="text-xs px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white font-medium disabled:opacity-50"
+                          >
+                            Flag
+                          </button>
+                          <button
+                            onClick={() => { setShowFlagInput(false); setFlagNote('') }}
+                            className="text-xs px-2.5 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</dt>
@@ -367,12 +548,66 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       </dd>
                     </div>
 
-                    <EditableField
-                      label="Suggested Next Step"
-                      value={p.suggested_next_step}
-                      onSave={(val) => onUpdate(p.id, 'suggested_next_step', val)}
-                      multiline
-                    />
+                    {/* Activity Log (replaces old single Suggested Next Step field) */}
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                        Activity Log
+                        {activityLog.length > 0 && (
+                          <span className="text-[10px] font-normal text-gray-400">({activityLog.length})</span>
+                        )}
+                      </dt>
+                      <dd className="mt-1.5">
+                        {/* New entry input */}
+                        <div className="space-y-1.5">
+                          <textarea
+                            rows={2}
+                            value={newEntry}
+                            onChange={(e) => setNewEntry(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddActivity() }
+                            }}
+                            placeholder="Add an update..."
+                            className="w-full text-sm border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 resize-none"
+                          />
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-gray-400">{user?.name || 'Unknown'}</span>
+                            <button
+                              onClick={handleAddActivity}
+                              disabled={!newEntry.trim() || submittingEntry}
+                              className="text-xs px-2.5 py-1 rounded bg-[#041E42] hover:bg-[#0a2d5e] text-white font-medium disabled:opacity-50"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Activity entries */}
+                        {activityLoading && activityLog.length === 0 ? (
+                          <div className="text-xs text-gray-400 mt-2">Loading...</div>
+                        ) : activityLog.length > 0 ? (
+                          <div className="mt-2 space-y-0 divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                            {activityLog.map((entry) => {
+                              const isFlag = entry.entry_text?.startsWith('\u2691')
+                              const isResolve = entry.entry_text?.startsWith('\u2713')
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className={`py-1.5 text-sm ${isFlag ? 'border-l-2 border-l-amber-300 pl-2' : isResolve ? 'border-l-2 border-l-green-300 pl-2' : 'pl-0'}`}
+                                >
+                                  <div className="flex items-baseline gap-1.5">
+                                    <span className="text-[10px] text-gray-400 flex-shrink-0">{formatActivityDate(entry.created_at)}</span>
+                                    <span className="text-[10px] text-gray-500 font-medium flex-shrink-0">{entry.created_by}</span>
+                                  </div>
+                                  <div className="text-sm text-gray-700 mt-0.5">{entry.entry_text}</div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-400 mt-2 italic">No activity yet</div>
+                        )}
+                      </dd>
+                    </div>
 
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Follow-Up Date</dt>
