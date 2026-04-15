@@ -307,7 +307,7 @@ The Company Info section in `ProspectDetail.jsx` is now fully editable (previous
 | City | `<EditableField>` (text) | Free text |
 | State | `<select>` dropdown | `US_STATES` — 50 + DC, 2-letter codes. Empty option clears to null |
 | Geography Tier | `<Field>` (read-only) | **Deprecated** — no longer used for analytics/filtering |
-| Website | `<EditableField>` (text) + Open link | EditableField for editing; separate "Open ↗" link renders below when value exists |
+| Website | `<EditableWebsite>` (custom) | Custom inline-edit component: display mode renders the URL as a clickable link (opens new tab); "edit" button swaps to a text input. Normalizes `http(s)://` prefix when building the href |
 | Source Report | `<EditableField>` (multiline) | Multiline free text |
 | Priority | `<select>` dropdown | Unchanged — already editable (HIGH PRIORITY/QUALIFIED/WATCH/LOW/STRATEGIC PARTNER) |
 | AI Readiness | computed | Derived from score inputs, never directly edited |

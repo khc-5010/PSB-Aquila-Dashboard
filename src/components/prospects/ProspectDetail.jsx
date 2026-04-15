@@ -191,6 +191,69 @@ function EditableField({ label, value, onSave, multiline = false }) {
   )
 }
 
+// Same edit pattern as EditableField, but the display mode renders the URL as
+// a clickable link (opens in new tab). Keeps the click-to-open affordance
+// users expect — editing the value still requires clicking "edit".
+function EditableWebsite({ value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value || '')
+
+  useEffect(() => {
+    setDraft(value || '')
+  }, [value])
+
+  const handleSave = () => {
+    setEditing(false)
+    if (draft !== (value || '')) {
+      onSave(draft || null)
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSave()
+    if (e.key === 'Escape') { setDraft(value || ''); setEditing(false) }
+  }
+
+  const href = value ? (value.startsWith('http') ? value : `https://${value}`) : null
+
+  return (
+    <div>
+      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider flex items-center gap-2">
+        Website
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-blue-500 hover:text-blue-700 text-xs font-normal">
+            edit
+          </button>
+        )}
+      </dt>
+      <dd className="mt-0.5">
+        {editing ? (
+          <input
+            type="text"
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={handleSave}
+            onKeyDown={handleKeyDown}
+            className="w-full text-sm border border-blue-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
+        ) : value ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
+          >
+            {value}
+          </a>
+        ) : (
+          <span className="text-sm text-gray-900">{'\u2014'}</span>
+        )}
+      </dd>
+    </div>
+  )
+}
+
 function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate }) {
   const { user } = useAuth()
   const [showPromptModal, setShowPromptModal] = useState(false)
@@ -790,21 +853,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     </div>
                     <Field label="Geography Tier" value={p.geography_tier} />
                     <div className="col-span-2">
-                      <EditableField
-                        label="Website"
+                      <EditableWebsite
                         value={p.website}
                         onSave={(val) => onUpdate(p.id, 'website', val)}
                       />
-                      {p.website && (
-                        <a
-                          href={p.website.startsWith('http') ? p.website : `https://${p.website}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block mt-0.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          Open &#8599;
-                        </a>
-                      )}
                     </div>
                     <div className="col-span-2">
                       <EditableField
