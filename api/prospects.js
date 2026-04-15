@@ -1824,6 +1824,21 @@ export default async function handler(req, res) {
       }
     }
 
+    // Activity log for a prospect
+    if (action === 'get-activity-log' && id) {
+      try {
+        const entries = await sql`
+          SELECT * FROM prospect_activity_log
+          WHERE prospect_id = ${id}
+          ORDER BY created_at DESC
+        `
+        return res.status(200).json(entries)
+      } catch (error) {
+        console.error('Error fetching activity log:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Analytics aggregation
     if (action === 'analytics') {
       try {
@@ -2473,6 +2488,96 @@ export default async function handler(req, res) {
       }
     }
 
+    // Add activity log entry for a prospect
+    if (action === 'add-activity') {
+      try {
+        const { prospect_id, entry_text, created_by } = req.body
+        if (!prospect_id || !entry_text?.trim()) {
+          return res.status(400).json({ error: 'prospect_id and entry_text are required' })
+        }
+
+        const [entry] = await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${prospect_id}, ${entry_text.trim()}, ${created_by || 'Unknown'})
+          RETURNING *
+        `
+
+        // Auto-sync: keep suggested_next_step on the prospect updated to latest entry
+        await sql`
+          UPDATE prospect_companies
+          SET suggested_next_step = ${entry_text.trim()}, updated_at = NOW()
+          WHERE id = ${prospect_id}
+        `
+
+        return res.status(201).json(entry)
+      } catch (error) {
+        console.error('Error adding activity:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // Flag a prospect for review (atomic: sets flag + creates activity log entry)
+    if (action === 'flag-for-review') {
+      try {
+        const { prospect_id, review_note, flagged_by } = req.body
+        if (!prospect_id || !review_note?.trim()) {
+          return res.status(400).json({ error: 'prospect_id and review_note are required' })
+        }
+
+        await sql`
+          UPDATE prospect_companies
+          SET needs_review = true,
+              review_note = ${review_note.trim()},
+              review_flagged_by = ${flagged_by || 'Unknown'},
+              review_flagged_at = NOW(),
+              updated_at = NOW()
+          WHERE id = ${prospect_id}
+        `
+
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${prospect_id}, ${'\u2691 Flagged for review: ' + review_note.trim()}, ${flagged_by || 'Unknown'})
+        `
+
+        const [updated] = await sql`SELECT * FROM prospect_companies WHERE id = ${prospect_id}`
+        return res.status(200).json(updated)
+      } catch (error) {
+        console.error('Error flagging prospect:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // Resolve a review flag
+    if (action === 'resolve-review') {
+      try {
+        const { prospect_id, resolved_by } = req.body
+        if (!prospect_id) {
+          return res.status(400).json({ error: 'prospect_id is required' })
+        }
+
+        await sql`
+          UPDATE prospect_companies
+          SET needs_review = false,
+              review_note = NULL,
+              review_flagged_by = NULL,
+              review_flagged_at = NULL,
+              updated_at = NOW()
+          WHERE id = ${prospect_id}
+        `
+
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${prospect_id}, ${'\u2713 Review resolved'}, ${resolved_by || 'Unknown'})
+        `
+
+        const [updated] = await sql`SELECT * FROM prospect_companies WHERE id = ${prospect_id}`
+        return res.status(200).json(updated)
+      } catch (error) {
+        console.error('Error resolving review:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // One-time seed: POST /api/prospects?action=seed
     if (action === 'seed') {
       try {
@@ -2711,6 +2816,7 @@ export default async function handler(req, res) {
       'parent_company', 'decision_location', 'follow_up_date',
       'site_count', 'acquisition_count',
       'priority_manual',
+      'needs_review', 'review_note', 'review_flagged_by', 'review_flagged_at',
     ]
 
     const setClauses = []

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
@@ -532,6 +532,9 @@ function ProspectTable() {
     if (filters.preset === 'ready_for_research') {
       if (p.prospect_status !== 'Prioritized') return false
     }
+    if (filters.preset === 'needs_review') {
+      if (!p.needs_review) return false
+    }
     if (filters.group.length > 0 && !filters.group.includes(p.outreach_group)) return false
     if (filters.category.length > 0 && !filters.category.includes(getParentCategory(p.category))) return false
     if (filters.priority.length > 0 && !filters.priority.includes(p.priority)) return false
@@ -792,6 +795,9 @@ function ProspectTable() {
             <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
               {p.conversion_count}
             </span>
+          )}
+          {p.needs_review && (
+            <Flag className="ml-1.5 w-3.5 h-3.5 text-amber-500 flex-shrink-0" title={`Flagged for review: ${p.review_note || 'No note'}`} />
           )}
         </div>
       </td>
