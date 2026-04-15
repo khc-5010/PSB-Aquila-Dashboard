@@ -17,6 +17,32 @@ import FdaEnrichment from './FdaEnrichment'
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
+// US state abbreviations (50 + DC) for the State dropdown in Company Info.
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL',
+  'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME',
+  'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH',
+  'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI',
+  'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+]
+
+// Controlled values for the In-House Tooling dropdown.
+const IN_HOUSE_TOOLING_OPTIONS = ['Yes', 'No', 'N/A']
+
+// Controlled values for the Ownership Type dropdown. Must preserve the strings
+// that downstream indicator logic keys off of: `.includes('PE')`,
+// `.includes('Family')`, `=== 'ESOP'` (see ProspectTable urgency icons).
+const OWNERSHIP_TYPES = [
+  'Public',
+  'Private',
+  'PE-Backed',
+  'Family/Founder-Owned',
+  'ESOP',
+  'Foreign-Owned',
+  'Cooperative',
+  'Non-Profit',
+]
+
 const CERT_COLORS = {
   'ISO 13485':    { bg: 'bg-purple-100', text: 'text-purple-700' },
   'FDA':          { bg: 'bg-purple-100', text: 'text-purple-700' },
@@ -722,29 +748,72 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                 {/* Company Info */}
                 <Section title="Company Info" defaultOpen={true}>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    <Field label="Category" value={p.category} />
-                    <Field label="In-House Tooling" value={p.in_house_tooling} />
-                    <Field label="City" value={p.city} />
-                    <Field label="State" value={p.state} />
-                    <Field label="Geography Tier" value={p.geography_tier} />
-                    <div className="col-span-2">
-                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Website</dt>
-                      <dd className="mt-0.5 text-sm">
-                        {p.website ? (
-                          <a
-                            href={p.website.startsWith('http') ? p.website : `https://${p.website}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 hover:underline"
-                          >
-                            {p.website}
-                          </a>
-                        ) : (
-                          <span className="text-gray-900">{'\u2014'}</span>
-                        )}
+                    <EditableField
+                      label="Category"
+                      value={p.category}
+                      onSave={(val) => onUpdate(p.id, 'category', val)}
+                    />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">In-House Tooling</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.in_house_tooling || ''}
+                          onChange={(e) => onUpdate(p.id, 'in_house_tooling', e.target.value || null)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          <option value="">—</option>
+                          {IN_HOUSE_TOOLING_OPTIONS.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
                       </dd>
                     </div>
-                    <Field label="Source Report" value={p.source_report} className="col-span-2" />
+                    <EditableField
+                      label="City"
+                      value={p.city}
+                      onSave={(val) => onUpdate(p.id, 'city', val)}
+                    />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">State</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.state || ''}
+                          onChange={(e) => onUpdate(p.id, 'state', e.target.value || null)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          <option value="">—</option>
+                          {US_STATES.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </dd>
+                    </div>
+                    <Field label="Geography Tier" value={p.geography_tier} />
+                    <div className="col-span-2">
+                      <EditableField
+                        label="Website"
+                        value={p.website}
+                        onSave={(val) => onUpdate(p.id, 'website', val)}
+                      />
+                      {p.website && (
+                        <a
+                          href={p.website.startsWith('http') ? p.website : `https://${p.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block mt-0.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          Open &#8599;
+                        </a>
+                      )}
+                    </div>
+                    <div className="col-span-2">
+                      <EditableField
+                        label="Source Report"
+                        value={p.source_report}
+                        onSave={(val) => onUpdate(p.id, 'source_report', val)}
+                        multiline
+                      />
+                    </div>
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</dt>
                       <dd className="mt-0.5">
@@ -797,8 +866,33 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                         })()}
                       </dd>
                     </div>
-                    <Field label="Ownership Type" value={p.ownership_type} />
-                    <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Ownership Type</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.ownership_type || ''}
+                          onChange={(e) => onUpdate(p.id, 'ownership_type', e.target.value || null)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          <option value="">—</option>
+                          {/* Show any pre-existing value not in the preset list (e.g. legacy variants) */}
+                          {p.ownership_type && !OWNERSHIP_TYPES.includes(p.ownership_type) && (
+                            <option value={p.ownership_type}>{p.ownership_type}</option>
+                          )}
+                          {OWNERSHIP_TYPES.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </dd>
+                    </div>
+                    <div className="col-span-2">
+                      <EditableField
+                        label="Recent M&A"
+                        value={p.recent_ma}
+                        onSave={(val) => onUpdate(p.id, 'recent_ma', val)}
+                        multiline
+                      />
+                    </div>
                     <EditableField
                       label="Parent Company"
                       value={p.parent_company}

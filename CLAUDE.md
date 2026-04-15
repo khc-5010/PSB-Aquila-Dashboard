@@ -277,6 +277,51 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `AddCompanyModal` — Form modal for adding a single company (company name required, primary fields + collapsible "More Details" section). POSTs to `/api/prospects`.
 - `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `outreach_group`, `outreach_rank`, `group_notes`, or `last_edited_by` so the server preserves existing user-edited values.
 
+### ProspectTable Sorting
+
+**3-state column cycling** via `handleSort`: first click = ascending, second = descending, third = clear (returns to smart default). Visual chevron indicates current state.
+
+**Compound sorting with tiebreakers** — when a column header is active, rows are compared by the primary key first, then fall through to consistent tiebreakers:
+
+1. **Primary:** the clicked column, in the selected direction
+2. **Tiebreak 1:** `outreach_rank` ascending (skipped if rank is the primary)
+3. **Tiebreak 2:** `outreach_group` via `GROUP_SORT_ORDER` (Group 1 → Time-Sensitive → Group 2 → Infrastructure → Unassigned; skipped if group is the primary)
+4. **Final tiebreak:** `signal_count` descending
+
+So clicking RANK shows all rank-1s together across groups, then rank-2s, etc., with group as sub-order. Clicking GROUP shows Group 1 first, with rank-ordering within each group. This was Brett's request — previously a click on any header produced single-key comparison with arbitrary order among ties.
+
+**Default sort** (when `sortConfig.key === null`, i.e. no header active): `GROUP_SORT_ORDER` → `outreach_rank` → `signal_count desc`. Unchanged.
+
+**Nulls-last on numeric columns** — every column in `NUMERIC_COLUMNS` (`outreach_rank`, `signal_count`, `press_count`, `employees_approx`, `cwp_contacts`, `site_count`, `acquisition_count`, `priority_score`, `follow_up_date`, `revenue_est_m`, `year_founded`, `years_in_business`) sorts null/undefined/empty-string values to the bottom regardless of direction. This matches SQL `NULLS LAST` semantics. Previously only `follow_up_date` and `priority_score` had this treatment; other numeric columns coerced null to `''` and fell through to string comparison, producing incorrect ordering (e.g. unranked companies bubbled to the top of an asc rank sort).
+
+**Shared comparator** — `compareValues(a, b, key, direction)` is the single source of truth for all comparisons. Handles the composite `state = "STATE, City"` sort, the numeric nulls-last logic, and string `localeCompare` fallback. The active-sort branch of the `.sort()` callback calls it for the primary key and each applicable tiebreaker.
+
+### ProspectDetail — Editable Company Info Fields
+
+The Company Info section in `ProspectDetail.jsx` is now fully editable (previously most fields were read-only `<Field>` displays). All edits flow through the existing `onUpdate(p.id, field, val)` callback from `ProspectTable`, which auto-sets `last_edited_by` and triggers server-side ontology rebuild + priority score recalc when relevant fields change.
+
+| Field | Input Type | Notes |
+|-------|-----------|-------|
+| Category | `<EditableField>` (text) | Free text; `categoryGroups.js` handles rollup of variants |
+| In-House Tooling | `<select>` dropdown | `IN_HOUSE_TOOLING_OPTIONS = ['Yes', 'No', 'N/A']` plus empty → null |
+| City | `<EditableField>` (text) | Free text |
+| State | `<select>` dropdown | `US_STATES` — 50 + DC, 2-letter codes. Empty option clears to null |
+| Geography Tier | `<Field>` (read-only) | **Deprecated** — no longer used for analytics/filtering |
+| Website | `<EditableField>` (text) + Open link | EditableField for editing; separate "Open ↗" link renders below when value exists |
+| Source Report | `<EditableField>` (multiline) | Multiline free text |
+| Priority | `<select>` dropdown | Unchanged — already editable (HIGH PRIORITY/QUALIFIED/WATCH/LOW/STRATEGIC PARTNER) |
+| AI Readiness | computed | Derived from score inputs, never directly edited |
+| Ownership Type | `<select>` dropdown | `OWNERSHIP_TYPES` = Public, Private, PE-Backed, Family/Founder-Owned, ESOP, Foreign-Owned, Cooperative, Non-Profit. Legacy values not in the preset are preserved via a dynamic extra `<option>` so existing data isn't lost on open |
+| Recent M&A | `<EditableField>` (multiline) | Free text; drives PE urgency icon logic (truthiness check) |
+| Parent Company | `<EditableField>` (text) | Unchanged — already editable |
+| Decision Location | `<EditableField>` (text) | Unchanged — already editable |
+
+**Downstream-impact fields** — `category`, `in_house_tooling`, `ownership_type`, `recent_ma`, `parent_company` are all in `ONTOLOGY_FIELDS` and/or `SCORE_INPUT_FIELDS`, so edits trigger server-side rebuild/recalc automatically via the existing PATCH handler. No extra client-side handling needed.
+
+**Ownership Type string contract** — downstream indicator logic in `ProspectTable.jsx` keys off `.includes('PE')`, `.includes('Family')`, and `=== 'ESOP'`. The preset values (`'PE-Backed'`, `'Family/Founder-Owned'`, `'ESOP'`) satisfy all three patterns. If adding new values to `OWNERSHIP_TYPES`, preserve these substrings.
+
+**Constants live at the top of `ProspectDetail.jsx`** alongside `GROUP_OPTIONS` and `STATUS_OPTIONS`: `US_STATES`, `IN_HOUSE_TOOLING_OPTIONS`, `OWNERSHIP_TYPES`.
+
 ### Outreach Group Pre-Assignments
 Group 1 (ranked 1-5): Matrix Tool, X-Cell Tool & Mold, C&J Industries, Automation Plastics Corp, Erie Molded Plastics
 Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastics (PE acquisition)

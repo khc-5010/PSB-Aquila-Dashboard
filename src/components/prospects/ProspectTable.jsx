@@ -54,6 +54,51 @@ const GROUP_SORT_ORDER = {
   'Unassigned': 5,
 }
 
+// Columns treated as numeric for sort comparisons. Nulls always sort last
+// regardless of direction to mirror SQL NULLS LAST behavior.
+const NUMERIC_COLUMNS = new Set([
+  'outreach_rank', 'signal_count', 'press_count', 'employees_approx',
+  'cwp_contacts', 'site_count', 'acquisition_count', 'priority_score',
+  'follow_up_date', 'revenue_est_m', 'year_founded', 'years_in_business',
+])
+
+// Compare two prospects on a single key for sorting. Numeric columns put nulls
+// last (return +1/-1 accordingly); string columns coerce null → '' and use
+// localeCompare. The `state` key uses a composite "STATE, City" so states group.
+function compareValues(a, b, key, direction) {
+  let aVal = a[key]
+  let bVal = b[key]
+
+  if (key === 'state') {
+    aVal = `${a.state || ''}, ${a.city || ''}`
+    bVal = `${b.state || ''}, ${b.city || ''}`
+    const cmp = aVal.localeCompare(bVal)
+    return direction === 'asc' ? cmp : -cmp
+  }
+
+  if (NUMERIC_COLUMNS.has(key)) {
+    const aNull = aVal === null || aVal === undefined || aVal === ''
+    const bNull = bVal === null || bVal === undefined || bVal === ''
+    if (aNull && bNull) return 0
+    if (aNull) return 1   // nulls always last
+    if (bNull) return -1
+    // follow_up_date is a DATE string — coerce to timestamp for numeric compare.
+    if (key === 'follow_up_date') {
+      aVal = parseLocalDate(aVal)?.getTime() ?? 0
+      bVal = parseLocalDate(bVal)?.getTime() ?? 0
+    } else {
+      aVal = Number(aVal)
+      bVal = Number(bVal)
+    }
+    return direction === 'asc' ? aVal - bVal : bVal - aVal
+  }
+
+  if (aVal === null || aVal === undefined) aVal = ''
+  if (bVal === null || bVal === undefined) bVal = ''
+  const cmp = String(aVal).localeCompare(String(bVal))
+  return direction === 'asc' ? cmp : -cmp
+}
+
 const PRIORITY_COLORS = {
   'HIGH PRIORITY': 'bg-red-100 text-red-700',
   'QUALIFIED': 'bg-blue-100 text-blue-700',
@@ -552,29 +597,30 @@ function ProspectTable() {
     return true
   })
 
-  // Sort logic
+  // Sort logic — compound: primary key, then smart tiebreakers.
+  //   • Numeric columns sort nulls last regardless of direction (matches SQL NULLS LAST).
+  //   • When a column header is active, tiebreakers apply in order: rank → group → signal desc
+  //     (skipping whichever is the primary key).
+  //   • When no column header is active, the smart default is group → rank → signal desc.
   const sorted = [...filtered].sort((a, b) => {
     if (sortConfig.key) {
-      let aVal = a[sortConfig.key]
-      let bVal = b[sortConfig.key]
-      // follow_up_date and priority_score: nulls always sort last regardless of direction
-      if (sortConfig.key === 'follow_up_date' || sortConfig.key === 'priority_score') {
-        if (!aVal && !bVal) return 0
-        if (!aVal) return 1
-        if (!bVal) return -1
+      const primary = compareValues(a, b, sortConfig.key, sortConfig.direction)
+      if (primary !== 0) return primary
+
+      // Smart tiebreakers — always ascending, nulls last via compareValues.
+      if (sortConfig.key !== 'outreach_rank') {
+        const byRank = compareValues(a, b, 'outreach_rank', 'asc')
+        if (byRank !== 0) return byRank
       }
-      if (aVal === null || aVal === undefined) aVal = ''
-      if (bVal === null || bVal === undefined) bVal = ''
-      // Composite sort: state sorts by "STATE, City" so states group together
-      if (sortConfig.key === 'state') {
-        aVal = `${a.state || ''}, ${a.city || ''}`
-        bVal = `${b.state || ''}, ${b.city || ''}`
+      if (sortConfig.key !== 'outreach_group') {
+        const groupA = GROUP_SORT_ORDER[a.outreach_group] || 5
+        const groupB = GROUP_SORT_ORDER[b.outreach_group] || 5
+        if (groupA !== groupB) return groupA - groupB
       }
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal
-      }
-      const cmp = String(aVal).localeCompare(String(bVal))
-      return sortConfig.direction === 'asc' ? cmp : -cmp
+      // Final tiebreaker: signal_count desc
+      const sigA = a.signal_count ?? 0
+      const sigB = b.signal_count ?? 0
+      return sigB - sigA
     }
     // Default sort: group order → rank → signal_count desc
     const groupA = GROUP_SORT_ORDER[a.outreach_group] || 5
