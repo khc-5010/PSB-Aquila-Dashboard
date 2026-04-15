@@ -138,7 +138,7 @@ function PriorityHoverCard({ prospect, children }) {
             {readinessResult?.met?.length > 0 && (
               <div className="text-[10px] text-gray-500">
                 {readinessResult.met.map((m, i) => (
-                  <span key={i}>{i > 0 ? ' \u00B7 ' : ''}<span className="text-green-600">\u2713</span> {m}</span>
+                  <span key={i}>{i > 0 ? ' · ' : ''}<span className="text-green-600">✓</span> {m}</span>
                 ))}
               </div>
             )}
@@ -146,7 +146,7 @@ function PriorityHoverCard({ prospect, children }) {
 
           {p.priority_manual && p.priority_manual !== tier && (
             <div className="border-t border-gray-100 pt-1.5 mt-1.5 text-[10px] text-amber-600">
-              \uD83D\uDCCC Manual override: {p.priority_manual}
+              📌 Manual override: {p.priority_manual}
             </div>
           )}
         </div>
