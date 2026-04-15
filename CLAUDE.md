@@ -235,6 +235,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Provenance: `added_by` — set on INSERT only (never overwritten on update/upsert), sourced from authenticated user's name
   - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
   - Follow-up: `follow_up_date` (DATE, nullable) — user-set follow-up date for CRM tracking
+  - Scoring: `priority_score` (INTEGER, nullable) — calculated 0-100 score; `ai_readiness` (TEXT, nullable) — 'green'/'yellow'/'red'/'exempt'; `priority_manual` (TEXT, nullable) — manual override value
   - Timestamps: `created_at`, `updated_at`
 
 ### State Research Tables
@@ -407,6 +408,62 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
 **`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → site count (≥10) → acquisition count (≥5) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
 
 **`CERT_COLORS`** mapping and `getCertColor()` use case-insensitive partial match against certification string.
+
+### Alliance Priority Score & AI Readiness
+
+Calculated scoring system replacing the static `priority` TEXT field with a computed 0-100 score mapped to tiers.
+
+**Database columns** (on `prospect_companies`):
+- `priority_score` (INTEGER) — Calculated score 0-100. NULL for exempt companies.
+- `ai_readiness` (TEXT) — 'green', 'yellow', 'red', 'exempt', or NULL.
+- `priority_manual` (TEXT) — Stores Brett's manual override value when set via ProspectDetail dropdown.
+
+**Six scoring dimensions** (total: 100):
+| Dimension | Max | What It Measures |
+|-----------|-----|------------------|
+| Scale | 25 | press_count (primary), employees_approx (fallback) |
+| Relationship Warmth | 25 | cwp_contacts + psb_connection_notes bonus |
+| Ownership Urgency | 15 | PE + M&A (15), PE alone (10), family 30yr (8), ESOP (4) |
+| Strategic Vertical | 15 | Medical+ISO 13485 (15), medical (10), automotive (8), aerospace (6) |
+| Signal Density | 10 | signal_count thresholds |
+| Technology Signals | 10 | RJG confirmed (10), likely (6), in-house tooling (+3) |
+
+**Tier mapping** (from `priority_score`):
+- 75-100 → HIGH PRIORITY (red pill)
+- 50-74 → QUALIFIED (blue pill)
+- 25-49 → WATCH (yellow pill)
+- 0-24 → LOW (gray pill)
+- NULL → not calculated (exempt or missing data)
+
+**AI Readiness** (5 criteria — green ≥3, yellow ≥1, red 0):
+1. RJG cavity pressure (yes/confirmed/likely)
+2. In-house tooling
+3. ISO/IATF/AS9100 certification
+4. 20+ presses
+5. Medical device mfg or automotive (IATF/16949)
+
+**Exempt companies** — no score calculated:
+- `outreach_group = 'Infrastructure'`
+- `category IN ('Knowledge Sector', 'Hot Runner Systems', 'Catalog/Standards', 'Strategic Partner')`
+
+**Manual override logic**:
+- When Brett edits `priority` via the ProspectDetail dropdown, the value is stored in both `priority` and `priority_manual`
+- When score-input fields are PATCHed, server recalculates `priority_score` and `ai_readiness`; updates `priority` text to computed tier ONLY IF `priority_manual IS NULL`
+- If `priority_manual` is set, `priority` retains Brett's manual value even as score recalculates
+
+**SYNC pattern**: Calculation functions exist in both:
+- `src/utils/priorityScore.js` (client — hover card, detail panel)
+- `api/prospects.js` (server — PATCH handler, recalculate-all endpoint)
+Mark with `// SYNC` comments. Vercel serverless cannot import from `src/`.
+
+**`SCORE_INPUT_FIELDS`** — fields that trigger recalculation when PATCHed:
+`press_count`, `employees_approx`, `signal_count`, `cwp_contacts`, `psb_connection_notes`, `rjg_cavity_pressure`, `in_house_tooling`, `medical_device_mfg`, `key_certifications`, `ownership_type`, `recent_ma`, `years_in_business`, `category`, `outreach_group`
+
+**API endpoint**: `POST /api/prospects?action=recalculate-all-priorities` — Bulk recalculate all prospects. Returns `{ updated, exempt, total }`.
+
+**PriorityHoverCard** — Inline in `ProspectTable.jsx`. Renders on hover over priority pill. Shows score breakdown (6 horizontal bars), AI readiness with criteria list, and manual override indicator. z-30 (above table, below detail modal z-40). 250ms delay.
+
+**Priority column** sorts by `priority_score` (numeric, nulls last) instead of alphabetical `priority` text.
 
 ### Company Hover Card (CompanyHoverCard)
 

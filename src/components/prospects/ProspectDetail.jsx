@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
 import ResearchPromptModal from './ResearchPromptModal'
@@ -509,7 +510,58 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       </dd>
                     </div>
                     <Field label="Source Report" value={p.source_report} className="col-span-2" />
-                    <Field label="Priority" value={p.priority} />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.priority || ''}
+                          onChange={(e) => onUpdate(p.id, 'priority', e.target.value || null)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          <option value="">—</option>
+                          <option value="HIGH PRIORITY">HIGH PRIORITY</option>
+                          <option value="QUALIFIED">QUALIFIED</option>
+                          <option value="WATCH">WATCH</option>
+                          <option value="LOW">LOW</option>
+                          <option value="STRATEGIC PARTNER">STRATEGIC PARTNER</option>
+                        </select>
+                        {p.priority_manual && (
+                          <span className="ml-1.5 text-[10px] text-amber-600">(Manual override)</span>
+                        )}
+                        {(() => {
+                          const scoreResult = calculatePriorityScore(p)
+                          if (!scoreResult) return null
+                          return (
+                            <span className="ml-1.5 text-xs text-gray-500">Score: {scoreResult.score}</span>
+                          )
+                        })()}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">AI Readiness</dt>
+                      <dd className="mt-0.5 flex items-center gap-1.5">
+                        {(() => {
+                          const readinessResult = calculateAiReadiness(p)
+                          const r = readinessResult?.readiness || readinessResult
+                          const colors = {
+                            green: { dot: 'bg-green-500', text: 'Green' },
+                            yellow: { dot: 'bg-yellow-400', text: 'Yellow' },
+                            red: { dot: 'bg-red-500', text: 'Red' },
+                            exempt: { dot: 'bg-gray-300', text: 'Exempt' },
+                          }
+                          const info = colors[r] || colors.red
+                          return (
+                            <>
+                              <span className={`inline-block w-2.5 h-2.5 rounded-full ${info.dot}`} />
+                              <span className="text-sm text-gray-900">{info.text}</span>
+                              {readinessResult?.met?.length > 0 && (
+                                <span className="text-xs text-gray-400 ml-1">({readinessResult.met.join(', ')})</span>
+                              )}
+                            </>
+                          )
+                        })()}
+                      </dd>
+                    </div>
                     <Field label="Ownership Type" value={p.ownership_type} />
                     <Field label="Recent M&A" value={p.recent_ma} className="col-span-2" />
                     <EditableField

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
@@ -58,6 +59,100 @@ const PRIORITY_COLORS = {
   'QUALIFIED': 'bg-blue-100 text-blue-700',
   'WATCH': 'bg-yellow-100 text-yellow-700',
   'STRATEGIC PARTNER': 'bg-purple-100 text-purple-700',
+  'LOW': 'bg-gray-100 text-gray-500',
+}
+
+const READINESS_COLORS = {
+  green: { dot: 'bg-green-500', label: 'Green', title: 'AI-ready: meets 3+ criteria' },
+  yellow: { dot: 'bg-yellow-400', label: 'Yellow', title: 'Partial readiness: meets 1-2 criteria' },
+  red: { dot: 'bg-red-500', label: 'Red', title: 'Not ready: meets 0 criteria' },
+  exempt: { dot: 'bg-gray-300', label: 'Exempt', title: 'Infrastructure/strategic — not scored' },
+}
+
+const DIMENSION_LABELS = {
+  scale: { label: 'Scale', max: 25 },
+  warmth: { label: 'Warmth', max: 25 },
+  urgency: { label: 'Urgency', max: 15 },
+  vertical: { label: 'Vertical', max: 15 },
+  signals: { label: 'Signals', max: 10 },
+  technology: { label: 'Technology', max: 10 },
+}
+
+function PriorityHoverCard({ prospect, children }) {
+  const [show, setShow] = useState(false)
+  const timeoutRef = useRef(null)
+
+  const handleMouseEnter = () => {
+    timeoutRef.current = setTimeout(() => setShow(true), 250)
+  }
+
+  const handleMouseLeave = () => {
+    clearTimeout(timeoutRef.current)
+    setShow(false)
+  }
+
+  const p = prospect
+  const scoreResult = calculatePriorityScore(p)
+  const readinessResult = calculateAiReadiness(p)
+
+  if (!scoreResult) return <>{children}</>
+
+  const { score, breakdown } = scoreResult
+  const tier = getTierFromScore(score)
+  const readinessInfo = READINESS_COLORS[readinessResult?.readiness] || READINESS_COLORS.red
+
+  return (
+    <span className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      {children}
+      {show && (
+        <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-xl p-3 w-64 pointer-events-none">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-900">{score} / 100</span>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PRIORITY_COLORS[tier] || 'bg-gray-100 text-gray-600'}`}>{tier}</span>
+          </div>
+
+          <div className="space-y-1.5 mb-2.5">
+            {Object.entries(DIMENSION_LABELS).map(([key, { label, max }]) => {
+              const val = breakdown[key] ?? 0
+              const pct = (val / max) * 100
+              return (
+                <div key={key} className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-500 w-16 text-right">{label}</span>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-blue-500' : pct >= 25 ? 'bg-yellow-500' : 'bg-gray-300'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-400 w-8">{val}/{max}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="border-t border-gray-100 pt-2">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`inline-block w-2 h-2 rounded-full ${readinessInfo.dot}`} />
+              <span className="text-[10px] font-medium text-gray-700">AI Readiness: {readinessInfo.label}</span>
+            </div>
+            {readinessResult?.met?.length > 0 && (
+              <div className="text-[10px] text-gray-500">
+                {readinessResult.met.map((m, i) => (
+                  <span key={i}>{i > 0 ? ' \u00B7 ' : ''}<span className="text-green-600">\u2713</span> {m}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {p.priority_manual && p.priority_manual !== tier && (
+            <div className="border-t border-gray-100 pt-1.5 mt-1.5 text-[10px] text-amber-600">
+              \uD83D\uDCCC Manual override: {p.priority_manual}
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  )
 }
 
 function displayValue(val) {
@@ -118,7 +213,7 @@ function getProspectUrgency(prospect) {
 function exportToCSV(data, filename) {
   const columns = [
     'company', 'also_known_as', 'category', 'in_house_tooling',
-    'city', 'state', 'geography_tier', 'source_report', 'priority',
+    'city', 'state', 'geography_tier', 'source_report', 'priority', 'priority_score', 'ai_readiness',
     'employees_approx', 'year_founded', 'years_in_business',
     'revenue_known', 'revenue_est_m', 'press_count',
     'site_count', 'acquisition_count',
@@ -459,8 +554,8 @@ function ProspectTable() {
     if (sortConfig.key) {
       let aVal = a[sortConfig.key]
       let bVal = b[sortConfig.key]
-      // follow_up_date: nulls always sort last regardless of direction
-      if (sortConfig.key === 'follow_up_date') {
+      // follow_up_date and priority_score: nulls always sort last regardless of direction
+      if (sortConfig.key === 'follow_up_date' || sortConfig.key === 'priority_score') {
         if (!aVal && !bVal) return 0
         if (!aVal) return 1
         if (!bVal) return -1
@@ -711,7 +806,9 @@ function ProspectTable() {
       </td>
       <td className="px-3 py-2.5">
         {p.priority ? (
-          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${PRIORITY_COLORS[p.priority] || 'bg-gray-100 text-gray-600'}`}>{p.priority}</span>
+          <PriorityHoverCard prospect={p}>
+            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full cursor-default ${PRIORITY_COLORS[p.priority] || 'bg-gray-100 text-gray-600'}`}>{p.priority}</span>
+          </PriorityHoverCard>
         ) : (
           <span className="text-xs text-gray-400">{'\u2014'}</span>
         )}
@@ -921,7 +1018,9 @@ function ProspectTable() {
         </td>
         <td className="px-3 py-2.5">
           {parentP.priority ? (
-            <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${PRIORITY_COLORS[parentP.priority] || 'bg-gray-100 text-gray-600'}`}>{parentP.priority}</span>
+            <PriorityHoverCard prospect={parentP}>
+              <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full cursor-default ${PRIORITY_COLORS[parentP.priority] || 'bg-gray-100 text-gray-600'}`}>{parentP.priority}</span>
+            </PriorityHoverCard>
           ) : dash}
         </td>
         <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalSignal || '\u2014'}</span></td>
@@ -1114,8 +1213,8 @@ function ProspectTable() {
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-32 cursor-pointer" onClick={() => handleSort('state')}>
                 Location <SortIcon column="state" />
               </th>
-              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('priority')}>
-                Priority <SortIcon column="priority" />
+              <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('priority_score')}>
+                Priority <SortIcon column="priority_score" />
               </th>
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('signal_count')}>
                 Sig <SortIcon column="signal_count" />
