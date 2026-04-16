@@ -909,12 +909,51 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                 {/* Company Metrics */}
                 <Section title="Company Metrics" defaultOpen={false}>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    <Field label="Employees (Approx)" value={p.employees_approx} />
-                    <Field label="Year Founded" value={p.year_founded} />
-                    <Field label="Years in Business" value={p.years_in_business} />
-                    <Field label="Revenue Known" value={p.revenue_known} />
-                    <Field label="Revenue Est ($M)" value={p.revenue_est_m} />
-                    <Field label="Press Count" value={p.press_count} />
+                    <EditableField
+                      label="Employees (Approx)"
+                      value={p.employees_approx != null ? String(p.employees_approx) : ''}
+                      onSave={(val) => {
+                        const parsed = parseInt(val, 10)
+                        onUpdate(p.id, 'employees_approx', isNaN(parsed) ? null : parsed)
+                      }}
+                    />
+                    <EditableField
+                      label="Year Founded"
+                      value={p.year_founded != null ? String(p.year_founded) : ''}
+                      onSave={(val) => {
+                        const parsed = parseInt(val, 10)
+                        onUpdate(p.id, 'year_founded', isNaN(parsed) ? null : parsed)
+                      }}
+                    />
+                    <EditableField
+                      label="Years in Business"
+                      value={p.years_in_business != null ? String(p.years_in_business) : ''}
+                      onSave={(val) => {
+                        const parsed = parseInt(val, 10)
+                        onUpdate(p.id, 'years_in_business', isNaN(parsed) ? null : parsed)
+                      }}
+                    />
+                    <EditableField
+                      label="Revenue Known"
+                      value={p.revenue_known || ''}
+                      onSave={(val) => onUpdate(p.id, 'revenue_known', val || null)}
+                    />
+                    <EditableField
+                      label="Revenue Est ($M)"
+                      value={p.revenue_est_m != null ? String(p.revenue_est_m) : ''}
+                      onSave={(val) => {
+                        const parsed = parseFloat(val)
+                        onUpdate(p.id, 'revenue_est_m', isNaN(parsed) ? null : parsed)
+                      }}
+                    />
+                    <EditableField
+                      label="Press Count"
+                      value={p.press_count != null ? String(p.press_count) : ''}
+                      onSave={(val) => {
+                        const parsed = parseInt(val, 10)
+                        onUpdate(p.id, 'press_count', isNaN(parsed) ? null : parsed)
+                      }}
+                    />
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
                       <dd className="mt-0.5">
