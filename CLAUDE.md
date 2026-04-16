@@ -583,7 +583,7 @@ Mark with `// SYNC` comments. Vercel serverless cannot import from `src/`.
 - Certification badges (same color scheme as ProspectDetail)
 - Top Signal (footer, italic)
 
-**Editable fields**: `site_count` (INTEGER) and `acquisition_count` (INTEGER) are editable in ProspectDetail Company Metrics section as always-visible number inputs (same pattern as `outreach_rank`). Data entered here appears in the hover card and in `buildHookLine()` (≥10 sites, ≥5 acquisitions).
+**Editable fields**: All 8 Company Metrics fields are editable in ProspectDetail. `employees_approx`, `year_founded`, `years_in_business`, `press_count` use `<EditableField>` with `parseInt` (null if empty/NaN). `revenue_est_m` uses `<EditableField>` with `parseFloat` (null if empty/NaN). `revenue_known` uses `<EditableField>` as free text (null if empty). `site_count` and `acquisition_count` remain as always-visible number inputs (same pattern as `outreach_rank`). `employees_approx`, `press_count` are in `SCORE_INPUT_FIELDS` so edits trigger server-side priority score recalc. Data entered here appears in the hover card and in `buildHookLine()` (≥10 sites, ≥5 acquisitions).
 
 ### FDA Intelligence (Client-Side Enrichment)
 
