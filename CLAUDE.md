@@ -226,7 +226,8 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 
 - **`prospect_companies`** - 179-company prospect database for alliance outreach
   - `id` (SERIAL, PK)
-  - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `geography_tier`, `source_report`, `priority`
+  - Core: `company`, `also_known_as`, `website`, `category`, `in_house_tooling`, `city`, `state`, `country`, `geography_tier`, `source_report`, `priority`
+  - Location: `country` (TEXT, default `'US'`, never NULL) — ISO-3166 alpha-2 code. For US rows `state` is a 2-letter code; for non-US rows `state` is optional free-text region/province. National Map, state-stats, and ontology-density-by-state filter to `country = 'US' OR country IS NULL`. Non-US rows route to the `'International'` corridor instead of any state-based corridor.
   - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`, `site_count`, `acquisition_count`
   - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg` (values: `'Yes'`, `'Yes (confirmed)'`, `'No'`, or NULL), `key_certifications`
   - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
@@ -612,9 +613,11 @@ Mark with `// SYNC` comments. Vercel serverless cannot import from `src/`.
 **No new serverless functions** — zero API route changes beyond the `LIKE 'Yes%'` ripple updates.
 
 ### Manufacturing Corridors (replaced Geography Tiers)
-The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from the `state` column at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.
+The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from `country` + `state` at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.
 
-**State → Corridor Mapping:**
+**Country → Corridor Routing (highest priority):** Any row where `country IS NOT NULL AND country != 'US'` routes to **`'International'`**, regardless of `state` value. Only rows where `country = 'US' OR country IS NULL` flow into the state-based corridor logic below.
+
+**State → Corridor Mapping (US only):**
 | Corridor | States |
 |----------|--------|
 | **Great Lakes Auto** | MI, OH, IN, IL, WI |
@@ -625,13 +628,23 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 | **West Coast** | CA, OR, WA |
 | **Mountain / Central** | CO, AZ, UT, NV, NM, ID, MT, WY, ND, SD, NE, KS, IA, MO |
 | **Non-Contiguous** | AK, HI |
+| **International** | All non-US countries (DE, CA, SE, IT, etc.) |
 
 **Corridor Colors:**
-- Great Lakes Auto: `#041E42` (navy), Northeast Tool: `#2563EB` (blue), Southeast Growth: `#16A34A` (green), Gulf / Resin Belt: `#DC2626` (red), Upper Midwest Medical: `#7C3AED` (purple), West Coast: `#F59E0B` (amber), Mountain / Central: `#6B7280` (gray), Non-Contiguous: `#9CA3AF` (light gray), Unknown: `#D1D5DB`
+- Great Lakes Auto: `#041E42` (navy), Northeast Tool: `#2563EB` (blue), Southeast Growth: `#16A34A` (green), Gulf / Resin Belt: `#DC2626` (red), Upper Midwest Medical: `#7C3AED` (purple), West Coast: `#F59E0B` (amber), Mountain / Central: `#6B7280` (gray), Non-Contiguous: `#9CA3AF` (light gray), International: `#0891B2` (cyan), Unknown: `#D1D5DB`
 
 **Filter preset:** "Home Turf" → filters to Northeast Tool corridor (was "Tier 1 Local")
 
-**Implementation:** Corridors are computed from `state` via SQL CASE expression in the analytics endpoint and a JS lookup map in ProspectTable for client-side filtering. The `corridor` query param maps to `WHERE state IN (...)` clauses. The mapping is defined in three places: `api/prospects.js` (analytics + list endpoints), `src/components/prospects/ProspectTable.jsx` (client-side filter), and `src/components/prospects/charts/GeographyMap.jsx` (colors).
+**Implementation:** Corridors are computed from `country` + `state` via SQL CASE expression in the analytics endpoint and a JS check in ProspectTable for client-side filtering. The `corridor` query param maps to `WHERE country != 'US'` (International) or `WHERE state IN (...)` (US corridors). The mapping is defined in three places, all marked with `// SYNC: country/corridor — also in [other locations]`: `api/prospects.js` (analytics CASE + list filter), `src/components/prospects/ProspectTable.jsx` (client-side filter), and `src/data/corridors.js` (`CORRIDOR_COLORS` only — `STATE_TO_CORRIDOR` is US-only). When extending corridor logic, update all three.
+
+**Location display format** (`formatLocation()` in `ProspectTable.jsx`):
+- US (or `country` null): `"City, ST"` — e.g. `"Erie, PA"`
+- Non-US with state: `"City, Region, CC"` — e.g. `"Bolton, ON, CA"`
+- Non-US without state: `"City, CC"` — e.g. `"Weener, DE"`
+
+**National Map exclusion:** All US-state-scoped endpoints (`state-stats`, `ontology-density-by-state`) include `AND (country IS NULL OR country = 'US')` in their WHERE clauses so international companies don't create phantom state entries. The map itself (`USMap.jsx`, `NationalMap.jsx`, etc.) is US-only by design — international companies are filtered out at the API layer, not the component layer.
+
+**Knowledge Graph International filter:** `QueryPanel.jsx` state dropdown includes a `🌐 International` option with value `'INTL'`. The `ontology-query`, `ontology-graph`, and `ontology-neighborhood` endpoints all recognize `state=INTL` as a special value meaning "filter to non-US companies."
 
 ### Sub-View Toggle Pattern
 The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state, affecting both table and chart views.

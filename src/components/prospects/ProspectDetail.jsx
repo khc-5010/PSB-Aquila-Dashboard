@@ -774,20 +774,35 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       onSave={(val) => onUpdate(p.id, 'city', val)}
                     />
                     <div>
-                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">State</dt>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">State / Province</dt>
                       <dd className="mt-0.5">
-                        <select
-                          value={p.state || ''}
-                          onChange={(e) => onUpdate(p.id, 'state', e.target.value || null)}
-                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                        >
-                          <option value="">—</option>
-                          {US_STATES.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                        {(!p.country || p.country === 'US') ? (
+                          <select
+                            value={p.state || ''}
+                            onChange={(e) => onUpdate(p.id, 'state', e.target.value || null)}
+                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          >
+                            <option value="">—</option>
+                            {US_STATES.map(s => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={p.state || ''}
+                            onChange={(e) => onUpdate(p.id, 'state', e.target.value || null)}
+                            placeholder="Optional region"
+                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          />
+                        )}
                       </dd>
                     </div>
+                    <EditableField
+                      label="Country"
+                      value={p.country || 'US'}
+                      onSave={(val) => onUpdate(p.id, 'country', (val || 'US').toUpperCase())}
+                    />
                     <Field label="Geography Tier" value={p.geography_tier} />
                     <div className="col-span-2">
                       <EditableField

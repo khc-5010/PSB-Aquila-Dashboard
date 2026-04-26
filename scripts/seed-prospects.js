@@ -32,6 +32,7 @@ const EXCEL_TO_DB = {
   'In-House Tooling': 'in_house_tooling',
   'City': 'city',
   'State': 'state',
+  'Country': 'country',
   'Geography Tier': 'geography_tier',
   'Source Report': 'source_report',
   'Priority': 'priority',
@@ -132,7 +133,7 @@ async function insertProspect(row) {
   await sql`
     INSERT INTO prospect_companies (
       company, also_known_as, website, category, in_house_tooling,
-      city, state, geography_tier, source_report, priority,
+      city, state, country, geography_tier, source_report, priority,
       employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
       press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
       key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
@@ -140,7 +141,7 @@ async function insertProspect(row) {
       outreach_group, outreach_rank
     ) VALUES (
       ${row.company}, ${row.also_known_as}, ${row.website}, ${row.category}, ${row.in_house_tooling},
-      ${row.city}, ${row.state}, ${row.geography_tier}, ${row.source_report}, ${row.priority},
+      ${row.city}, ${row.state}, ${row.country || 'US'}, ${row.geography_tier}, ${row.source_report}, ${row.priority},
       ${row.employees_approx}, ${row.year_founded}, ${row.years_in_business}, ${row.revenue_known}, ${row.revenue_est_m},
       ${row.press_count}, ${row.signal_count}, ${row.top_signal}, ${row.rjg_cavity_pressure}, ${row.medical_device_mfg},
       ${row.key_certifications}, ${row.ownership_type}, ${row.recent_ma}, ${row.cwp_contacts}, ${row.psb_connection_notes},

@@ -764,31 +764,36 @@ export default async function handler(req, res) {
     if (action === 'state-stats') {
       try {
         const [stateCounts, categoryBreakdown, signalAvg, cwpTotals, priorityCounts, topCompanies, totals] = await Promise.all([
-          // Prospect count per state
+          // Prospect count per state (US only — National Map is US-scoped)
           sql`SELECT state, COUNT(*)::int AS prospect_count
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')
               GROUP BY state`,
           // Top 3 categories per state
           sql`SELECT state, category, COUNT(*)::int AS count
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != '' AND category IS NOT NULL
+                AND (country IS NULL OR country = 'US')
               GROUP BY state, category
               ORDER BY state, count DESC`,
           // Average signal count per state
           sql`SELECT state, ROUND(AVG(COALESCE(signal_count, 0))::numeric, 1)::float AS avg_signal
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')
               GROUP BY state`,
           // Total CWP contacts per state
           sql`SELECT state, COALESCE(SUM(COALESCE(cwp_contacts, 0)), 0)::int AS cwp_total
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')
               GROUP BY state`,
           // Priority breakdown per state
           sql`SELECT state, priority, COUNT(*)::int AS count
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')
               GROUP BY state, priority`,
           // Top 3 companies per state by signal_count
           sql`SELECT state, company, signal_count, category, priority
@@ -797,16 +802,18 @@ export default async function handler(req, res) {
                        ROW_NUMBER() OVER (PARTITION BY state ORDER BY signal_count DESC NULLS LAST) AS rn
                 FROM prospect_companies
                 WHERE state IS NOT NULL AND state != ''
+                  AND (country IS NULL OR country = 'US')
               ) ranked
               WHERE rn <= 3`,
-          // Pipeline-wide totals
+          // Pipeline-wide totals (US only)
           sql`SELECT
                 COUNT(*)::int AS total_prospects,
                 COUNT(DISTINCT state)::int AS states_covered,
                 ROUND(AVG(COALESCE(signal_count, 0))::numeric, 1)::float AS avg_signal_overall,
                 COALESCE(SUM(COALESCE(cwp_contacts, 0)), 0)::int AS total_cwp
               FROM prospect_companies
-              WHERE state IS NOT NULL AND state != ''`,
+              WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')`,
         ])
 
         // Build per-state object
@@ -1036,11 +1043,13 @@ export default async function handler(req, res) {
       try {
         const [relsByState, entsByState, prospectsByState, layerBreakdown] = await Promise.all([
           // Relationship count per state (via subject Company entity → prospect_companies.state)
+          // National Map metric — US only
           sql`SELECT UPPER(pc.state) AS state_code, COUNT(*)::int AS relationship_count
               FROM ontology_relationships orel
               JOIN ontology_entities oe ON orel.subject_entity_id = oe.id
               JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
               WHERE pc.state IS NOT NULL AND pc.state != ''
+                AND (pc.country IS NULL OR pc.country = 'US')
               GROUP BY UPPER(pc.state)`,
           // Entity count per state (Company entities + related object entities)
           sql`SELECT UPPER(pc.state) AS state_code, COUNT(DISTINCT oe_obj.id)::int + COUNT(DISTINCT oe.id)::int AS entity_count
@@ -1049,11 +1058,13 @@ export default async function handler(req, res) {
               LEFT JOIN ontology_relationships orel ON orel.subject_entity_id = oe.id
               LEFT JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
               WHERE pc.state IS NOT NULL AND pc.state != ''
+                AND (pc.country IS NULL OR pc.country = 'US')
               GROUP BY UPPER(pc.state)`,
           // Prospect count per state (for normalization)
           sql`SELECT UPPER(state) AS state_code, COUNT(*)::int AS prospect_count
               FROM prospect_companies
               WHERE state IS NOT NULL AND state != ''
+                AND (country IS NULL OR country = 'US')
               GROUP BY UPPER(state)`,
           // Layer breakdown per state
           sql`SELECT UPPER(pc.state) AS state_code,
@@ -1063,6 +1074,7 @@ export default async function handler(req, res) {
               JOIN ontology_entities oe ON orel.subject_entity_id = oe.id
               JOIN prospect_companies pc ON oe.prospect_company_id = pc.id
               WHERE pc.state IS NOT NULL AND pc.state != ''
+                AND (pc.country IS NULL OR pc.country = 'US')
               GROUP BY UPPER(pc.state)`,
         ])
 
@@ -1138,7 +1150,9 @@ export default async function handler(req, res) {
         // Build optional WHERE filters for company scoping
         let companyFilter = ''
         const filterParams = []
-        if (state) {
+        if (state === 'INTL') {
+          companyFilter = `AND pc.country IS NOT NULL AND pc.country != 'US'`
+        } else if (state) {
           filterParams.push(state.toUpperCase())
           companyFilter = `AND pc.state = $1`
         }
@@ -1368,12 +1382,12 @@ export default async function handler(req, res) {
           }
         }
 
-        // If state filter is active, remove Company nodes not in that state
+        // If state filter is active, remove Company nodes not in that state.
+        // Special value 'INTL' filters to non-US companies.
         if (state) {
-          const stateUpper = state.toUpperCase()
-          const stateProspects = await sql`
-            SELECT id FROM prospect_companies WHERE UPPER(state) = ${stateUpper}
-          `
+          const stateProspects = state === 'INTL'
+            ? await sql`SELECT id FROM prospect_companies WHERE country IS NOT NULL AND country != 'US'`
+            : await sql`SELECT id FROM prospect_companies WHERE UPPER(state) = ${state.toUpperCase()}`
           const stateProspectIds = new Set(stateProspects.map(r => r.id))
 
           // Keep non-Company nodes and Company nodes in the target state
@@ -1486,11 +1500,13 @@ export default async function handler(req, res) {
             pc.medical_device_mfg
           FROM company_matches cm
           JOIN prospect_companies pc ON pc.id = cm.prospect_company_id
-          ${queryState ? `WHERE pc.state = $3` : ''}
+          ${queryState === 'INTL'
+            ? `WHERE pc.country IS NOT NULL AND pc.country != 'US'`
+            : (queryState ? `WHERE pc.state = $3` : '')}
           ORDER BY cm.match_count DESC, pc.signal_count DESC NULLS LAST
         `
         const matchParams = [allEntityNames, categoryCount]
-        if (queryState) matchParams.push(queryState.toUpperCase())
+        if (queryState && queryState !== 'INTL') matchParams.push(queryState.toUpperCase())
 
         const matches = await sql.query(matchQuery, matchParams)
 
@@ -1617,7 +1633,7 @@ export default async function handler(req, res) {
             COUNT(*)::int as total,
             COUNT(*) FILTER (WHERE signal_count IS NULL OR signal_count = 0)::int as null_signal,
             COUNT(*) FILTER (WHERE cwp_contacts IS NULL)::int as null_cwp,
-            COUNT(*) FILTER (WHERE state IS NULL OR state = '')::int as null_state,
+            COUNT(*) FILTER (WHERE (state IS NULL OR state = '') AND (country IS NULL OR country = 'US'))::int as null_state,
             COUNT(*) FILTER (WHERE category IS NULL OR category = '')::int as null_category,
             COUNT(*) FILTER (WHERE priority IS NULL OR priority = '')::int as null_priority,
             COUNT(*) FILTER (WHERE press_count IS NULL OR press_count = 0)::int as null_press,
@@ -1650,7 +1666,7 @@ export default async function handler(req, res) {
 
         // Build rules catalog
         const rules = [
-          { id: 'null_state', name: 'Missing state', severity: 'critical', category: 'completeness', description: 'Prospects with no state assigned. Cannot appear on National Map or in corridor analytics.', count: c.null_state, suggestion: 'Add state for these companies from their website or source report.' },
+          { id: 'null_state', name: 'Missing state (US only)', severity: 'critical', category: 'completeness', description: 'US prospects with no state assigned. Cannot appear on National Map or in corridor analytics. International prospects are excluded from this check.', count: c.null_state, suggestion: 'Add state for these companies from their website or source report.' },
           { id: 'rjg_no_signal', name: 'RJG confirmed but signal = 0', severity: 'critical', category: 'consistency', description: 'Companies with confirmed RJG cavity pressure monitoring but signal_count = 0. RJG alone should count as at least 1 signal.', count: i.rjg_no_signal, suggestion: 'Review source reports and set signal_count to at least 1 for confirmed RJG users.' },
           { id: 'null_signal', name: 'Missing signal count', severity: 'high', category: 'completeness', description: 'Prospects with signal_count = 0 or NULL. May have signals that weren\'t captured during import.', count: c.null_signal, suggestion: 'Review source reports for these states and update signal counts, or re-import from corrected data.' },
           { id: 'null_cwp', name: 'Missing CWP contacts', severity: 'high', category: 'completeness', description: 'Prospects with NULL cwp_contacts. CWP warmth indicators won\'t show for these companies.', count: c.null_cwp, suggestion: 'Cross-reference CWP database to populate contact counts.' },
@@ -1703,7 +1719,7 @@ export default async function handler(req, res) {
             UNION ALL SELECT * FROM (
               SELECT 'null_state' as rule_id, id, company, COALESCE(state, '') as state, 'no state' as detail
               FROM prospect_companies
-              WHERE state IS NULL OR state = ''
+              WHERE (state IS NULL OR state = '') AND (country IS NULL OR country = 'US')
               ORDER BY company LIMIT 5
             ) c
             UNION ALL SELECT * FROM (
@@ -1895,20 +1911,26 @@ export default async function handler(req, res) {
           conditions.push(`geography_tier = $${params.length}`)
         }
         if (corridor) {
+          // SYNC: country/corridor — also in ProspectTable.jsx, corridors.js
           const corridors = corridor.split(',').map(s => s.trim()).filter(Boolean)
           const allStates = []
           let hasUnknown = false
+          let hasInternational = false
           for (const c of corridors) {
-            const states = CORRIDOR_TO_STATES[c]
-            if (states) allStates.push(...states)
+            if (c === 'International') hasInternational = true
             else if (c === 'Unknown') hasUnknown = true
+            else {
+              const states = CORRIDOR_TO_STATES[c]
+              if (states) allStates.push(...states)
+            }
           }
           const stateConditions = []
           if (allStates.length > 0) {
             const placeholders = allStates.map(s => { params.push(s); return `$${params.length}` }).join(',')
-            stateConditions.push(`state IN (${placeholders})`)
+            stateConditions.push(`((country IS NULL OR country = 'US') AND state IN (${placeholders}))`)
           }
-          if (hasUnknown) stateConditions.push(`(state IS NULL OR state = '')`)
+          if (hasUnknown) stateConditions.push(`((country IS NULL OR country = 'US') AND (state IS NULL OR state = ''))`)
+          if (hasInternational) stateConditions.push(`(country IS NOT NULL AND country != 'US')`)
           if (stateConditions.length > 0) conditions.push(`(${stateConditions.join(' OR ')})`)
         }
         if (medical_device_mfg) {
@@ -1942,10 +1964,12 @@ export default async function handler(req, res) {
              GROUP BY category ORDER BY count DESC`,
             params
           ),
-          // Manufacturing corridors (derived from state)
+          // Manufacturing corridors (derived from country + state)
+          // SYNC: country/corridor — also in ProspectTable.jsx, corridors.js
           sql.query(
             `SELECT
                CASE
+                 WHEN country IS NOT NULL AND country != 'US' THEN 'International'
                  WHEN state IN ('MI','OH','IN','IL','WI') THEN 'Great Lakes Auto'
                  WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC') THEN 'Northeast Tool'
                  WHEN state IN ('NC','GA','FL','TN','SC','VA','AL','MS','KY') THEN 'Southeast Growth'
@@ -2122,20 +2146,26 @@ export default async function handler(req, res) {
           conditions.push(`geography_tier = $${params.length}`)
         }
         if (listCorridor) {
+          // SYNC: country/corridor — also in ProspectTable.jsx, corridors.js
           const corridors = listCorridor.split(',').map(s => s.trim()).filter(Boolean)
           const allStates = []
           let hasUnknown = false
+          let hasInternational = false
           for (const c of corridors) {
-            const states = CORRIDOR_TO_STATES_LIST[c]
-            if (states) allStates.push(...states)
+            if (c === 'International') hasInternational = true
             else if (c === 'Unknown') hasUnknown = true
+            else {
+              const states = CORRIDOR_TO_STATES_LIST[c]
+              if (states) allStates.push(...states)
+            }
           }
           const stateConditions = []
           if (allStates.length > 0) {
             const placeholders = allStates.map(s => { params.push(s); return `$${params.length}` }).join(',')
-            stateConditions.push(`state IN (${placeholders})`)
+            stateConditions.push(`((country IS NULL OR country = 'US') AND state IN (${placeholders}))`)
           }
-          if (hasUnknown) stateConditions.push(`(state IS NULL OR state = '')`)
+          if (hasUnknown) stateConditions.push(`((country IS NULL OR country = 'US') AND (state IS NULL OR state = ''))`)
+          if (hasInternational) stateConditions.push(`(country IS NOT NULL AND country != 'US')`)
           if (stateConditions.length > 0) conditions.push(`(${stateConditions.join(' OR ')})`)
         }
         if (medical_device_mfg) {
@@ -2676,6 +2706,7 @@ export default async function handler(req, res) {
                 in_house_tooling = COALESCE(${p.in_house_tooling || null}, in_house_tooling),
                 city = COALESCE(${p.city || null}, city),
                 state = COALESCE(${p.state || null}, state),
+                country = COALESCE(${p.country || null}, country),
                 geography_tier = COALESCE(${p.geography_tier || null}, geography_tier),
                 source_report = COALESCE(${p.source_report || null}, source_report),
                 priority = COALESCE(${p.priority || null}, priority),
@@ -2707,7 +2738,7 @@ export default async function handler(req, res) {
             await sql`
               INSERT INTO prospect_companies (
                 company, also_known_as, website, category, in_house_tooling,
-                city, state, geography_tier, source_report, priority,
+                city, state, country, geography_tier, source_report, priority,
                 employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
                 press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
                 key_certifications, ownership_type, recent_ma, parent_company, decision_location,
@@ -2716,7 +2747,7 @@ export default async function handler(req, res) {
                 outreach_group, outreach_rank, added_by
               ) VALUES (
                 ${company}, ${p.also_known_as || null}, ${p.website || null}, ${p.category || null}, ${p.in_house_tooling || null},
-                ${p.city || null}, ${p.state || null}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
+                ${p.city || null}, ${p.state || null}, ${p.country || 'US'}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
                 ${p.employees_approx || null}, ${p.year_founded || null}, ${p.years_in_business || null}, ${p.revenue_known || null}, ${p.revenue_est_m || null},
                 ${p.press_count || null}, ${p.signal_count || null}, ${p.top_signal || null}, ${p.rjg_cavity_pressure || null}, ${p.medical_device_mfg || null},
                 ${p.key_certifications || null}, ${p.ownership_type || null}, ${p.recent_ma || null}, ${p.parent_company || null}, ${p.decision_location || null},
@@ -2763,7 +2794,7 @@ export default async function handler(req, res) {
       const result = await sql`
         INSERT INTO prospect_companies (
           company, also_known_as, website, category, in_house_tooling,
-          city, state, geography_tier, source_report, priority,
+          city, state, country, geography_tier, source_report, priority,
           employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
           press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
           key_certifications, ownership_type, recent_ma, parent_company, decision_location,
@@ -2772,7 +2803,7 @@ export default async function handler(req, res) {
           outreach_group, outreach_rank, group_notes, last_edited_by, added_by
         ) VALUES (
           ${company.trim()}, ${b.also_known_as || null}, ${b.website || null}, ${b.category || null}, ${b.in_house_tooling || null},
-          ${b.city || null}, ${b.state || null}, ${b.geography_tier || null}, ${b.source_report || null}, ${b.priority || null},
+          ${b.city || null}, ${b.state || null}, ${b.country || 'US'}, ${b.geography_tier || null}, ${b.source_report || null}, ${b.priority || null},
           ${b.employees_approx || null}, ${b.year_founded || null}, ${b.years_in_business || null}, ${b.revenue_known || null}, ${b.revenue_est_m || null},
           ${b.press_count || null}, ${b.signal_count || null}, ${b.top_signal || null}, ${b.rjg_cavity_pressure || null}, ${b.medical_device_mfg || null},
           ${b.key_certifications || null}, ${b.ownership_type || null}, ${b.recent_ma || null}, ${b.parent_company || null}, ${b.decision_location || null},
@@ -2807,7 +2838,7 @@ export default async function handler(req, res) {
     const body = req.body
     const allowedFields = [
       'company', 'also_known_as', 'website', 'category', 'in_house_tooling',
-      'city', 'state', 'geography_tier', 'source_report', 'priority',
+      'city', 'state', 'country', 'geography_tier', 'source_report', 'priority',
       'employees_approx', 'year_founded', 'years_in_business', 'revenue_known', 'revenue_est_m',
       'press_count', 'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
       'key_certifications', 'ownership_type', 'recent_ma', 'cwp_contacts', 'psb_connection_notes',
