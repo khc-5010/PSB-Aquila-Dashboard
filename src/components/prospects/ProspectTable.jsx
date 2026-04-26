@@ -26,6 +26,13 @@ function parseLocalDate(val) {
   return new Date(y, m - 1, d)
 }
 
+function formatLocation(p) {
+  const isUS = !p.country || p.country === 'US'
+  const parts = [p.city, p.state].filter(Boolean)
+  if (!isUS && p.country) parts.push(p.country)
+  return parts.join(', ')
+}
+
 const STATE_TO_CORRIDOR = {
   'MI': 'Great Lakes Auto', 'OH': 'Great Lakes Auto', 'IN': 'Great Lakes Auto',
   'IL': 'Great Lakes Auto', 'WI': 'Great Lakes Auto',
@@ -258,7 +265,7 @@ function getProspectUrgency(prospect) {
 function exportToCSV(data, filename) {
   const columns = [
     'company', 'also_known_as', 'category', 'in_house_tooling',
-    'city', 'state', 'geography_tier', 'source_report', 'priority', 'priority_score', 'ai_readiness',
+    'city', 'state', 'country', 'geography_tier', 'source_report', 'priority', 'priority_score', 'ai_readiness',
     'employees_approx', 'year_founded', 'years_in_business',
     'revenue_known', 'revenue_est_m', 'press_count',
     'site_count', 'acquisition_count',
@@ -584,13 +591,17 @@ function ProspectTable() {
     if (filters.category.length > 0 && !filters.category.includes(getParentCategory(p.category))) return false
     if (filters.priority.length > 0 && !filters.priority.includes(p.priority)) return false
     if (filters.geo.length > 0) {
-      const corridor = p.state ? (STATE_TO_CORRIDOR[p.state] || 'Mountain / Central') : 'Unknown'
+      // SYNC: country/corridor — also in api/prospects.js, corridors.js
+      const isIntl = p.country && p.country !== 'US'
+      const corridor = isIntl
+        ? 'International'
+        : (p.state ? (STATE_TO_CORRIDOR[p.state] || 'Mountain / Central') : 'Unknown')
       if (!filters.geo.includes(corridor)) return false
     }
     if (filters.status.length > 0 && !filters.status.includes(p.prospect_status)) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
-      const searchable = [p.company, p.also_known_as, p.city, p.state, p.category, p.parent_company, p.notes, p.suggested_next_step]
+      const searchable = [p.company, p.also_known_as, p.city, p.state, p.country, p.category, p.parent_company, p.notes, p.suggested_next_step]
         .filter(Boolean).join(' ').toLowerCase()
       if (!searchable.includes(s)) return false
     }
@@ -854,7 +865,7 @@ function ProspectTable() {
         </span>
       </td>
       <td className="px-3 py-2.5">
-        <span className="text-xs text-gray-600">{p.city && p.state ? `${p.city}, ${p.state}` : displayValue(p.city || p.state)}</span>
+        <span className="text-xs text-gray-600">{formatLocation(p) || displayValue(null)}</span>
       </td>
       <td className="px-3 py-2.5">
         {p.priority ? (

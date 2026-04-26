@@ -6,7 +6,7 @@ const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const PRIORITY_OPTIONS = ['HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'LOW', 'STRATEGIC PARTNER']
-const GEO_OPTIONS = ['Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central']
+const GEO_OPTIONS = ['Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central', 'International']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 const CATEGORY_OPTIONS = PARENT_CATEGORY_OPTIONS.filter(o => o !== 'All')
 

@@ -10,7 +10,7 @@ const TOOLING_OPTIONS = ['', 'Yes', 'No', 'N/A']
 function AddCompanyModal({ onClose, onSuccess }) {
   const { user } = useAuth()
   const [form, setForm] = useState({
-    company: '', category: '', city: '', state: '', priority: '',
+    company: '', category: '', city: '', state: '', country: 'US', priority: '',
     geography_tier: '', website: '', notes: '', outreach_group: 'Unassigned',
     also_known_as: '', in_house_tooling: '', employees_approx: '', year_founded: '',
     revenue_est_m: '', ownership_type: '', parent_company: '', decision_location: '',
@@ -121,8 +121,19 @@ function AddCompanyModal({ onClose, onSuccess }) {
                 <input type="text" value={form.city} onChange={(e) => handleChange('city', e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>State</label>
+                <label className={labelClass}>State / Province</label>
                 <input type="text" value={form.state} onChange={(e) => handleChange('state', e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Country</label>
+                <input
+                  type="text"
+                  value={form.country}
+                  onChange={(e) => handleChange('country', e.target.value.toUpperCase())}
+                  className={inputClass}
+                  placeholder="US"
+                  maxLength={2}
+                />
               </div>
               <div>
                 <label className={labelClass}>Geography Tier</label>

@@ -135,7 +135,8 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
               onChange={(e) => onStateFilter(e.target.value || null)}
               className="flex-1 text-xs border border-gray-300 rounded px-2 py-1 bg-white"
             >
-              <option value="">All states</option>
+              <option value="">All locations</option>
+              <option value="INTL">🌐 International</option>
               {US_STATES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             {stateFilter && (

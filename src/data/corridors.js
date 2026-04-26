@@ -10,6 +10,7 @@ export const CORRIDOR_COLORS = {
   'West Coast':             '#F59E0B',
   'Mountain / Central':     '#6B7280',
   'Non-Contiguous':         '#9CA3AF',
+  'International':          '#0891B2',
   'Unknown':                '#D1D5DB',
 }
 

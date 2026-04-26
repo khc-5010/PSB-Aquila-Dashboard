@@ -10,6 +10,7 @@ const EXCEL_TO_DB = {
   'in-house tooling': 'in_house_tooling',
   'city': 'city',
   'state': 'state',
+  'country': 'country',
   'geography tier': 'geography_tier',
   'source report': 'source_report',
   'priority': 'priority',
