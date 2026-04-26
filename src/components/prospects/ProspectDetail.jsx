@@ -125,7 +125,7 @@ function Field({ label, value, className = '' }) {
   return (
     <div className={className}>
       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-900">{displayValue(value)}</dd>
+      <dd className="mt-0.5 text-sm text-gray-900 whitespace-pre-line">{displayValue(value)}</dd>
     </div>
   )
 }
@@ -184,7 +184,7 @@ function EditableField({ label, value, onSave, multiline = false }) {
             />
           )
         ) : (
-          <span className="text-sm text-gray-900">{displayValue(value)}</span>
+          <span className="text-sm text-gray-900 whitespace-pre-line">{displayValue(value)}</span>
         )}
       </dd>
     </div>
