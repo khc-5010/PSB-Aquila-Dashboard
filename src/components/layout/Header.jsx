@@ -37,7 +37,7 @@ function Header({ activeView, onViewChange }) {
             <img
               src="/aquila-logo.png"
               alt="Aquila Industrial Intelligence"
-              className="h-12 rounded-lg"
+              className="h-12 rounded-md"
             />
 
             {/* Navigation Tabs */}
