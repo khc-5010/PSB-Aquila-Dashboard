@@ -32,19 +32,16 @@ function Header({ activeView, onViewChange }) {
         style={{ background: 'linear-gradient(to right, #041E42, #164E63)' }}
       >
         <div className="h-full flex items-center justify-between">
-          {/* Left side - Logo and title */}
+          {/* Left side - Logo */}
           <div className="flex items-center gap-4">
             <img
               src="/aquila-logo.png"
-              alt="Aquila"
-              className="h-10"
+              alt="Aquila Industrial Intelligence"
+              className="h-12 rounded-lg"
             />
-            <h1 className="text-xl font-semibold text-white">
-              AI<sup className="text-sm">2</sup> Opportunity Tracker
-            </h1>
 
             {/* Navigation Tabs */}
-            <div className="ml-6 flex bg-white/10 rounded-lg p-1">
+            <div className="flex bg-white/10 rounded-lg p-1">
               <button
                 onClick={() => onViewChange('prospects')}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
