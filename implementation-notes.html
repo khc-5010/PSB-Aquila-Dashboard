@@ -73,6 +73,24 @@
 <h3>SQL vs JS heuristic fidelity</h3>
 <p><code>scripts/backfill-parent-types-dryrun.sql</code> and the <code>api/prospects.js</code> JS handler implement the <em>same</em> heuristic — but they use different regex flavors (POSIX <code>\m</code>/<code>\M</code> for word boundaries in SQL vs JS <code>\b</code>). I cross-checked: POSIX <code>~*</code> with <code>\m...\M</code> behaves identically to JS <code>/.../.i</code> with <code>\b</code> for the patterns used here (alphanumeric word boundaries). The CASE logic in SQL precisely mirrors the JS branch tree, including the "added_to_A" flag that emulates JS's <code>continue</code> after Category A so Category B and C don't double-classify the same row. If the heuristic needs to change later, edit both files (mark with a SYNC comment).</p>
 
+<h2>Decisions confirmed at checkpoint (Phase 3 inputs)</h2>
+<p>The five open questions were resolved by Kyle after the Phase 1 + 2 commit. Recorded here so Phase 3 reads from a single source.</p>
+<ol>
+  <li><strong>Sister-company UI option: defer.</strong> The <code>parent_relationship_kind</code> column accepts <code>'sister_company'</code>, but the Phase 3 dropdown exposes only <code>'subsidiary'</code>, <code>'absorbed_into'</code>, and <code>'none'</code> (NULL). Sister relationships are already implicit from shared parent.</li>
+  <li><strong>Atomic legacy-field clearing in the apply endpoint, per category:</strong>
+    <ul>
+      <li><em>PE / financial sponsor:</em> set <code>financial_sponsor</code>, set <code>parent_company = NULL</code>. (Already encoded in the dryrun's suggested payload.)</li>
+      <li><em>Absorbed:</em> set <code>parent_relationship_kind = 'absorbed_into'</code>, set <code>former_names = [aka]</code>, <strong>also clear <code>also_known_as = NULL</code></strong>. KEEP <code>parent_company</code> (the absorbing entity is still meaningful). The dryrun's absorbed-case suggested payload was updated in a follow-up commit to include this clear.</li>
+      <li><em>Subsidiary:</em> set <code>parent_relationship_kind = 'subsidiary'</code>. No clearing.</li>
+      <li><em>Brand-list aka cleanup:</em> set <code>also_known_as = NULL</code>. (Already encoded.)</li>
+    </ul>
+    Rationale: leaving both populated creates "which one is truth" ambiguity Phase 3 read paths shouldn't have to handle. Git history covers any revert need.
+  </li>
+  <li><strong>Financial sponsor in CSV export:</strong> include it.</li>
+  <li><strong>SyBridge per-attribute data split is OUT OF SCOPE for Phase 3.</strong> Phase 3 fixes the relationship model only. Splitting founded / revenue / press_count between the absorbed X-Cell and SyBridge-corporate is per-record investigative work for a follow-up Thread 4 cleanup, not Thread 1.</li>
+  <li><strong>PE-only with no operational parent: confirmed.</strong> A Crestview portfolio company with no other corporate parent gets <code>financial_sponsor = "Crestview Partners (PE, $9B)"</code> and <code>parent_company = NULL</code>. <strong>Phase 3 grouping must NOT group PE portfolio companies together</strong> — Crestview's 12 operationally independent companies are not the same as Westfall's 14 absorbed sites. Grouping scope is strictly <code>parent_relationship_kind IN ('subsidiary','absorbed_into')</code>.</li>
+</ol>
+
 <h2>Open Questions</h2>
 <p>For Kyle to answer at the checkpoint before Phase 3 begins:</p>
 <ol>

@@ -1925,7 +1925,7 @@ export default async function handler(req, res) {
                   also_known_as: aka,
                   recent_ma: r.recent_ma,
                 },
-                suggested: { parent_relationship_kind: 'absorbed_into', former_names: [aka] },
+                suggested: { parent_relationship_kind: 'absorbed_into', former_names: [aka], also_known_as: null },
                 confidence: recentMaMatches ? 'high' : 'medium',
                 reason: recentMaMatches
                   ? 'aka populated with single name AND recent_ma confirms acquisition'

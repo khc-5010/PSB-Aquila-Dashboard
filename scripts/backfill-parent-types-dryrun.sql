@@ -88,7 +88,8 @@ all_candidates AS (
     ) AS current_val,
     json_build_object(
       'parent_relationship_kind', 'absorbed_into',
-      'former_names', json_build_array(TRIM(also_known_as))
+      'former_names', json_build_array(TRIM(also_known_as)),
+      'also_known_as', NULL
     ) AS suggested_val,
     CASE
       WHEN recent_ma ~* '\m(acquired by|absorbed|merger|merged|bought by)\M' THEN 'high'
