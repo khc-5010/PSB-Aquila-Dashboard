@@ -38,12 +38,16 @@ classified AS (
   LEFT JOIN child_counts cc ON cc.pnorm = LOWER(TRIM(r.parent_company))
 ),
 -- Mark rows that would land in category A so B/C can exclude them (matches JS `continue` flow).
+-- COALESCE to FALSE so that WHEN pe_hit IS NULL (the common case), added_to_a is FALSE,
+-- not NULL. Without this, `WHERE NOT added_to_a` evaluates NULL and excludes the row,
+-- which silently zeroes out Categories B and C for every non-PE parent_company.
 classified_2 AS (
   SELECT
     c.*,
-    (
+    COALESCE(
       c.pe_hit = 'pattern'
-      OR (c.pe_hit = 'ending' AND c.parent_child_count = 1)
+      OR (c.pe_hit = 'ending' AND c.parent_child_count = 1),
+      FALSE
     ) AS added_to_a
   FROM classified c
 ),
