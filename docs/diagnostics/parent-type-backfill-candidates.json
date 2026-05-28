@@ -1,0 +1,2626 @@
+{
+  "summary": {
+    "total_candidates": 153,
+    "by_category": {
+      "subsidiary": 25,
+      "financial_sponsor": 56,
+      "aka_cleanup": 1,
+      "absorbed_into": 71
+    },
+    "by_confidence": {
+      "medium": 81,
+      "high": 72
+    }
+  },
+  "candidates": [
+    {
+      "id": 27,
+      "company": "Nolato Contour",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Nolato AB",
+        "also_known_as": "Contour Plastics",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Contour Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 38,
+      "company": "Essentra Components",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Essentra plc (LSE: ESNT)",
+        "also_known_as": "Alliance Plastics",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Alliance Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 40,
+      "company": "Silgan Specialty Packaging",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Silgan Dispensing",
+        "also_known_as": "Gateway Plastics",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Gateway Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 42,
+      "company": "ICU Medical (formerly Smiths Medical)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "ICU Medical Inc. (NASDAQ: ICUI)",
+        "also_known_as": "Smiths Medical",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Smiths Medical"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 61,
+      "company": "Truck-Lite",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Clarience Technologies",
+        "also_known_as": "Clarience Technologies",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Clarience Technologies"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 72,
+      "company": "Priamus System Technologies",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "also_known_as": "Barnes Group subsidiary",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Barnes Group subsidiary"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 99,
+      "company": "Clarion Technologies",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Private (local investor)",
+        "also_known_as": "CNI Plastics (acq 2019); GTM Plastics (acq 2017); Drake Products (acq 2000)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "CNI Plastics (acq 2019); GTM Plastics (acq 2017); Drake Products (acq 2000)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 158,
+      "company": "RPM Tool",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "RPM Tool (Matthew Robbins)",
+        "also_known_as": "Holzmeyer Die & Mold",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Holzmeyer Die & Mold"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 161,
+      "company": "Freudenberg Medical",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Freudenberg Group (Germany, \u20ac9.4B+)",
+        "also_known_as": "MedVenture Technology",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "MedVenture Technology"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 252,
+      "company": "Wilbert Plastic Services",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Marmon Group / Berkshire Hathaway",
+        "also_known_as": "United Southern Industries (absorbed 2010)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "United Southern Industries (absorbed 2010)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 256,
+      "company": "CPP Global",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "Carolina Precision Plastics LLC",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Carolina Precision Plastics LLC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 258,
+      "company": "Schaefer Systems International",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "SSI SCH\u00c4FER Group (Germany)",
+        "also_known_as": "SSI SCH\u00c4FER Plastics NA",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "SSI SCH\u00c4FER Plastics NA"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 260,
+      "company": "Blue Ridge Molding",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Atlas Holdings (via Marcal/von Drehle)",
+        "also_known_as": "Marcal Blue Ridge LLC",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Marcal Blue Ridge LLC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 261,
+      "company": "Raleigh Precision Products",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Quantum Plastics (Elgin, IL)",
+        "also_known_as": "Quantum Plastics-Raleigh",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Quantum Plastics-Raleigh"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 272,
+      "company": "Wilbert Plastic Services",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Marmon Group / Berkshire Hathaway",
+        "also_known_as": "United Southern Industries (absorbed 2010)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "United Southern Industries (absorbed 2010)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 278,
+      "company": "Schaefer Systems International",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "SSI SCH\u00c4FER Group (Germany)",
+        "also_known_as": "SSI SCH\u00c4FER Plastics NA",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "SSI SCH\u00c4FER Plastics NA"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 280,
+      "company": "Blue Ridge Molding",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Atlas Holdings (via Marcal/von Drehle)",
+        "also_known_as": "Marcal Blue Ridge LLC",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Marcal Blue Ridge LLC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 281,
+      "company": "Raleigh Precision Products",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Quantum Plastics (Elgin, IL)",
+        "also_known_as": "Quantum Plastics-Raleigh",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Quantum Plastics-Raleigh"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 288,
+      "company": "Donatelle",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "DuPont (NYSE: DD) / Spectrum Plastics Group",
+        "also_known_as": "Donatelle Plastics Inc.",
+        "recent_ma": "DuPont acquisition July 2024 via Spectrum Plastics Group"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Donatelle Plastics Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 308,
+      "company": "AIRBORN",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Molex / Koch Industries",
+        "also_known_as": "AIRBORN INC",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "AIRBORN INC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 309,
+      "company": "MME Group",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Seaway / ICG ($71B AUM)",
+        "also_known_as": "Seaway Plastics (MN facility)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Seaway Plastics (MN facility)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 314,
+      "company": "Sil-Pro",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Trelleborg AB (Sweden)",
+        "also_known_as": "Trelleborg Sil-Pro",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Trelleborg Sil-Pro"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 349,
+      "company": "F&M Tool & Plastics",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "GSC Technologies / Speyside",
+        "also_known_as": "GSC Technologies",
+        "recent_ma": "GSC/Speyside PE acquisition June 2025"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "GSC Technologies"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 381,
+      "company": "COMAR LLC",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "PCI (Morgan Stanley)",
+        "also_known_as": "iMARK (WI division)",
+        "recent_ma": "iMARK WI acquisition brought cavity pressure sensors and scientific molding"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "iMARK (WI division)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 395,
+      "company": "TAH Industries",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Nordson Corporation",
+        "also_known_as": "Nordson EFD",
+        "recent_ma": "Nordson acquired 2017"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Nordson EFD"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 431,
+      "company": "ONGUARD Industries",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Dunlop Holdings (Netherlands)",
+        "also_known_as": "Dunlop Protective Footwear",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Dunlop Protective Footwear"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 441,
+      "company": "R&D/Leverage",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Adler Industrial Solutions",
+        "also_known_as": "RRPD (CWP garbled entry)",
+        "recent_ma": "Adler acquired Sept 2022"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "RRPD (CWP garbled entry)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 443,
+      "company": "Koller Craft Plastic Products",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Koller Enterprises",
+        "also_known_as": "Koller Craft Plastic Products Div.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Koller Craft Plastic Products Div."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 459,
+      "company": "MWV Calmar",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Smurfit WestRock (~$34B)",
+        "also_known_as": "Meadwestvaco Calmar",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Meadwestvaco Calmar"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 491,
+      "company": "Techniplas US South LLC",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "CIE Automotive (Spain)",
+        "also_known_as": "Proper Polymers",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Proper Polymers"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 514,
+      "company": "NPI Medical",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "Westfall Technik (CT division)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Westfall Technik (CT division)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 531,
+      "company": "Creative Liquid Coatings",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "CLC (Kendallville, IN)",
+        "also_known_as": "McKechnie Vehicle Components",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "McKechnie Vehicle Components"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 534,
+      "company": "ABC Technologies (Plastikon)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "ABC Technologies (Canada)",
+        "also_known_as": "Plastikon Industries",
+        "recent_ma": "ABC Technologies acquired Plastikon Aug 2023"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Plastikon Industries"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 553,
+      "company": "CSP Technologies",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "AptarGroup (NYSE)",
+        "also_known_as": "C.V. Holdings",
+        "recent_ma": "AptarGroup acquisition 2018 ($555M)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "C.V. Holdings"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 554,
+      "company": "SyBridge Technologies (AL)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "SyBridge / Crestview Partners (Canada)",
+        "also_known_as": "Concours Mold (former)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Concours Mold (former)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 576,
+      "company": "Revere Plastics Systems (IA)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Ardian (via Techniplas bankruptcy 2020)",
+        "also_known_as": "Dickten Masch Plastics (CWP legacy name)",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Dickten Masch Plastics (CWP legacy name)"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 598,
+      "company": "Sport Court International",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Gerflor S.A.S. (France)",
+        "also_known_as": "Connor Sport Court International",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Connor Sport Court International"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 599,
+      "company": "Spectrum Plastics (UT)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "DuPont (NYSE: DD)",
+        "also_known_as": "Apollo Medical Extrusion",
+        "recent_ma": "Apollo Med \u2192 SPG 2014 \u2192 AEA 2018 \u2192 DuPont Aug 2023 (~$1.7B)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Apollo Medical Extrusion"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 601,
+      "company": "Sun Products / Henkel SLC",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Henkel AG (Germany, \u20ac20B+)",
+        "also_known_as": "Huish Detergents",
+        "recent_ma": "Huish \u2192 Sun Products (Vestar PE) \u2192 Henkel $3.6B acq 2016"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Huish Detergents"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 607,
+      "company": "Sorenson BioScience",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Corning Inc. (NYSE: GLW)",
+        "also_known_as": "Multi Technology",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Multi Technology"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 617,
+      "company": "Colson Monette",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Colson Group / Marmon / Berkshire Hathaway",
+        "also_known_as": "Colson Plastics",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Colson Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 618,
+      "company": "Micro Plastics",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Essentra plc (UK, LSE: ESNT)",
+        "also_known_as": "Micro Plastics Inc.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Micro Plastics Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 621,
+      "company": "Georg Fischer / GF Piping",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Georg Fischer AG (SIX: FI-N)",
+        "also_known_as": "George Fischer Sloane Inc.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "George Fischer Sloane Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 622,
+      "company": "PRADCO Outdoor Brands",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "EBSCO Industries (~$3B+)",
+        "also_known_as": "Plastic Research and Development Corp",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Plastic Research and Development Corp"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 670,
+      "company": "Canon Virginia, Inc.",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Canon Inc. (Japan)",
+        "also_known_as": "Canon Virginia Inc.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Canon Virginia Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 671,
+      "company": "TekniPlex (Phoenix Packaging)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "TekniPlex",
+        "also_known_as": "Phoenix Packaging",
+        "recent_ma": "15th acquisition by TekniPlex"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Phoenix Packaging"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 675,
+      "company": "Essel Propack / EPL Americas",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Blackstone / EPL",
+        "also_known_as": "Essel Propack",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Essel Propack"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 679,
+      "company": "STIHL Inc.",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "STIHL AG (Germany)",
+        "also_known_as": "Stihl Inc.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Stihl Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 683,
+      "company": "DEMGY Pacific",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "DEMGY Group (France)",
+        "also_known_as": "Tool Gauge & Machine Works",
+        "recent_ma": "DEMGY Group (France) acquired Mar 2025"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Tool Gauge & Machine Works"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 715,
+      "company": "Viega LLC (McPherson)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Viega GmbH (Germany)",
+        "also_known_as": "Midtec of America",
+        "recent_ma": "Acquired Midtec of America 2005"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Midtec of America"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 729,
+      "company": "Precision Tool & Die / Carclo CTP",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Carclo plc (UK, AIM-listed)",
+        "also_known_as": "Precision Tool & Die",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Precision Tool & Die"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 737,
+      "company": "Commercial Plastics NE",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Commercial Plastics Co. (Mundelein IL)",
+        "also_known_as": "Lenco Inc.-PMC",
+        "recent_ma": "4 acquisitions building multi-site platform"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Lenco Inc.-PMC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 741,
+      "company": "Triad Fastener LP",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Triad Group",
+        "also_known_as": "Merrick Machine",
+        "recent_ma": "Denver Plastics (affiliated) closed 2022"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Merrick Machine"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 814,
+      "company": "Beaver State Plastics",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Quadel Industries",
+        "also_known_as": "Div. of Quadel Industries",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Div. of Quadel Industries"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 876,
+      "company": "D.A. Inc.",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Kojima Group (Japan)",
+        "also_known_as": "Daiwa Kasei",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Daiwa Kasei"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 879,
+      "company": "Jabil Inc. (ABQ Site)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Jabil Inc. (NYSE: JBL)",
+        "also_known_as": "Nypro Healthcare Baja",
+        "recent_ma": "Post-layoff: 130 positions cut Sept 2024"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Nypro Healthcare Baja"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 886,
+      "company": "GVS North America",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "GVS S.p.A. (Italy, Borsa Italiana: GVS)",
+        "also_known_as": "Maine Manufacturing LLC",
+        "recent_ma": "GVS S.p.A. acquired Maine Manufacturing LLC Feb 2013"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Maine Manufacturing LLC"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 902,
+      "company": "Nordson EFD",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Nordson Corp",
+        "also_known_as": "EFD Inc.",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "EFD Inc."
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 913,
+      "company": "M\u00e4nner",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "also_known_as": "Manner USA",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Manner USA"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 918,
+      "company": "MHS (Mold Hotrunner Solutions)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "Rheo-Pro",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Rheo-Pro"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 923,
+      "company": "Inceptive Design Group",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "IDG",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "IDG"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 928,
+      "company": "Phillips-Medisize",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Molex",
+        "also_known_as": "Phillips Plastics",
+        "recent_ma": null
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Phillips Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "medium",
+      "reason": "aka populated with single name (suggests former name); recent_ma not corroborating"
+    },
+    {
+      "id": 3,
+      "company": "TTMP / PRISM Plastics",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Marmon Engineered Components (Berkshire Hathaway)",
+        "also_known_as": "Tech Tool & Molded Plastics; Tech Tool & Mold; Tech Molded Plastics",
+        "recent_ma": "Acquired by PRISM Plastics June 2016; PRISM acquired by Marmon Engineered Components (Berkshire Hathaway) April 2017"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Tech Tool & Molded Plastics; Tech Tool & Mold; Tech Molded Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 39,
+      "company": "Berry Global Tooling (Erie)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Berry Global (Amcor/Berry)",
+        "also_known_as": "F&S Tool",
+        "recent_ma": "Acquired by Berry Global April 2024"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "F&S Tool"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 101,
+      "company": "Custom Tool & Design",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Tessy Plastics Corporation",
+        "also_known_as": "Tessy Tooling",
+        "recent_ma": "Acquired by Tessy Plastics Dec 2019"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Tessy Tooling"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 182,
+      "company": "AMA Plastics",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "Westfall Technik Company",
+        "recent_ma": "Acquired by Westfall Technik April 2018"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Westfall Technik Company"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 192,
+      "company": "AMS Plastics Inc.",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "also_known_as": "Westfall Technik Company",
+        "recent_ma": "Acquired by Westfall Technik 2018"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Westfall Technik Company"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 366,
+      "company": "Nypro/Jabil Clinton",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Jabil Inc.",
+        "also_known_as": "Nypro",
+        "recent_ma": "Nypro acquired by Jabil 2014"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Nypro"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 432,
+      "company": "SP Industries",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "ATS Corporation",
+        "also_known_as": "ATS Scientific",
+        "recent_ma": "Acquired by ATS Dec 2021 for $445M"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "ATS Scientific"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 645,
+      "company": "Relucent Plastics Solutions",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Maruho Hatsujou (Japan)",
+        "also_known_as": "Magnum Plastics",
+        "recent_ma": "Acquired by Maruho Hatsujou (Japan); rebranded from Magnum Plastics"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "Magnum Plastics"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 728,
+      "company": "Advantage Plastic Products (APP)",
+      "category": "absorbed_into",
+      "current": {
+        "parent_company": "Mark Krauss / American Cord & Webbing",
+        "also_known_as": "ACW Plastic Products",
+        "recent_ma": "Absorbed Poly-Ject customers May 2025"
+      },
+      "suggested": {
+        "parent_relationship_kind": "absorbed_into",
+        "former_names": [
+          "ACW Plastic Products"
+        ],
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka populated with single name AND recent_ma confirms acquisition"
+    },
+    {
+      "id": 66,
+      "company": "Barnes Molding Solutions",
+      "category": "aka_cleanup",
+      "current": {
+        "also_known_as": "Synventive / Manner / Thermoplay / Foboha / Priamus / Gammaflux",
+        "parent_company": "Apollo Global Management (pending)"
+      },
+      "suggested": {
+        "also_known_as": null
+      },
+      "confidence": "high",
+      "reason": "aka contains 6 comma/slash-separated tokens; 3 match existing company rows (brand-list misuse)"
+    },
+    {
+      "id": 6,
+      "company": "Caplugs",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "ShoreView Industries (PE)",
+        "also_known_as": "Niagara Plastics; Niagara Caps & Plugs; Tri-Star; Caps'n Plugs; Medbio; Evergreen Scientific; Polykap; Safeplast",
+        "ownership_type": "Corporate/Strategic (Berwind Corporation)"
+      },
+      "suggested": {
+        "financial_sponsor": "ShoreView Industries (PE)",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company matches PE pattern (no ownership_type corroboration)"
+    },
+    {
+      "id": 330,
+      "company": "Facet Technologies",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Tower Three Partners",
+        "also_known_as": "Facet Medical Technologies",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Tower Three Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 337,
+      "company": "Norton Packaging",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Platinum Equity",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Platinum Equity",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 351,
+      "company": "EPTAM Precision Solutions",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Frazier Healthcare Partners",
+        "also_known_as": "Sterling Mfg, Albright Silicone",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Frazier Healthcare Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 475,
+      "company": "Marchel Industries Inc.",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Plastifab Industries / Regimen Equity Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Plastifab Industries / Regimen Equity Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 518,
+      "company": "Albea Group",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "PAI Partners",
+        "also_known_as": "Eyelematic",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "PAI Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 594,
+      "company": "Biomerics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "ONCAP / Wasatch Equity Partners",
+        "also_known_as": "Utah Plastics Group Inc.",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "ONCAP / Wasatch Equity Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 641,
+      "company": "Tenere / Cadrex",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "CGI Mfg Holdings / Core Industrial Partners",
+        "also_known_as": "Denver Tool & Die, Protogenic, Mountain Molding",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "CGI Mfg Holdings / Core Industrial Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 742,
+      "company": "Garner Industries",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "ShoreView Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "ShoreView Partners",
+        "parent_company": null
+      },
+      "confidence": "medium",
+      "reason": "parent_company ends in Partners/Equity AND is singleton in parent landscape"
+    },
+    {
+      "id": 11,
+      "company": "Currier Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Sheridan Capital Partners (PE)",
+        "also_known_as": "Also acquired: Springboard Mfg, MOS Plastics, Stack Plastics",
+        "ownership_type": "PE-Backed (Sheridan Capital Partners)"
+      },
+      "suggested": {
+        "financial_sponsor": "Sheridan Capital Partners (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 17,
+      "company": "Empire Precision Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Kouza Capital (PE)",
+        "also_known_as": null,
+        "ownership_type": "PE-Backed (Kouza Capital)"
+      },
+      "suggested": {
+        "financial_sponsor": "Kouza Capital (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 23,
+      "company": "Allegheny Performance Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "JWI Capital + Squire Ridge Partners (PE)",
+        "also_known_as": "Holbrook Tool and Molding",
+        "ownership_type": "PE-Backed (JWI Capital + Squire Ridge Partners)"
+      },
+      "suggested": {
+        "financial_sponsor": "JWI Capital + Squire Ridge Partners (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 41,
+      "company": "Viking Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Spell Capital Partners (PE)",
+        "also_known_as": "Genesis Plastics and Engineering",
+        "ownership_type": "PE-Backed"
+      },
+      "suggested": {
+        "financial_sponsor": "Spell Capital Partners (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 58,
+      "company": "SyBridge Technologies",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Crestview Partners (PE, $9B)",
+        "also_known_as": "X-Cell Tool & Mold",
+        "ownership_type": "PE-Backed (Crestview Partners via SyBridge)"
+      },
+      "suggested": {
+        "financial_sponsor": "Crestview Partners (PE, $9B)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 97,
+      "company": "iMARK Molding",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Comar (Graham Partners PE)",
+        "also_known_as": "iMARK Molding (now part of Comar)",
+        "ownership_type": "PE-Backed"
+      },
+      "suggested": {
+        "financial_sponsor": "Comar (Graham Partners PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 105,
+      "company": "Exo-s",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Desjardins Capital (Quebec, Canada)",
+        "also_known_as": "Plastiques Moore (acq 2022)",
+        "ownership_type": "PE-Backed"
+      },
+      "suggested": {
+        "financial_sponsor": "Desjardins Capital (Quebec, Canada)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 106,
+      "company": "Fort Wayne Plastics (dba Plasto-O-Foam)",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "American Plastics LLC (PE history)",
+        "also_known_as": "Plasto-O-Foam",
+        "ownership_type": "PE-Backed"
+      },
+      "suggested": {
+        "financial_sponsor": "American Plastics LLC (PE history)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 131,
+      "company": "Xcentric Mold & Engineering",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Quickparts (Trilantic North America PE, $9.9B)",
+        "also_known_as": null,
+        "ownership_type": "PE-Backed"
+      },
+      "suggested": {
+        "financial_sponsor": "Quickparts (Trilantic North America PE, $9.9B)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 195,
+      "company": "Stack Plastics Inc.",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Sheridan Capital Partners (via Currier Plastics)",
+        "also_known_as": null,
+        "ownership_type": "PE (Springboard Manufacturing \u2192 Currier Plastics/Sheridan Capital)"
+      },
+      "suggested": {
+        "financial_sponsor": "Sheridan Capital Partners (via Currier Plastics)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 196,
+      "company": "ProPlas Technologies",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Comar (Graham Partners PE)",
+        "also_known_as": null,
+        "ownership_type": "PE (Graham Partners via Comar)"
+      },
+      "suggested": {
+        "financial_sponsor": "Comar (Graham Partners PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 203,
+      "company": "Cosmetic Specialties International",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Airlite Plastics (PE-backed)",
+        "also_known_as": "Canopy Beauty Packaging (rebranded)",
+        "ownership_type": "PE (Airlite Plastics)"
+      },
+      "suggested": {
+        "financial_sponsor": "Airlite Plastics (PE-backed)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 204,
+      "company": "MOS Plastics, Inc.",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Currier Plastics \u2192 Sheridan Capital Partners",
+        "also_known_as": null,
+        "ownership_type": "PE (Sheridan Capital via Currier Plastics)"
+      },
+      "suggested": {
+        "financial_sponsor": "Currier Plastics \u2192 Sheridan Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 212,
+      "company": "Gamma2",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Petmate / Doskocil (Platinum Equity PE)",
+        "also_known_as": null,
+        "ownership_type": "Subsidiary (Petmate)"
+      },
+      "suggested": {
+        "financial_sponsor": "Petmate / Doskocil (Platinum Equity PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 216,
+      "company": "Plastic Molding Technology",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Tide Rock Holdings (PE)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Tide Rock Holdings (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 217,
+      "company": "Ring Container Technologies",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "BDT & MSD Partners (PE, connected to Michael Dell)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "BDT & MSD Partners (PE, connected to Michael Dell)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 218,
+      "company": "Doskocil Mfg / Petmate",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Platinum Equity (PE, $25B+ AUM)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Platinum Equity (PE, $25B+ AUM)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 220,
+      "company": "Handgards",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Wynnchurch Capital ($8.6B AUM PE)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Wynnchurch Capital ($8.6B AUM PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 221,
+      "company": "Pipeline Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "SCF Partners (PE)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "SCF Partners (PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 240,
+      "company": "National Molding LLC",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Southfield Capital / Taglich / Calvert Street",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Southfield Capital / Taglich / Calvert Street",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 241,
+      "company": "MRPC",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Vance Street Capital (Oct 2025)",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Vance Street Capital (Oct 2025)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 243,
+      "company": "Technimark",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Oak Hill Capital / Pritzker",
+        "also_known_as": "Technimark LLC",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Oak Hill Capital / Pritzker",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 245,
+      "company": "Bright Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Thunderbird LLC (Westbourne Capital)",
+        "also_known_as": "Thunderbird Molding-Greensboro",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Thunderbird LLC (Westbourne Capital)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 263,
+      "company": "Technimark",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Oak Hill Capital / Pritzker",
+        "also_known_as": "Technimark LLC",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Oak Hill Capital / Pritzker",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 265,
+      "company": "Bright Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Thunderbird LLC (Westbourne Capital)",
+        "also_known_as": "Thunderbird Molding-Greensboro",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Thunderbird LLC (Westbourne Capital)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 285,
+      "company": "Forj Medical",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Altaris Capital ($241M)",
+        "also_known_as": "IntriCon / Minnetronix",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Altaris Capital ($241M)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 286,
+      "company": "Beacon Engineered",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Beacon Mfg Group / Akoya + Trinity PE",
+        "also_known_as": "Donnelly Custom Manufacturing",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Beacon Mfg Group / Akoya + Trinity PE",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 380,
+      "company": "Injection Works",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "New Water Capital (via NMG)",
+        "also_known_as": "Nelson Miller Group, A.L. Hyde",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "New Water Capital (via NMG)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 440,
+      "company": "Permian Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "NewCo Plastics / White Wolf Capital",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "NewCo Plastics / White Wolf Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 461,
+      "company": "Jarden Plastic Solutions",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "One Rock Capital Partners",
+        "also_known_as": "Jarden Plastic Solutions / Newell Brands",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "One Rock Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 466,
+      "company": "Alltrista Plastics LLC",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Jadex Inc. / One Rock Capital",
+        "also_known_as": "Jarden Plastic Solutions",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Jadex Inc. / One Rock Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 472,
+      "company": "PSI Molded Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Gladstone Investment (NASDAQ: GAIN)",
+        "also_known_as": "Precision Southeast, GI Plastek, Plastics Solutions",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Gladstone Investment (NASDAQ: GAIN)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 492,
+      "company": "Variblend Dual Dispensing",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "J. Burke Capital / Emil Capital",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "J. Burke Capital / Emil Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 496,
+      "company": "Forum Contract Manufacturing",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Squadron Capital",
+        "also_known_as": "Forum Plastics Inc.",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Squadron Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 604,
+      "company": "Obrist Americas / CSI",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Closure Systems International / Cerberus Capital",
+        "also_known_as": "Global Closure Systems",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Closure Systems International / Cerberus Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 614,
+      "company": "Arcane Capital Partners",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Bluehenge Capital",
+        "also_known_as": "Arcane Industries, Johnson Mfg, PolyTech Molding, Bentonville Plastics",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Bluehenge Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 626,
+      "company": "Bentonville Plastics",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Arcane Capital Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Arcane Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 638,
+      "company": "AIM Processing",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "MCM Capital Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "MCM Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 639,
+      "company": "Injectech",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Vance Street Capital",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Vance Street Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 647,
+      "company": "Aptyx",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "TruArc Partners LP",
+        "also_known_as": "Molded Devices Inc. (MDI), Southwest Mold",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "TruArc Partners LP",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 686,
+      "company": "Cascadia Custom Molding",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Blue Point Capital",
+        "also_known_as": "Mold Rite Inc.",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Blue Point Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 687,
+      "company": "Molded Dimensions Group (Fife)",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "ShoreView PE (Molded Dimensions)",
+        "also_known_as": "globaltech plastics",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "ShoreView PE (Molded Dimensions)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 707,
+      "company": "Wescon Plastics, LLC",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Arcane Capital Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Arcane Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 720,
+      "company": "MRPC Northeast Division",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Vance Street Capital",
+        "also_known_as": "Molded Rubber & Plastic Corp",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Vance Street Capital",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 732,
+      "company": "Tecomet / Symmetry Medical",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Tecomet (Charlesbank Capital PE)",
+        "also_known_as": "Symmetry Medical Inc.",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Tecomet (Charlesbank Capital PE)",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 777,
+      "company": "Kaman Composites Vermont",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Arcline Investment",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Arcline Investment",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 800,
+      "company": "Star Plastics Inc.",
+      "category": "financial_sponsor",
+      "current": {
+        "parent_company": "Akoya Capital Partners",
+        "also_known_as": null,
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "financial_sponsor": "Akoya Capital Partners",
+        "parent_company": null
+      },
+      "confidence": "high",
+      "reason": "parent_company matches PE pattern AND ownership_type contains PE"
+    },
+    {
+      "id": 248,
+      "company": "Sarstedt, Inc.",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Sarstedt AG (Germany)",
+        "ownership_type": "Family/Founder"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 251,
+      "company": "Greiner Bio-One",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Greiner Group (Austria)",
+        "ownership_type": "Family/Founder"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 268,
+      "company": "Sarstedt, Inc.",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Sarstedt AG (Germany)",
+        "ownership_type": "Family/Founder"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 271,
+      "company": "Greiner Bio-One",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Greiner Group (Austria)",
+        "ownership_type": "Family/Founder"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 283,
+      "company": "Teamvantage",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Velosity / Graham Partners",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 294,
+      "company": "Custom Mold & Design",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Velosity / Graham Partners",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 299,
+      "company": "Mold Craft, Inc.",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 14 children (real operational parent)"
+    },
+    {
+      "id": 555,
+      "company": "Revere Plastics Systems",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Atlas Holdings",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 740,
+      "company": "Vantec LLC",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Angstrom Automotive Group",
+        "ownership_type": "PE"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 934,
+      "company": "Weener Plastik GmbH",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Silgan Dispensing",
+        "ownership_type": "Public"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "medium",
+      "reason": "aka empty, parent has 2 children (real operational parent)"
+    },
+    {
+      "id": 12,
+      "company": "DME Company",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Hillenbrand",
+        "ownership_type": "Corporate/Strategic (Hillenbrand Inc., NYSE: HI)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 2 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 26,
+      "company": "Mold-Masters",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Hillenbrand",
+        "ownership_type": "Corporate/Strategic (Hillenbrand Inc., NYSE: HI)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 2 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 313,
+      "company": "Spectrum Plastics Group (MN)",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "DuPont (NYSE: DD)",
+        "ownership_type": "Corporate/Strategic"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 2 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 439,
+      "company": "Mission Plastics North",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Peterson Manufacturing",
+        "ownership_type": "Corporate/Strategic"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 3 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 449,
+      "company": "Vector Tool & Engineering",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Peterson Manufacturing",
+        "ownership_type": "Corporate/Strategic"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 3 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 552,
+      "company": "Atrion Medical Products",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Nordson Corporation",
+        "ownership_type": "Corporate/Strategic"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 2 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 624,
+      "company": "Mission Plastics of Arkansas",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Peterson Manufacturing",
+        "ownership_type": "Corporate/Strategic"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 3 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 912,
+      "company": "Synventive Molding Solutions",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "ownership_type": "Corporate/Strategic (Barnes Group / Apollo)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 6 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 914,
+      "company": "Thermoplay",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "ownership_type": "Corporate/Strategic (Barnes Group / Apollo)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 6 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 915,
+      "company": "FOBOHA",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "ownership_type": "Corporate/Strategic (Barnes Group / Apollo)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 6 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 916,
+      "company": "Gammaflux",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Barnes Molding Solutions",
+        "ownership_type": "Corporate/Strategic (Barnes Group / Apollo)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 6 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 919,
+      "company": "Extreme Tool & Engineering",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "ownership_type": "Corporate/Strategic (Westfall Technik / Lee Equity)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 14 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 920,
+      "company": "Fairway Injection Molds",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "ownership_type": "Corporate/Strategic (Westfall Technik / Lee Equity)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 14 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 921,
+      "company": "Delta Pacific Products",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "ownership_type": "Corporate/Strategic (Westfall Technik / Lee Equity)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 14 children, ownership_type Corporate/Strategic"
+    },
+    {
+      "id": 925,
+      "company": "Prism Plastics Products",
+      "category": "subsidiary",
+      "current": {
+        "parent_company": "Westfall Technik",
+        "ownership_type": "Corporate/Strategic (Westfall Technik / Lee Equity)"
+      },
+      "suggested": {
+        "parent_relationship_kind": "subsidiary"
+      },
+      "confidence": "high",
+      "reason": "aka empty, parent has 14 children, ownership_type Corporate/Strategic"
+    }
+  ]
+}
