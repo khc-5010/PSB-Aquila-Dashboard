@@ -35,6 +35,10 @@ const EXCEL_TO_DB = {
   'suggested next step': 'suggested_next_step',
   'legacy data potential': 'legacy_data_potential',
   'notes': 'notes',
+  // Thread 1 (typed parent/FKA model). 'former names' is pipe-delimited (see cleanArray).
+  'parent relationship kind': 'parent_relationship_kind',
+  'financial sponsor': 'financial_sponsor',
+  'former names': 'former_names',
 }
 
 // Fields that the server preserves via COALESCE — don't send in import payload
@@ -61,8 +65,18 @@ function cleanNumeric(val) {
   return isNaN(n) ? null : n
 }
 
+function cleanArray(val) {
+  // Pipe-delimited string -> string[]. Pipe chosen because commas and slashes
+  // are common inside company names ("Sumitomo Bakelite Co., Ltd.", "F&S Tool").
+  const cleaned = cleanValue(val)
+  if (cleaned === null) return null
+  const parts = cleaned.split('|').map(s => s.trim()).filter(Boolean)
+  return parts.length === 0 ? null : parts
+}
+
 const INT_FIELDS = ['employees_approx', 'year_founded', 'years_in_business', 'press_count', 'signal_count', 'cwp_contacts']
 const NUMERIC_FIELDS = ['revenue_est_m']
+const ARRAY_FIELDS = ['former_names']
 
 function parseRow(row, headerMap) {
   const prospect = {}
@@ -73,6 +87,8 @@ function parseRow(row, headerMap) {
       prospect[dbField] = cleanInt(rawVal)
     } else if (NUMERIC_FIELDS.includes(dbField)) {
       prospect[dbField] = cleanNumeric(rawVal)
+    } else if (ARRAY_FIELDS.includes(dbField)) {
+      prospect[dbField] = cleanArray(rawVal)
     } else {
       prospect[dbField] = cleanValue(rawVal)
     }

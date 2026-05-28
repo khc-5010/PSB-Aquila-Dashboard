@@ -55,6 +55,10 @@ const EXCEL_TO_DB = {
   'Suggested Next Step': 'suggested_next_step',
   'Legacy Data Potential': 'legacy_data_potential',
   'Notes': 'notes',
+  // Thread 1 (typed parent/FKA model). 'Former Names' is pipe-delimited.
+  'Parent Relationship Kind': 'parent_relationship_kind',
+  'Financial Sponsor': 'financial_sponsor',
+  'Former Names': 'former_names',
 }
 
 // Group pre-assignments from spec
@@ -138,7 +142,8 @@ async function insertProspect(row) {
       press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
       key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
       engagement_type, suggested_next_step, legacy_data_potential, notes,
-      outreach_group, outreach_rank
+      outreach_group, outreach_rank,
+      parent_relationship_kind, financial_sponsor, former_names
     ) VALUES (
       ${row.company}, ${row.also_known_as}, ${row.website}, ${row.category}, ${row.in_house_tooling},
       ${row.city}, ${row.state}, ${row.country || 'US'}, ${row.geography_tier}, ${row.source_report}, ${row.priority},
@@ -146,7 +151,8 @@ async function insertProspect(row) {
       ${row.press_count}, ${row.signal_count}, ${row.top_signal}, ${row.rjg_cavity_pressure}, ${row.medical_device_mfg},
       ${row.key_certifications}, ${row.ownership_type}, ${row.recent_ma}, ${row.cwp_contacts}, ${row.psb_connection_notes},
       ${row.engagement_type}, ${row.suggested_next_step}, ${row.legacy_data_potential}, ${row.notes},
-      ${outreach_group}, ${outreach_rank}
+      ${outreach_group}, ${outreach_rank},
+      ${row.parent_relationship_kind || null}, ${row.financial_sponsor || null}, ${(Array.isArray(row.former_names) && row.former_names.length > 0) ? row.former_names : null}
     )
   `
 }
@@ -178,6 +184,15 @@ async function seedFromExcel(filePath) {
         dbRow[dbCol] = cleanInt(val)
       } else if (dbCol === 'revenue_est_m') {
         dbRow[dbCol] = cleanNumeric(val)
+      } else if (dbCol === 'former_names') {
+        // Pipe-delimited (see BulkImportModal.jsx convention).
+        const cleaned = cleanValue(val)
+        if (cleaned === null) {
+          dbRow[dbCol] = null
+        } else {
+          const parts = String(cleaned).split('|').map(s => s.trim()).filter(Boolean)
+          dbRow[dbCol] = parts.length === 0 ? null : parts
+        }
       } else {
         dbRow[dbCol] = cleanValue(val)
       }

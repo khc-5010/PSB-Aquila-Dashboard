@@ -388,6 +388,10 @@ async function rebuildOntologyForProspect(sql, prospectId) {
 const ONTOLOGY_FIELDS = [
   'key_certifications', 'rjg_cavity_pressure', 'medical_device_mfg',
   'ownership_type', 'parent_company', 'category', 'in_house_tooling',
+  // Thread 1 (typed parent/FKA model). Phase 1 only triggers the rebuild;
+  // Phase 3 will expand rebuildOntologyForProspect to emit absorbed_into +
+  // legacy_name_of + acquired_by edges from these fields.
+  'parent_relationship_kind', 'financial_sponsor', 'former_names',
 ]
 
 // ─── Priority Score Calculation ─────────────────────────────────────
@@ -1826,6 +1830,165 @@ export default async function handler(req, res) {
       }
     }
 
+    // Thread 1: backfill candidates for typed parent/FKA model (READ-ONLY).
+    // Computes heuristic suggestions for parent_relationship_kind / financial_sponsor /
+    // former_names from current parent_company + also_known_as values. Does NOT write.
+    // The companion POST action 'apply-parent-type-classifications' performs the writes.
+    if (action === 'backfill-parent-types-dryrun') {
+      try {
+        const rows = await sql`
+          SELECT id, company, parent_company, also_known_as, ownership_type, recent_ma
+          FROM prospect_companies
+        `
+
+        // Index company names for token-match validation (Barnes-style aka cleanup).
+        const companyNameSet = new Set()
+        for (const r of rows) {
+          if (r.company) companyNameSet.add(r.company.trim().toLowerCase())
+        }
+
+        // Count children per parent_company (case-insensitive, trimmed).
+        const childCounts = new Map()
+        for (const r of rows) {
+          if (r.parent_company && r.parent_company.trim()) {
+            const key = r.parent_company.trim().toLowerCase()
+            childCounts.set(key, (childCounts.get(key) || 0) + 1)
+          }
+        }
+
+        // Heuristic patterns for financial-sponsor detection.
+        //   PE_PATTERN:  matches the strong PE markers anywhere in the string.
+        //   PE_ENDING:   looser; only the trailing word — used when combined with singleton signal.
+        //   BARE_SUFFIX: ambiguous standalone strings that should NOT auto-flag (Group / Holdings alone).
+        const PE_PATTERN = /\b(Capital|Private Equity|PE|LP|Fund|Investments?)\b/i
+        const PE_ENDING = /(Partners|Equity)\s*$/i
+        const BARE_SUFFIX = /^(Group|Holdings|Inc\.?|Corp\.?|LLC|Ltd\.?)\s*$/i
+
+        function classifyParentString(parent) {
+          if (!parent || !parent.trim()) return null
+          const trimmed = parent.trim()
+          if (BARE_SUFFIX.test(trimmed)) return null
+          if (PE_PATTERN.test(trimmed)) return 'pattern'
+          if (PE_ENDING.test(trimmed)) return 'ending'
+          return null
+        }
+
+        const candidates = []
+
+        for (const r of rows) {
+          // A) Financial sponsor extraction.
+          const peHit = classifyParentString(r.parent_company)
+          if (peHit) {
+            const ownershipPE = r.ownership_type && /\bPE\b/i.test(r.ownership_type)
+            const childCountForParent = childCounts.get(r.parent_company.trim().toLowerCase()) || 0
+            let confidence = null
+            let reason = ''
+            if (peHit === 'pattern' && ownershipPE) {
+              confidence = 'high'
+              reason = "parent_company matches PE pattern AND ownership_type contains 'PE'"
+            } else if (peHit === 'pattern') {
+              confidence = 'medium'
+              reason = 'parent_company matches PE pattern (no ownership_type corroboration)'
+            } else if (peHit === 'ending' && childCountForParent === 1) {
+              confidence = 'medium'
+              reason = 'parent_company ends in Partners/Equity AND is singleton in parent landscape'
+            }
+            if (confidence) {
+              candidates.push({
+                id: r.id,
+                company: r.company,
+                category: 'financial_sponsor',
+                current: {
+                  parent_company: r.parent_company,
+                  also_known_as: r.also_known_as,
+                  ownership_type: r.ownership_type,
+                },
+                suggested: { financial_sponsor: r.parent_company.trim(), parent_company: null },
+                confidence,
+                reason,
+              })
+              continue
+            }
+          }
+
+          // B) Absorbed-brand candidate.
+          if (r.also_known_as && r.also_known_as.trim() && r.parent_company && r.parent_company.trim()) {
+            const aka = r.also_known_as.trim()
+            if (!aka.includes(',') && !aka.includes('/')) {
+              const recentMaMatches = r.recent_ma && /\b(acquired by|absorbed|merger|merged|bought by)\b/i.test(r.recent_ma)
+              candidates.push({
+                id: r.id,
+                company: r.company,
+                category: 'absorbed_into',
+                current: {
+                  parent_company: r.parent_company,
+                  also_known_as: aka,
+                  recent_ma: r.recent_ma,
+                },
+                suggested: { parent_relationship_kind: 'absorbed_into', former_names: [aka] },
+                confidence: recentMaMatches ? 'high' : 'medium',
+                reason: recentMaMatches
+                  ? 'aka populated with single name AND recent_ma confirms acquisition'
+                  : 'aka populated with single name (suggests former name); recent_ma not corroborating',
+              })
+              continue
+            }
+          }
+
+          // C) Subsidiary candidate.
+          if (r.parent_company && r.parent_company.trim() && (!r.also_known_as || !r.also_known_as.trim())) {
+            const parentKey = r.parent_company.trim().toLowerCase()
+            const cc = childCounts.get(parentKey) || 0
+            if (cc >= 2) {
+              const isCorporate = r.ownership_type && /(corporate|strategic)/i.test(r.ownership_type)
+              candidates.push({
+                id: r.id,
+                company: r.company,
+                category: 'subsidiary',
+                current: { parent_company: r.parent_company, ownership_type: r.ownership_type },
+                suggested: { parent_relationship_kind: 'subsidiary' },
+                confidence: isCorporate ? 'high' : 'medium',
+                reason: isCorporate
+                  ? `aka empty, parent has ${cc} children, ownership_type Corporate/Strategic`
+                  : `aka empty, parent has ${cc} children (real operational parent)`,
+              })
+              continue
+            }
+          }
+
+          // D) Brand-list aka cleanup (Barnes pattern).
+          if (r.also_known_as && r.also_known_as.trim()) {
+            const tokens = r.also_known_as.split(/[,/]/).map(s => s.trim()).filter(Boolean)
+            if (tokens.length >= 3) {
+              const matches = tokens.filter(t => companyNameSet.has(t.toLowerCase()))
+              if (matches.length >= 2) {
+                candidates.push({
+                  id: r.id,
+                  company: r.company,
+                  category: 'aka_cleanup',
+                  current: { also_known_as: r.also_known_as, parent_company: r.parent_company },
+                  suggested: { also_known_as: null },
+                  confidence: 'high',
+                  reason: `aka contains ${tokens.length} comma/slash-separated tokens; ${matches.length} match existing company rows (brand-list misuse)`,
+                })
+              }
+            }
+          }
+        }
+
+        const summary = {
+          total_candidates: candidates.length,
+          by_category: candidates.reduce((acc, c) => { acc[c.category] = (acc[c.category] || 0) + 1; return acc }, {}),
+          by_confidence: candidates.reduce((acc, c) => { acc[c.confidence] = (acc[c.confidence] || 0) + 1; return acc }, {}),
+        }
+
+        return res.status(200).json({ summary, candidates })
+      } catch (error) {
+        console.error('Error running backfill dryrun:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     if (action === 'attachments' && id) {
       try {
         const attachments = await sql`
@@ -2406,6 +2569,74 @@ export default async function handler(req, res) {
       }
     }
 
+    // Thread 1: apply human-reviewed classifications from the dryrun.
+    // Body: { classifications: [{ id, suggested: {<field>: <value>, ...} }, ...], applied_by? }
+    // Each suggested field must be in ALLOWED_FIELDS. Null values are explicit clears.
+    // sql.query (raw text + values) is used here — matches the existing PATCH path so
+    // TEXT[] (former_names) parameter binding goes through the same well-trodden code path.
+    if (action === 'apply-parent-type-classifications') {
+      try {
+        const { classifications, applied_by } = req.body
+        if (!Array.isArray(classifications) || classifications.length === 0) {
+          return res.status(400).json({ error: 'classifications must be a non-empty array' })
+        }
+
+        const ALLOWED_FIELDS = new Set([
+          'parent_relationship_kind', 'financial_sponsor', 'former_names',
+          'parent_company', 'also_known_as',
+        ])
+
+        let applied = 0
+        const errors = []
+
+        for (const c of classifications) {
+          if (!c.id || !c.suggested || typeof c.suggested !== 'object') {
+            errors.push({ id: c.id ?? null, error: 'malformed classification entry' })
+            continue
+          }
+
+          const setClauses = []
+          const values = []
+          for (const [field, value] of Object.entries(c.suggested)) {
+            if (!ALLOWED_FIELDS.has(field)) continue
+            values.push(value)  // null is allowed (explicit clear)
+            setClauses.push(`${field} = $${values.length}`)
+          }
+
+          if (applied_by) {
+            values.push(applied_by)
+            setClauses.push(`last_edited_by = $${values.length}`)
+          }
+
+          if (setClauses.length === 0) {
+            errors.push({ id: c.id, error: 'no allowed fields in suggested' })
+            continue
+          }
+
+          values.push(c.id)
+          const idParam = values.length
+
+          const queryText = `
+            UPDATE prospect_companies
+            SET ${setClauses.join(', ')}, updated_at = NOW()
+            WHERE id = $${idParam}
+          `
+
+          try {
+            await sql.query(queryText, values)
+            applied++
+          } catch (err) {
+            errors.push({ id: c.id, error: err.message })
+          }
+        }
+
+        return res.status(200).json({ applied, errors, total: classifications.length })
+      } catch (error) {
+        console.error('Error applying classifications:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Save/replace a state research report
     if (action === 'save-state-report') {
       try {
@@ -2724,6 +2955,9 @@ export default async function handler(req, res) {
                 ownership_type = COALESCE(${p.ownership_type || null}, ownership_type),
                 recent_ma = COALESCE(${p.recent_ma || null}, recent_ma),
                 parent_company = COALESCE(${p.parent_company || null}, parent_company),
+                parent_relationship_kind = COALESCE(${p.parent_relationship_kind || null}, parent_relationship_kind),
+                financial_sponsor = COALESCE(${p.financial_sponsor || null}, financial_sponsor),
+                former_names = COALESCE(${(Array.isArray(p.former_names) && p.former_names.length > 0) ? p.former_names : null}, former_names),
                 decision_location = COALESCE(${p.decision_location || null}, decision_location),
                 cwp_contacts = COALESCE(${p.cwp_contacts || null}, cwp_contacts),
                 psb_connection_notes = COALESCE(${p.psb_connection_notes || null}, psb_connection_notes),
@@ -2744,7 +2978,8 @@ export default async function handler(req, res) {
                 key_certifications, ownership_type, recent_ma, parent_company, decision_location,
                 cwp_contacts, psb_connection_notes,
                 engagement_type, suggested_next_step, legacy_data_potential, notes,
-                outreach_group, outreach_rank, added_by
+                outreach_group, outreach_rank, added_by,
+                parent_relationship_kind, financial_sponsor, former_names
               ) VALUES (
                 ${company}, ${p.also_known_as || null}, ${p.website || null}, ${p.category || null}, ${p.in_house_tooling || null},
                 ${p.city || null}, ${p.state || null}, ${p.country || 'US'}, ${p.geography_tier || null}, ${p.source_report || null}, ${p.priority || null},
@@ -2753,7 +2988,8 @@ export default async function handler(req, res) {
                 ${p.key_certifications || null}, ${p.ownership_type || null}, ${p.recent_ma || null}, ${p.parent_company || null}, ${p.decision_location || null},
                 ${p.cwp_contacts || null}, ${p.psb_connection_notes || null},
                 ${p.engagement_type || null}, ${p.suggested_next_step || null}, ${p.legacy_data_potential || null}, ${p.notes || null},
-                'Unassigned', ${null}, ${req.body.added_by || null}
+                'Unassigned', ${null}, ${req.body.added_by || null},
+                ${p.parent_relationship_kind || null}, ${p.financial_sponsor || null}, ${(Array.isArray(p.former_names) && p.former_names.length > 0) ? p.former_names : null}
               )
             `
           }
@@ -2848,6 +3084,8 @@ export default async function handler(req, res) {
       'site_count', 'acquisition_count',
       'priority_manual',
       'needs_review', 'review_note', 'review_flagged_by', 'review_flagged_at',
+      // Thread 1 (typed parent/FKA model)
+      'parent_relationship_kind', 'financial_sponsor', 'former_names',
     ]
 
     const setClauses = []
