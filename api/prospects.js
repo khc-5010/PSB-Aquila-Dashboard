@@ -1065,7 +1065,7 @@ export default async function handler(req, res) {
               JOIN ontology_relationship_types ort ON orel.type_id = ort.id
               JOIN ontology_entities oe_obj ON orel.object_entity_id = oe_obj.id
               WHERE UPPER(pc.state) = ${stateUpper} AND ort.name = 'uses_technology'
-                AND oe_obj.name = 'RJG Cavity Pressure Monitoring'`,
+                AND oe_obj.name IN ('RJG Cavity Pressure Monitoring', 'Kistler Cavity Pressure Monitoring', 'Priamus Cavity Pressure Monitoring')`,
           // Entity counts by type for this state
           sql`SELECT oet.name AS type_name, COUNT(DISTINCT oe_obj.id)::int AS count
               FROM ontology_entities oe_comp

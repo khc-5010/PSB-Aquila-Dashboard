@@ -115,5 +115,27 @@ dist/assets/index-...js   1,337.37 kB │ gzip: 412.87 kB
   <li>If the dry-run output looks right, <code>node scripts/migrate-followup-to-tasks.js --apply</code>.</li>
 </ol>
 
+<hr>
+<h1>Item 2 — Multi-vendor cavity-pressure count (ontology-state-summary)</h1>
+<p><em>Closes item 2 from <code>docs/diagnostics/status-check-2026-05-28.md</code>. Added 2026-05-29. (Appended below the prior Threads 2+3 notes.)</em></p>
+
+<h2>Change</h2>
+<p>The per-state cavity-pressure company count in the <code>ontology-state-summary</code> endpoint (the <code>rjgCount</code> sub-query, <code>api/prospects.js</code> ~line 1068) matched only the <code>'RJG Cavity Pressure Monitoring'</code> entity by exact equality, so Kistler and Priamus shops — functionally equivalent to RJG for AI-readiness scoring — were excluded. The predicate now reads <code>oe_obj.name IN ('RJG Cavity Pressure Monitoring', 'Kistler Cavity Pressure Monitoring', 'Priamus Cavity Pressure Monitoring')</code>.</p>
+
+<h2>Design decisions</h2>
+<ul>
+  <li><strong>Hardcoded <code>IN (...)</code> list over a derived <code>LIKE '%Cavity Pressure Monitoring'</code>.</strong> The three names are the exact, finite output set of <code>getCavityPressureEntityName()</code> (<code>api/prospects.js:43</code>), so the predicate stays in lockstep with the helper and cannot accidentally match an unrelated future entity. Adding a vendor requires editing both spots — acceptable, since adding a vendor already means editing the helper.</li>
+  <li><strong><code>Likely</code>-confidence rows still counted.</strong> <code>getCavityPressureEntityName('Likely')</code> returns the RJG entity name, which remains in the list, so Likely rows are unaffected.</li>
+</ul>
+
+<h2>Consumer trace</h2>
+<p>Sole consumer: <code>src/components/national-map/OntologySummary.jsx</code> (one <code>fetch</code>, line 12). It reads <code>companies_with_rjg</code> as a scalar count (rendered line 149, display-gated on <code>&gt; 0</code> at line 139); it does <em>not</em> parse entity names out of the response. The response shape is unchanged (same keys/types) — only the count value broadens. The <code>top_technologies</code> array already lists all vendor entities (unfiltered <code>uses_technology</code> rollup), so it was already correct.</p>
+
+<h2>Open question</h2>
+<p>The consumer's amber stat card is labeled <strong>"RJG Technology"</strong> (<code>OntologySummary.jsx:150</code>). Now that the count includes Kistler/Priamus, that label undercounts its own meaning. Relabeling (e.g. "Cavity Pressure (RJG/Kistler/Priamus)") is a JSX change outside the single-line scope of this PR, so it was intentionally left out — flagged for a follow-up decision.</p>
+
+<h2>Verification</h2>
+<p>No test framework exists in the repo; verification is read-only code inspection plus an optional sanity SELECT against Neon. The change is a static SQL-literal predicate inside an existing tagged-template query — no parameter binding, no response-shape change.</p>
+
 </body>
 </html>
