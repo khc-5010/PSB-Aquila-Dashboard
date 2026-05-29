@@ -118,7 +118,47 @@
   <li><strong>id 285 Forj Medical split rationale documented.</strong> <code>former_names = ["IntriCon", "Minnetronix"]</code> was applied (splitting on the slash in "IntriCon / Minnetronix") rather than treating the entire string as a single former name. Forj is the merger of IntriCon + Minnetronix; both are real entities. If Brett wants either as their own prospect row later, the <code>former_names</code> match keeps them searchable in the meantime.</li>
 
   <li><strong>SyBridge (id 58) per-attribute data split remains out of scope.</strong> From the prior checkpoint: the row blends X-Cell's founding year / revenue / press_count with SyBridge-corporate's site_count / acquisition_count. Thread 1's apply fixes the relationship model (Crestview as sponsor + X-Cell as former_name); the per-attribute data correction is a Thread 4 cleanup that needs Brett's industry knowledge.</li>
+
+  <li><strong>~126 unclassified rows with <code>parent_company</code> populated but <code>parent_relationship_kind</code> NULL.</strong> The Thread 1 apply classified 153 rows. The diagnostic identified 279 total rows with <code>parent_company</code> set. The 126 untouched rows are singleton-parent cases (parent has only 1 child in our prospects table) and other patterns the heuristic didn't cover. Under the locked Phase 3 grouping rule, these rows no longer form parent groups in the UI — meaning Pyramid Mold &amp; Tool (id 935) no longer renders nested under SyBridge in the table, as one example. The ontology rebuild still emits <code>subsidiary_of</code> for these rows as a fallback (so the Knowledge Graph isn't impoverished), but the table grouping regression is real. Follow-up: run a second classification pass (manual or with a relaxed heuristic) to assign <code>parent_relationship_kind</code> for these rows.</li>
+
+  <li><strong>Westfall (id 648) itself is unclassified.</strong> The Thread 1 apply targeted Westfall's children, but Westfall's own row — which has <code>also_known_as = "Integrity Mold (Tempe)"</code> — wasn't in the dryrun (it has no <code>parent_company</code>, so the heuristic didn't surface it). After Phase 3, Westfall still renders "fka Integrity Mold (Tempe)" via the legacy <code>also_known_as</code> path. A follow-up should reclassify this row (<code>parent_relationship_kind='absorbed_into'</code>, <code>former_names=["Integrity Mold"]</code>, clear <code>also_known_as</code>) to fit the typed model. Same pattern likely applies to other top-level parents that absorbed brands.</li>
 </ol>
+
+<h2>Phase 3 Implementation Summary</h2>
+<p>All four locked decisions from the consolidated payload review landed in code. Files touched:</p>
+
+<h3>1. <code>api/prospects.js</code> — Layer-1 ontology rebuild expansion</h3>
+<p>Both the bulk rebuild (<code>rebuildOntologyLayer1</code>) and the per-prospect rebuild (<code>rebuildOntologyForProspect</code>) now branch on <code>parent_relationship_kind</code>:</p>
+<ul>
+  <li><code>'subsidiary'</code> or NULL (legacy/unclassified fallback) → emit <code>subsidiary_of</code></li>
+  <li><code>'absorbed_into'</code> → emit <code>absorbed_into</code></li>
+</ul>
+<p>Plus two new emit paths: each entry in <code>former_names</code> creates a Company entity and emits <code>legacy_name_of (former → row)</code>; <code>financial_sponsor</code> creates a Company entity and emits <code>acquired_by (row → sponsor)</code>. SYNC contract noted in code so both rebuild functions stay aligned.</p>
+
+<h3>2. <code>src/components/prospects/ProspectTable.jsx</code> — six targeted edits</h3>
+<ul>
+  <li><strong>Grouping (<code>:656-665</code>):</strong> <code>childrenByParent</code> now requires <code>parent_relationship_kind IN ('subsidiary','absorbed_into')</code>. PE-portfolio companies do not group.</li>
+  <li><strong>GitMerge icon</strong> on child rows (<code>:844-853</code>) and parent-header fka label (<code>:1063-1068</code>): icon driven by <code>parent_relationship_kind === 'absorbed_into'</code> (the stored truth), with a legacy fallback for unclassified rows where <code>isChild && also_known_as && !parent_relationship_kind</code>. The "fka" text prefers <code>former_names.join(', ')</code>; falls back to <code>also_known_as</code> for unclassified rows.</li>
+  <li><strong>Search (<code>:604</code>):</strong> the searchable string now includes <code>former_names</code> (joined) and <code>financial_sponsor</code>. Searching "X-Cell" surfaces SyBridge (id 58) via former_names.</li>
+  <li><strong>CSV export (<code>:266-296</code>):</strong> three new columns — <code>former_names</code>, <code>parent_relationship_kind</code>, <code>financial_sponsor</code>. TEXT[] serializes pipe-delimited (matches the BulkImportModal / seed-prospects convention so a round-trip works).</li>
+  <li><strong>CompanyHoverCard (<code>:335-339, :426-447</code>):</strong> <code>hasData</code> extended to count <code>financial_sponsor</code> + <code>former_names</code>. The "Parent" row label conditionally becomes "Absorbed by" when <code>parent_relationship_kind === 'absorbed_into'</code>. Two new rows added: "Formerly" (from <code>former_names</code>) and "Financial Sponsor".</li>
+</ul>
+
+<h3>3. <code>src/components/prospects/ProspectDetail.jsx</code> — header + relationship section</h3>
+<ul>
+  <li><strong>Header (<code>:388-394</code>):</strong> "aka …" replaced with "Formerly: …" sourced from <code>former_names.join(', ')</code>, with <code>also_known_as</code> as a fallback for unclassified rows. Header is read-only; editing happens in the relationship section.</li>
+  <li><strong>Relationship section (around <code>:911</code>):</strong> grid expanded to include a "Parent Relationship" <code>&lt;select&gt;</code> (subsidiary / absorbed_into / none — per locked Q1, sister_company deferred from the dropdown), a "Financial Sponsor" <code>&lt;EditableField&gt;</code>, and a col-span-2 "Former Names (comma-separated)" multiline editor. The editor parses comma-separated input into a TEXT[] (trims and filters empty) on save, and stringifies on display.</li>
+</ul>
+
+<h3>4. <code>src/components/prospects/AddCompanyModal.jsx</code> — three new "More Details" inputs</h3>
+<p>Parent Relationship dropdown, Financial Sponsor text input, Former Names comma-separated input. Form state holds <code>former_names</code> as a string; <code>handleSubmit</code> parses it into a TEXT[] before POSTing.</p>
+
+<h3>5. <code>CLAUDE.md</code> — Database Schema, grouping rules, ontology mapping</h3>
+<p>Three new fields documented under Database Schema (orthogonal-dimensions note included). The Parent-Company Grouping section now references the locked Phase 3 scope rule. The Layer-1 mapping table now lists the four typed edges (<code>subsidiary_of</code>, <code>absorbed_into</code>, <code>legacy_name_of</code>, <code>acquired_by</code>). The PATCH-triggers-rebuild list now includes the three new columns.</p>
+
+<h3>Post-deploy step required</h3>
+<p>After Vercel rebuilds the preview, hit <code>POST /api/prospects?action=rebuild-ontology-layer1</code> once to populate the new ontology edges (<code>absorbed_into</code>, <code>legacy_name_of</code>, <code>acquired_by</code>) from the just-applied typed data. The endpoint returns <code>{entities_created, relationships_created, prospects_processed, duration_ms}</code>. From the Vercel preview, one-line browser-console snippet:</p>
+<pre><code>fetch('/api/prospects?action=rebuild-ontology-layer1', { method: 'POST' }).then(r =&gt; r.json()).then(console.log)</code></pre>
 
 <h2>Open Questions</h2>
 <p>For Kyle to answer at the checkpoint before Phase 3 begins:</p>

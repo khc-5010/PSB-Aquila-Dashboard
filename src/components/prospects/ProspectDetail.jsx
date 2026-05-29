@@ -385,8 +385,12 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                   <h2 className="text-lg font-semibold text-white truncate">{p.company}</h2>
                   <StatusBadge status={p.prospect_status} />
                 </div>
-                {p.also_known_as && (
-                  <p className="text-sm text-white/60 mt-0.5">aka {p.also_known_as}</p>
+                {((Array.isArray(p.former_names) && p.former_names.length > 0) || p.also_known_as) && (
+                  <p className="text-sm text-white/60 mt-0.5">
+                    Formerly: {Array.isArray(p.former_names) && p.former_names.length > 0
+                      ? p.former_names.join(', ')
+                      : p.also_known_as}
+                  </p>
                 )}
                 {buildHookLine(p) && (
                   <p className="text-sm text-white/60 mt-1 italic">{buildHookLine(p)}</p>
@@ -913,11 +917,41 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       value={p.parent_company}
                       onSave={(val) => onUpdate(p.id, 'parent_company', val)}
                     />
+                    <div>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Parent Relationship</dt>
+                      <dd className="mt-0.5">
+                        <select
+                          value={p.parent_relationship_kind || ''}
+                          onChange={(e) => onUpdate(p.id, 'parent_relationship_kind', e.target.value || null)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        >
+                          <option value="">— (none)</option>
+                          <option value="subsidiary">Subsidiary</option>
+                          <option value="absorbed_into">Absorbed into</option>
+                        </select>
+                      </dd>
+                    </div>
+                    <EditableField
+                      label="Financial Sponsor"
+                      value={p.financial_sponsor}
+                      onSave={(val) => onUpdate(p.id, 'financial_sponsor', val)}
+                    />
                     <EditableField
                       label="Decision Location"
                       value={p.decision_location}
                       onSave={(val) => onUpdate(p.id, 'decision_location', val)}
                     />
+                    <div className="col-span-2">
+                      <EditableField
+                        label="Former Names (comma-separated)"
+                        value={Array.isArray(p.former_names) ? p.former_names.join(', ') : ''}
+                        multiline
+                        onSave={(val) => {
+                          const parsed = val ? val.split(',').map(s => s.trim()).filter(Boolean) : null
+                          onUpdate(p.id, 'former_names', parsed && parsed.length > 0 ? parsed : null)
+                        }}
+                      />
+                    </div>
                   </dl>
                 </Section>
 

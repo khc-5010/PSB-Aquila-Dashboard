@@ -231,6 +231,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Metrics: `employees_approx`, `year_founded`, `years_in_business`, `revenue_known`, `revenue_est_m`, `press_count`, `site_count`, `acquisition_count`
   - Signals: `signal_count`, `top_signal`, `rjg_cavity_pressure`, `medical_device_mfg` (values: `'Yes'`, `'Yes (confirmed)'`, `'No'`, or NULL), `key_certifications`
   - Relationships: `ownership_type`, `recent_ma`, `parent_company`, `decision_location`, `cwp_contacts`, `psb_connection_notes`
+  - **Typed parent/FKA model (Thread 1, Phase 3):** `parent_relationship_kind` (TEXT, nullable — enum-like: `'subsidiary'` | `'absorbed_into'` | `'sister_company'` | NULL; no DB CHECK constraint — UI dropdown restricts to `'subsidiary'` and `'absorbed_into'`), `financial_sponsor` (TEXT, nullable — PE / holding owner separate from operational parent), `former_names` (TEXT[], nullable — multi-entry FKA list, pipe-delimited on import). These columns are **orthogonal** to each other: a row can have `financial_sponsor` (PE owner) AND `parent_relationship_kind='absorbed_into'` with `former_names=[...]` simultaneously (e.g., SyBridge = financial_sponsor: Crestview + former_names: ["X-Cell Tool & Mold"]). The legacy `parent_company` and `also_known_as` columns are kept for backward compatibility; new code should prefer the typed columns when present.
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
   - Provenance: `added_by` — set on INSERT only (never overwritten on update/upsert), sourced from authenticated user's name
@@ -440,8 +441,10 @@ Two-tier "attention needed" system combining explicit follow-up dates with auto-
 ### Parent-Company Grouping (Expandable Rows)
 Companies that share a `parent_company` value are grouped into expandable/collapsible rows in ProspectTable. All grouping is **client-side**, applied after filtering and sorting — no API or schema changes.
 
+**Phase 3 scope rule (Thread 1, locked):** rows form groups only when `parent_relationship_kind IN ('subsidiary','absorbed_into')`. Rows with `parent_company` populated but `parent_relationship_kind` NULL (unclassified) do NOT group — they render standalone. PE-portfolio companies (`financial_sponsor` populated, `parent_company` NULL) also do NOT group together, even when many share the same sponsor string. See `ProspectTable.jsx:childrenByParent` for the implementation.
+
 **Grouping rules:**
-- A group is created when 2+ filtered prospects share the same `parent_company` value, OR when a prospect's `company` name matches another prospect's `parent_company` (real parent + at least 1 child)
+- A group is created when 2+ filtered prospects with `parent_relationship_kind IN ('subsidiary','absorbed_into')` share the same `parent_company` value, OR when a prospect's `company` name matches another (typed) prospect's `parent_company` (real parent + at least 1 typed child)
 - **Real parent**: A prospect row exists with the parent's company name → it becomes the group header row (clickable to open detail panel)
 - **Virtual parent**: No matching prospect row exists (e.g., "Hillenbrand") → a non-clickable header row is created with the parent name and aggregate stats
 - Prospects that are real parents (others reference them) are never consumed as children of another group, preventing multi-level nesting
@@ -979,7 +982,10 @@ SQL migration: `scripts/create-ontology-tables.sql`
 | `rjg_cavity_pressure` (Yes/confirmed/Likely) | Technology / Software ("RJG Cavity Pressure Monitoring") | uses_technology |
 | `medical_device_mfg` (Yes) | Market Vertical ("Medical Devices") | serves_market |
 | `ownership_type` | Ownership Structure | has_ownership_structure |
-| `parent_company` | Company | subsidiary_of |
+| `parent_company` (kind=`'subsidiary'` or NULL) | Company | `subsidiary_of` |
+| `parent_company` (kind=`'absorbed_into'`) | Company | `absorbed_into` |
+| `former_names` (each entry) | Company | `legacy_name_of` (former_name → row) |
+| `financial_sponsor` | Company | `acquired_by` |
 | `category`, `in_house_tooling` | — | Stored as attributes on Company entity |
 
 #### Certification Normalization
@@ -1000,7 +1006,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 Layer 1 ontology auto-rebuilds on data changes — the ontology never silently goes stale:
 - **Bulk import** (`POST ?action=import`): Full `rebuildOntologyLayer1(sql)` after upsert loop. Adds `ontology` field to response.
 - **Single create** (`POST /api/prospects`): Per-prospect `rebuildOntologyForProspect(sql, id)` after insert. Adds `ontology` field to response.
-- **PATCH** (`PATCH ?id=X`): Conditional per-prospect rebuild only when body contains ontology-relevant fields: `key_certifications`, `rjg_cavity_pressure`, `medical_device_mfg`, `ownership_type`, `parent_company`, `category`, `in_house_tooling`. Editing `outreach_group`, `notes`, etc. does NOT trigger rebuild.
+- **PATCH** (`PATCH ?id=X`): Conditional per-prospect rebuild only when body contains ontology-relevant fields: `key_certifications`, `rjg_cavity_pressure`, `medical_device_mfg`, `ownership_type`, `parent_company`, `category`, `in_house_tooling`, `parent_relationship_kind`, `financial_sponsor`, `former_names`. Editing `outreach_group`, `notes`, etc. does NOT trigger rebuild.
 
 All rebuild calls are **awaited before response** — fire-and-forget is unsafe on Vercel serverless (execution context freezes after `res.end()`). Per-prospect rebuild deletes only Layer 1 relationships (never entities, never Layer 2 data) to avoid CASCADE danger on shared entities like "ISO 9001".
 
