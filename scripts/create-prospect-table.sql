@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS prospect_companies (
   -- Signal data
   signal_count INTEGER,
   top_signal TEXT,
-  rjg_cavity_pressure TEXT,   -- Yes (confirmed), Likely, Unknown
+  rjg_cavity_pressure TEXT,   -- Yes, Yes (confirmed), Yes (Kistler), Yes (Priamus), Likely, Unknown
   medical_device_mfg TEXT,    -- Yes, No
   key_certifications TEXT,
 

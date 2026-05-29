@@ -971,7 +971,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <Field label="Signal Count" value={p.signal_count} />
                     <Field label="Top Signal" value={p.top_signal} />
-                    <Field label="RJG Cavity Pressure" value={p.rjg_cavity_pressure} />
+                    <Field label="Cavity Pressure" value={p.rjg_cavity_pressure} />
                     <Field label="Medical Device Mfg" value={p.medical_device_mfg} />
                     <div className="col-span-2">
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Key Certifications</dt>
