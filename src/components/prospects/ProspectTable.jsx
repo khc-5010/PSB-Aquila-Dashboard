@@ -345,13 +345,14 @@ function getProspectUrgency(prospect) {
 
 function exportToCSV(data, filename) {
   const columns = [
-    'company', 'also_known_as', 'category', 'in_house_tooling',
+    'company', 'also_known_as', 'former_names', 'category', 'in_house_tooling',
     'city', 'state', 'country', 'geography_tier', 'source_report', 'priority', 'priority_score', 'ai_readiness',
     'employees_approx', 'year_founded', 'years_in_business',
     'revenue_known', 'revenue_est_m', 'press_count',
     'site_count', 'acquisition_count',
     'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
-    'key_certifications', 'ownership_type', 'recent_ma', 'parent_company', 'decision_location',
+    'key_certifications', 'ownership_type', 'recent_ma',
+    'parent_company', 'parent_relationship_kind', 'financial_sponsor', 'decision_location',
     'cwp_contacts', 'psb_connection_notes',
     'engagement_type', 'suggested_next_step', 'follow_up_date', 'legacy_data_potential', 'notes',
     'outreach_group', 'outreach_rank', 'group_notes', 'prospect_status', 'website'
@@ -361,7 +362,9 @@ function exportToCSV(data, filename) {
   const rows = data.map(row => columns.map(col => {
     const val = row[col]
     if (val === null || val === undefined) return ''
-    const str = String(val)
+    // TEXT[] columns (former_names) serialize as pipe-delimited — matches
+    // BulkImportModal/seed-prospects convention so a CSV round-trip works.
+    const str = Array.isArray(val) ? val.join('|') : String(val)
     return str.includes(',') || str.includes('"') || str.includes('\n')
       ? `"${str.replace(/"/g, '""')}"`
       : str
@@ -417,7 +420,8 @@ function CompanyHoverCard({ prospect, children }) {
     p.site_count || p.acquisition_count ||
     p.year_founded || p.revenue_est_m ||
     p.ownership_type || p.key_certifications ||
-    p.top_signal || p.parent_company
+    p.top_signal || p.parent_company ||
+    p.financial_sponsor || (Array.isArray(p.former_names) && p.former_names.length > 0)
 
   if (!hasData) return <>{children}</>
 
@@ -506,8 +510,22 @@ function CompanyHoverCard({ prospect, children }) {
           )}
           {row5 && (
             <div className="mb-1.5">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Parent</span>
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider">
+                {p.parent_relationship_kind === 'absorbed_into' ? 'Absorbed by' : 'Parent'}
+              </span>
               <div className="text-xs text-gray-700 font-medium">{p.parent_company}</div>
+            </div>
+          )}
+          {Array.isArray(p.former_names) && p.former_names.length > 0 && (
+            <div className="mb-1.5">
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Formerly</span>
+              <div className="text-xs text-gray-700 font-medium">{p.former_names.join(', ')}</div>
+            </div>
+          )}
+          {p.financial_sponsor && (
+            <div className="mb-1.5">
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider">Financial Sponsor</span>
+              <div className="text-xs text-gray-700 font-medium">{p.financial_sponsor}</div>
             </div>
           )}
           {certs.length > 0 && (
@@ -725,8 +743,15 @@ function ProspectTable() {
     if (filters.status.length > 0 && !filters.status.includes(p.prospect_status)) return false
     if (filters.search) {
       const s = filters.search.toLowerCase()
-      const searchable = [p.company, p.also_known_as, p.city, p.state, p.country, p.category, p.parent_company, p.notes, p.suggested_next_step]
-        .filter(Boolean).join(' ').toLowerCase()
+      const searchable = [
+        p.company,
+        p.also_known_as,
+        Array.isArray(p.former_names) ? p.former_names.join(' ') : null,
+        p.financial_sponsor,
+        p.city, p.state, p.country, p.category,
+        p.parent_company,
+        p.notes, p.suggested_next_step,
+      ].filter(Boolean).join(' ').toLowerCase()
       if (!searchable.includes(s)) return false
     }
     return true
@@ -800,7 +825,11 @@ function ProspectTable() {
 
     const childrenByParent = new Map()
     for (const p of sorted) {
-      if (p.parent_company) {
+      // Locked Phase 3 rule (Thread 1): rows form groups only when parent_relationship_kind
+      // is 'subsidiary' or 'absorbed_into'. PE-portfolio companies (financial_sponsor populated,
+      // parent_company NULL or untyped) do NOT group together.
+      const kind = p.parent_relationship_kind
+      if (p.parent_company && (kind === 'subsidiary' || kind === 'absorbed_into')) {
         if (!childrenByParent.has(p.parent_company)) childrenByParent.set(p.parent_company, [])
         childrenByParent.get(p.parent_company).push(p)
       }
@@ -986,10 +1015,15 @@ function ProspectTable() {
             <CompanyHoverCard prospect={p}>
               <span className="text-sm font-medium text-gray-900">{p.company}</span>
             </CompanyHoverCard>
-            {p.also_known_as && (
+            {((Array.isArray(p.former_names) && p.former_names.length > 0) || p.also_known_as) && (
               <div className="text-xs text-gray-400 italic flex items-center gap-1">
-                {isChild && <GitMerge className="w-3 h-3 text-gray-400 flex-shrink-0" />}
-                fka {p.also_known_as}
+                {(p.parent_relationship_kind === 'absorbed_into' ||
+                  (isChild && p.also_known_as && !p.parent_relationship_kind)) && (
+                  <GitMerge className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                )}
+                fka {Array.isArray(p.former_names) && p.former_names.length > 0
+                  ? p.former_names.join(', ')
+                  : p.also_known_as}
               </div>
             )}
           </div>
@@ -1188,7 +1222,13 @@ function ProspectTable() {
               <CompanyHoverCard prospect={parentP}>
                 <span className="text-sm font-semibold text-gray-900">{parentP.company}</span>
               </CompanyHoverCard>
-              {parentP.also_known_as && <div className="text-xs text-gray-400 italic">fka {parentP.also_known_as}</div>}
+              {((Array.isArray(parentP.former_names) && parentP.former_names.length > 0) || parentP.also_known_as) && (
+                <div className="text-xs text-gray-400 italic">
+                  fka {Array.isArray(parentP.former_names) && parentP.former_names.length > 0
+                    ? parentP.former_names.join(', ')
+                    : parentP.also_known_as}
+                </div>
+              )}
             </div>
             {badge}
             {(parentP.conversion_count ?? 0) > 0 && (

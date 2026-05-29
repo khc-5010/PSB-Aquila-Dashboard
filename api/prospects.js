@@ -239,11 +239,34 @@ async function rebuildOntologyLayer1(sql) {
       }
     }
 
-    // Parent company → Company entity + subsidiary_of relationship
+    // Parent company + parent_relationship_kind → typed relationship.
+    // Phase 3 (Thread 1): rows with parent_relationship_kind = 'absorbed_into' emit
+    // absorbed_into; 'subsidiary' or NULL (legacy/unclassified) emit subsidiary_of.
     if (p.parent_company && p.parent_company.trim()) {
       const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
       if (parentId) {
-        await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
+        const relName = p.parent_relationship_kind === 'absorbed_into' ? 'absorbed_into' : 'subsidiary_of'
+        await insertRelationship(relMap[relName], companyId, parentId, source)
+      }
+    }
+
+    // Former names → legacy_name_of edges (each former name is a Company entity
+    // linked TO the current row's entity; "former_name is a former name for this row").
+    if (Array.isArray(p.former_names)) {
+      for (const formerName of p.former_names) {
+        if (!formerName || !String(formerName).trim()) continue
+        const formerId = await upsertEntity(typeMap['Company'], String(formerName).trim(), {}, null, source)
+        if (formerId) {
+          await insertRelationship(relMap['legacy_name_of'], formerId, companyId, source)
+        }
+      }
+    }
+
+    // Financial sponsor → acquired_by edge (company → sponsor).
+    if (p.financial_sponsor && p.financial_sponsor.trim()) {
+      const sponsorId = await upsertEntity(typeMap['Company'], p.financial_sponsor.trim(), {}, null, source)
+      if (sponsorId) {
+        await insertRelationship(relMap['acquired_by'], companyId, sponsorId, source)
       }
     }
   }
@@ -385,11 +408,31 @@ async function rebuildOntologyForProspect(sql, prospectId) {
     }
   }
 
-  // Parent company
+  // Parent company + parent_relationship_kind → typed relationship (SYNC with bulk rebuild).
   if (p.parent_company && p.parent_company.trim()) {
     const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
     if (parentId) {
-      await insertRelationship(relMap['subsidiary_of'], companyId, parentId, source)
+      const relName = p.parent_relationship_kind === 'absorbed_into' ? 'absorbed_into' : 'subsidiary_of'
+      await insertRelationship(relMap[relName], companyId, parentId, source)
+    }
+  }
+
+  // Former names → legacy_name_of edges.
+  if (Array.isArray(p.former_names)) {
+    for (const formerName of p.former_names) {
+      if (!formerName || !String(formerName).trim()) continue
+      const formerId = await upsertEntity(typeMap['Company'], String(formerName).trim(), {}, null, source)
+      if (formerId) {
+        await insertRelationship(relMap['legacy_name_of'], formerId, companyId, source)
+      }
+    }
+  }
+
+  // Financial sponsor → acquired_by edge.
+  if (p.financial_sponsor && p.financial_sponsor.trim()) {
+    const sponsorId = await upsertEntity(typeMap['Company'], p.financial_sponsor.trim(), {}, null, source)
+    if (sponsorId) {
+      await insertRelationship(relMap['acquired_by'], companyId, sponsorId, source)
     }
   }
 
