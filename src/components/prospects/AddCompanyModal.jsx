@@ -16,6 +16,9 @@ function AddCompanyModal({ onClose, onSuccess }) {
     revenue_est_m: '', ownership_type: '', parent_company: '', decision_location: '',
     source_report: '', engagement_type: '',
     suggested_next_step: '', cwp_contacts: '', psb_connection_notes: '',
+    // Thread 1 typed parent/FKA model. former_names stays as string in form state;
+    // parsed to TEXT[] in handleSubmit (comma-separated input convention).
+    parent_relationship_kind: '', financial_sponsor: '', former_names: '',
   })
   const [showMore, setShowMore] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -42,6 +45,10 @@ function AddCompanyModal({ onClose, onSuccess }) {
           payload[key] = val ? parseInt(val, 10) || null : null
         } else if (key === 'revenue_est_m') {
           payload[key] = val ? parseFloat(val) || null : null
+        } else if (key === 'former_names') {
+          // Comma-separated string → TEXT[]. Omit from payload if empty.
+          const arr = val.split(',').map(s => s.trim()).filter(Boolean)
+          if (arr.length > 0) payload[key] = arr
         } else {
           payload[key] = val
         }
@@ -202,11 +209,27 @@ function AddCompanyModal({ onClose, onSuccess }) {
                   </div>
                   <div>
                     <label className={labelClass}>Parent Company</label>
-                    <input type="text" value={form.parent_company} onChange={(e) => handleChange('parent_company', e.target.value)} className={inputClass} placeholder="Holding/acquiring entity" />
+                    <input type="text" value={form.parent_company} onChange={(e) => handleChange('parent_company', e.target.value)} className={inputClass} placeholder="Operational parent / absorbing entity" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Parent Relationship</label>
+                    <select value={form.parent_relationship_kind} onChange={(e) => handleChange('parent_relationship_kind', e.target.value)} className={inputClass}>
+                      <option value="">— (none)</option>
+                      <option value="subsidiary">Subsidiary</option>
+                      <option value="absorbed_into">Absorbed into</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Financial Sponsor</label>
+                    <input type="text" value={form.financial_sponsor} onChange={(e) => handleChange('financial_sponsor', e.target.value)} className={inputClass} placeholder="PE / holding owner" />
                   </div>
                   <div>
                     <label className={labelClass}>Decision Location</label>
                     <input type="text" value={form.decision_location} onChange={(e) => handleChange('decision_location', e.target.value)} className={inputClass} placeholder="City, ST" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className={labelClass}>Former Names (comma-separated)</label>
+                    <input type="text" value={form.former_names} onChange={(e) => handleChange('former_names', e.target.value)} className={inputClass} placeholder="e.g. X-Cell Tool & Mold, Pyramid Mold" />
                   </div>
                   <div>
                     <label className={labelClass}>Source Report</label>
