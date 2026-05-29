@@ -247,6 +247,29 @@ function TaskCell({ taskInfo }) {
   )
 }
 
+// Aggregate open-task data across a parent group (parent + visible children).
+// For real parents, includes the parent's own taskInfo; for virtual parents,
+// parentP.id is null so only children contribute. The visible-children set
+// already reflects active filters because grouping runs after filtering.
+function aggregateGroupTaskInfo(parentP, children, taskCounts) {
+  const ids = []
+  if (parentP?.id) ids.push(parentP.id)
+  for (const c of children) {
+    if (c?.id) ids.push(c.id)
+  }
+  let count = 0
+  let earliestDueDate = null
+  for (const id of ids) {
+    const t = taskCounts.get(id)
+    if (!t) continue
+    count += t.count
+    if (t.earliestDueDate && (!earliestDueDate || t.earliestDueDate < earliestDueDate)) {
+      earliestDueDate = t.earliestDueDate
+    }
+  }
+  return { count, earliestDueDate }
+}
+
 function getProspectUrgency(prospect) {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -1079,7 +1102,9 @@ function ProspectTable() {
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5 text-center"><span className={`text-sm ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span></td>
-          <td className="px-2 py-2.5" />
+          <td className="px-2 py-2.5 text-center">
+            <TaskCell taskInfo={aggregateGroupTaskInfo(parentP, children, taskCounts)} />
+          </td>
           <td className="px-3 py-2.5" />
           <td className="px-3 py-2.5" />
         </tr>
@@ -1190,7 +1215,7 @@ function ProspectTable() {
           <span className={`text-sm font-medium ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span>
         </td>
         <td className="px-2 py-2.5 text-center">
-          <TaskCell taskInfo={parentP.id ? taskCounts.get(parentP.id) : null} />
+          <TaskCell taskInfo={aggregateGroupTaskInfo(parentP, children, taskCounts)} />
         </td>
         <td className="px-3 py-2.5">
           <span className="text-xs text-gray-600 flex items-center gap-1">

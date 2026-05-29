@@ -73,12 +73,12 @@
   <li><strong>Per-prospect task count fetch.</strong> Considered two options: (a) one query returning all open tasks grouped by prospect_id (single round-trip), (b) include a <code>task_count</code> subquery in the existing prospect list endpoint. Picked (a) — keeps the prospect list endpoint untouched and lets the Tasks column be a self-contained client concern.</li>
 </ul>
 
-<h2>Open Questions</h2>
+<h2>Open Questions — Resolved</h2>
+<p>Kyle's decisions on the three open questions from the original build:</p>
 <ul>
-  <li><strong>Task ordering on group header rows.</strong> The Tasks column on a parent-group header currently shows only the parent's own open task count, not aggregated across subsidiaries (unlike Sites/Acquisitions which aggregate). Confirm this is the right default — aggregation is a one-line change in the renderer if Brett prefers it.</li>
-  <li><strong>Hard-delete affordance.</strong> The trash-can button is exposed on every TaskRow behind a confirm prompt. Should this be admin-only? Current spec says "supported but prefer dismissed", which I read as "available to everyone, just not primary." Will defer to Brett's preference once he sees the UI.</li>
-  <li><strong>Migration apply timing.</strong> Recommendation in the wrap-up: Kyle reviews the dry-run output first, then runs `--apply`. There are only 3 candidate rows so this is low-risk.</li>
-  <li><strong>Activity log filtering.</strong> Task lifecycle entries now mingle with manual activity entries in the same `prospect_activity_log`. If the feed becomes noisy after team adoption, we could add a filter chip ("hide task lifecycle") — but that's a future enhancement, not part of this build.</li>
+  <li><strong>Q1 — Parent-group rollup.</strong> <span class="status-done">Applied.</span> The Tasks column on a parent-group header now aggregates open task count <em>and</em> earliest due date across the parent plus all visible children. Helper <code>aggregateGroupTaskInfo(parentP, children, taskCounts)</code> in <code>ProspectTable.jsx</code>. Used in both virtual-parent rows (which previously rendered an empty cell) and real-parent rows (which previously showed only the parent's own count). Children naturally reflect any active filters because grouping runs after filtering.</li>
+  <li><strong>Q2 — Hard-delete affordance.</strong> <span class="status-done">Acknowledged as-is.</span> The trash-can button stays exposed on every TaskRow behind the existing confirm prompt. Four-user team + confirm dialog is sufficient defense against accidents.</li>
+  <li><strong>Q3 — Activity log mixing.</strong> <span class="status-done">Acknowledged as-is.</span> Task lifecycle entries and manual activity entries continue to share <code>prospect_activity_log</code>. A hide-task-lifecycle filter chip is deferred — will revisit if Brett flags the feed as noisy after real use.</li>
 </ul>
 
 <h2>Test Results</h2>
