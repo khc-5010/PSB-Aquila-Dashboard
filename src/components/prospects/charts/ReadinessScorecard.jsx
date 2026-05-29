@@ -89,7 +89,7 @@ function ReadinessScorecard({ readiness, readinessGoldCompanies, loading }) {
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-1">Readiness Scorecard</h3>
-      <p className="text-xs text-gray-500 mb-4">RJG Cavity Pressure status x Medical Device classification</p>
+      <p className="text-xs text-gray-500 mb-4">Cavity Pressure status x Medical Device classification</p>
       <div style={{ height: 220 }}>
         <Bar data={chartData} options={options} />
       </div>
@@ -97,7 +97,7 @@ function ReadinessScorecard({ readiness, readinessGoldCompanies, loading }) {
         <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="text-xs font-semibold text-amber-800">Gold Targets (RJG Confirmed + Medical)</span>
+            <span className="text-xs font-semibold text-amber-800">Gold Targets (Cavity Pressure Confirmed + Medical)</span>
           </div>
           <p className="text-xs text-amber-700">
             {goldCompanies.join(', ')}

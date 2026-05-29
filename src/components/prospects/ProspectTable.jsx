@@ -28,6 +28,37 @@ function parseLocalDate(val) {
   return new Date(y, m - 1, d)
 }
 
+// Cavity-pressure vendor detection for the gold-star indicator. Confirmed
+// values starting with "Yes" return 'Kistler' / 'Priamus' / 'RJG' when a
+// vendor is identifiable, or 'unspecified' for legacy plain "Yes" rows.
+function getCavityVendor(val) {
+  if (!val || typeof val !== 'string') return null
+  if (!val.startsWith('Yes')) return null
+  const lower = val.toLowerCase()
+  if (lower.includes('kistler')) return 'Kistler'
+  if (lower.includes('priamus')) return 'Priamus'
+  if (lower.includes('confirmed')) return 'RJG'
+  return 'unspecified'
+}
+
+function CavityPressureCell({ value }) {
+  const vendor = getCavityVendor(value)
+  if (vendor) {
+    const tip = vendor === 'unspecified'
+      ? 'Cavity pressure — confirmed. Gold readiness signal.'
+      : `Cavity pressure — confirmed (${vendor}). Gold readiness signal.`
+    return (
+      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title={tip}>
+        <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
+      </span>
+    )
+  }
+  if (value === 'Likely') {
+    return <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="Cavity pressure — likely. Verify before outreach." />
+  }
+  return <span className="text-xs text-gray-400">{'—'}</span>
+}
+
 function formatLocation(p) {
   const isUS = !p.country || p.country === 'US'
   const parts = [p.city, p.state].filter(Boolean)
@@ -995,15 +1026,7 @@ function ProspectTable() {
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.site_count || '\u2014'}</span></td>
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.acquisition_count || '\u2014'}</span></td>
       <td className="px-3 py-2.5 text-center">
-        {p.rjg_cavity_pressure === 'Yes' || p.rjg_cavity_pressure === 'Yes (confirmed)' ? (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
-            <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
-          </span>
-        ) : p.rjg_cavity_pressure === 'Likely' ? (
-          <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
-        ) : (
-          <span className="text-xs text-gray-400">{'\u2014'}</span>
-        )}
+        <CavityPressureCell value={p.rjg_cavity_pressure} />
       </td>
       <td className="px-3 py-2.5 text-center">
         {p.medical_device_mfg?.startsWith('Yes') ? (
@@ -1196,13 +1219,7 @@ function ProspectTable() {
         <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalSites || '\u2014'}</span></td>
         <td className="px-3 py-2.5 text-center"><span className="text-sm font-medium text-gray-700">{aggregates.totalAcquisitions || '\u2014'}</span></td>
         <td className="px-3 py-2.5 text-center">
-          {parentP.rjg_cavity_pressure === 'Yes' || parentP.rjg_cavity_pressure === 'Yes (confirmed)' ? (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border border-amber-300" title="RJG cavity pressure — confirmed. Gold readiness signal.">
-              <Star className="w-3.5 h-3.5 text-amber-600" fill="#FBBF24" />
-            </span>
-          ) : parentP.rjg_cavity_pressure === 'Likely' ? (
-            <HelpCircle className="w-4 h-4 text-yellow-500 inline" title="RJG cavity pressure — likely. Verify before outreach." />
-          ) : dash}
+          <CavityPressureCell value={parentP.rjg_cavity_pressure} />
         </td>
         <td className="px-3 py-2.5 text-center">
           {parentP.medical_device_mfg?.startsWith('Yes') ? (

@@ -36,6 +36,21 @@ function normalizeCertName(raw) {
   return CERT_NORMALIZATION[lower] || trimmed
 }
 
+// Multi-vendor cavity-pressure attribution. RJG, Kistler, and Priamus are
+// functionally equivalent for AI readiness scoring; only the ontology entity
+// name differs so the Knowledge Graph can show vendor-specific clusters.
+// Returns null for values that don't map to a cavity-pressure entity.
+function getCavityPressureEntityName(rjgVal) {
+  if (!rjgVal) return null
+  const lower = rjgVal.toLowerCase()
+  if (lower.includes('kistler')) return 'Kistler Cavity Pressure Monitoring'
+  if (lower.includes('priamus')) return 'Priamus Cavity Pressure Monitoring'
+  if (lower.includes('yes') || lower.includes('confirmed') || lower === 'likely') {
+    return 'RJG Cavity Pressure Monitoring'
+  }
+  return null
+}
+
 // ─── Category parent-group rules for filter matching ─────────────────
 // SYNC: Keep in sync with src/utils/categoryGroups.js
 // ORDER MATTERS: More specific prefixes MUST come before generic ones.
@@ -191,11 +206,12 @@ async function rebuildOntologyLayer1(sql) {
       }
     }
 
-    // RJG cavity pressure → Technology entity
+    // Cavity pressure monitoring → vendor-specific Technology entity
     if (p.rjg_cavity_pressure) {
       const rjgVal = p.rjg_cavity_pressure.toLowerCase()
-      if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
-        const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
+      const entityName = getCavityPressureEntityName(p.rjg_cavity_pressure)
+      if (entityName && (rjgVal.includes('yes') || rjgVal.includes('confirmed'))) {
+        const techId = await upsertEntity(typeMap['Technology / Software'], entityName, {}, null, source)
         if (techId) {
           await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
         }
@@ -336,11 +352,12 @@ async function rebuildOntologyForProspect(sql, prospectId) {
     }
   }
 
-  // RJG cavity pressure
+  // Cavity pressure monitoring → vendor-specific Technology entity
   if (p.rjg_cavity_pressure) {
     const rjgVal = p.rjg_cavity_pressure.toLowerCase()
-    if (rjgVal.includes('yes') || rjgVal.includes('confirmed')) {
-      const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source)
+    const entityName = getCavityPressureEntityName(p.rjg_cavity_pressure)
+    if (entityName && (rjgVal.includes('yes') || rjgVal.includes('confirmed'))) {
+      const techId = await upsertEntity(typeMap['Technology / Software'], entityName, {}, null, source)
       if (techId) {
         await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
       }
