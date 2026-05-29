@@ -13,6 +13,7 @@ import ExtractionPromptModal from './ExtractionPromptModal'
 import ImportOntologyModal from './ImportOntologyModal'
 import NeighborhoodPanel from '../ontology/NeighborhoodPanel'
 import FdaEnrichment from './FdaEnrichment'
+import TasksSection from './tasks/TasksSection'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -191,7 +192,7 @@ function EditableField({ label, value, onSave, multiline = false }) {
   )
 }
 
-function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate }) {
+function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate, onTasksChanged }) {
   const { user } = useAuth()
   const [showPromptModal, setShowPromptModal] = useState(false)
   const [showAttachModal, setShowAttachModal] = useState(false)
@@ -458,6 +459,11 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
 
               {/* LEFT COLUMN — Action sections */}
               <div className="divide-y divide-gray-100">
+                {/* Tasks (Threads 2+3): forward-looking work tied to this prospect */}
+                <Section title="Tasks" defaultOpen={true}>
+                  <TasksSection prospectId={p.id} onTasksChanged={onTasksChanged} />
+                </Section>
+
                 {/* Engagement Planning */}
                 <Section title="Engagement Planning" defaultOpen={true}>
                   <div className="space-y-3">
@@ -635,52 +641,8 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                       </dd>
                     </div>
 
-                    <div>
-                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Follow-Up Date</dt>
-                      <dd className="mt-0.5">
-                        <div className="flex items-center">
-                          <input
-                            type="date"
-                            value={p.follow_up_date ? p.follow_up_date.split('T')[0] : ''}
-                            onChange={(e) => onUpdate(p.id, 'follow_up_date', e.target.value || null)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
-                          />
-                          {p.follow_up_date && (
-                            <button
-                              onClick={() => onUpdate(p.id, 'follow_up_date', null)}
-                              className="ml-2 text-xs text-gray-400 hover:text-red-500"
-                              title="Clear follow-up date"
-                            >
-                              clear
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {[
-                            { label: 'Tomorrow', days: 1 },
-                            { label: '+3 days', days: 3 },
-                            { label: '+1 week', days: 7 },
-                            { label: '+2 weeks', days: 14 },
-                            { label: '+1 month', days: 30 },
-                          ].map(({ label, days }) => (
-                            <button
-                              key={label}
-                              onClick={() => {
-                                const d = new Date()
-                                d.setDate(d.getDate() + days)
-                                const yyyy = d.getFullYear()
-                                const mm = String(d.getMonth() + 1).padStart(2, '0')
-                                const dd = String(d.getDate()).padStart(2, '0')
-                                onUpdate(p.id, 'follow_up_date', `${yyyy}-${mm}-${dd}`)
-                              }}
-                              className="text-xs px-2 py-0.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600"
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </dd>
-                    </div>
+                    {/* Follow-Up Date editor removed (Threads 2+3) — replaced by the Tasks section above. */}
+                    {/* The follow_up_date column remains in the schema for the legacy "Stale" preset. */}
 
                     <EditableField
                       label="Group Notes"

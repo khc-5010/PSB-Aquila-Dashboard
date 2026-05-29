@@ -12,6 +12,8 @@ import StatusBadge from './StatusBadge'
 import AddCompanyModal from './AddCompanyModal'
 import BulkImportModal from './BulkImportModal'
 import DataAuditModal from './DataAuditModal'
+import TasksView from './tasks/TasksView'
+import { getUrgencyClasses } from './tasks/taskUtils'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
@@ -218,6 +220,31 @@ function cwpHeatClass(count) {
   if (count < 10) return 'font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded'
   if (count < 20) return 'font-bold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded'
   return 'font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded'
+}
+
+// Tasks column cell (Threads 2+3). Shows open-task count plus an urgency dot
+// derived from the earliest open due_date. Renders an em-dash for zero tasks.
+function TaskCell({ taskInfo }) {
+  if (!taskInfo || taskInfo.count === 0) {
+    return <span className="text-xs text-gray-300">—</span>
+  }
+  let dotClass = 'bg-gray-300'
+  if (taskInfo.earliestDueDate) {
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const diffDays = Math.floor((taskInfo.earliestDueDate - today) / (1000 * 60 * 60 * 24))
+    if (diffDays < 0) dotClass = 'bg-red-500'
+    else if (diffDays === 0) dotClass = 'bg-amber-500'
+    else if (diffDays <= 3) dotClass = 'bg-yellow-400'
+    else if (diffDays <= 7) dotClass = 'bg-blue-400'
+    else dotClass = 'bg-gray-300'
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-700">
+      <span className={`w-2 h-2 rounded-full ${dotClass}`} />
+      {taskInfo.count}
+    </span>
+  )
 }
 
 function getProspectUrgency(prospect) {
@@ -461,12 +488,18 @@ function ProspectTable() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [editingRank, setEditingRank] = useState(null)
   const [editingRankValue, setEditingRankValue] = useState('')
-  const [subView, setSubView] = useState('table') // 'table' | 'charts'
+  const [subView, setSubView] = useState('table') // 'table' | 'charts' | 'tasks'
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showAuditModal, setShowAuditModal] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState(new Set())
+
+  // Task state (Threads 2+3)
+  // taskBadgeCount = server-computed "(assignee = me OR unassigned) AND status = open"
+  // taskCounts = Map<prospect_id, { count, earliestDueDate }> for the Tasks column in the table
+  const [taskBadgeCount, setTaskBadgeCount] = useState(0)
+  const [taskCounts, setTaskCounts] = useState(new Map())
 
   // Fetch prospects
   useEffect(() => {
@@ -485,6 +518,50 @@ function ProspectTable() {
         setLoading(false)
       })
   }, [])
+
+  // Task data fetch (Threads 2+3) — runs on mount + when user changes + after task mutations
+  const refreshTaskData = useCallback(async () => {
+    try {
+      // 1) Badge count: open tasks where assignee = me OR assignee IS NULL.
+      // SYNC: badge logic — also in api/prospects.js GET ?action=tasks handler
+      if (user?.name) {
+        const badgeParams = new URLSearchParams({
+          action: 'tasks', format: 'count', assignee: 'me',
+          current_user: user.name, status: 'open',
+        })
+        const badgeRes = await fetch(`/api/prospects?${badgeParams.toString()}`)
+        if (badgeRes.ok) {
+          const { count } = await badgeRes.json()
+          setTaskBadgeCount(count || 0)
+        }
+      }
+
+      // 2) Per-prospect open task counts (drives the Tasks column).
+      const listRes = await fetch('/api/prospects?action=tasks&assignee=all&status=open')
+      if (listRes.ok) {
+        const tasks = await listRes.json()
+        const map = new Map()
+        for (const t of tasks) {
+          const existing = map.get(t.prospect_id) || { count: 0, earliestDueDate: null }
+          existing.count += 1
+          if (t.due_date) {
+            const d = parseLocalDate(t.due_date)
+            if (d && (!existing.earliestDueDate || d < existing.earliestDueDate)) {
+              existing.earliestDueDate = d
+            }
+          }
+          map.set(t.prospect_id, existing)
+        }
+        setTaskCounts(map)
+      }
+    } catch (err) {
+      console.error('Task fetch failed:', err)
+    }
+  }, [user?.name])
+
+  useEffect(() => {
+    refreshTaskData()
+  }, [refreshTaskData])
 
   // Update a prospect field (optimistic)
   const updateProspect = useCallback(async (id, field, value, editedBy = user?.name || 'Unknown') => {
@@ -557,18 +634,11 @@ function ProspectTable() {
     }
   }, [selectedProspect])
 
-  // Action items count (computed from full prospect list, independent of filters)
-  const actionItemCount = prospects.filter(p => {
-    const u = getProspectUrgency(p)
-    return u && u.priority <= 7
-  }).length
-
   // Filter logic
   const filtered = prospects.filter(p => {
-    if (filters.preset === 'action_items') {
-      const urgency = getProspectUrgency(p)
-      if (!urgency || urgency.priority > 7) return false
-    }
+    // Note: the 'action_items' preset was removed in Threads 2+3 — clicking the
+    // badge now switches the sub-view to the Tasks queue instead of filtering
+    // prospects by derived urgency. The 'stale' preset is preserved below.
     if (filters.preset === 'stale') {
       const urgency = getProspectUrgency(p)
       if (!urgency || (urgency.level !== 'stale' && urgency.level !== 'stalled')) return false
@@ -613,9 +683,30 @@ function ProspectTable() {
   //   • When a column header is active, tiebreakers apply in order: rank → group → signal desc
   //     (skipping whichever is the primary key).
   //   • When no column header is active, the smart default is group → rank → signal desc.
+  // Comparator helper for the synthetic "tasks" sort key — sorts by earliest open
+  // due_date ASC NULLS LAST. Prospects with zero open tasks sink to the bottom regardless
+  // of direction (matches the nulls-last contract of NUMERIC_COLUMNS).
+  const compareTaskColumn = (a, b, direction) => {
+    const ta = taskCounts.get(a.id)
+    const tb = taskCounts.get(b.id)
+    const aHas = ta && ta.count > 0
+    const bHas = tb && tb.count > 0
+    if (!aHas && !bHas) return 0
+    if (!aHas) return 1   // a sinks
+    if (!bHas) return -1  // b sinks
+    // Both have tasks. Sort by earliest due_date; tasks without a due_date sort after dated tasks.
+    const aDate = ta.earliestDueDate ? ta.earliestDueDate.getTime() : Infinity
+    const bDate = tb.earliestDueDate ? tb.earliestDueDate.getTime() : Infinity
+    if (aDate === bDate) return 0
+    const cmp = aDate < bDate ? -1 : 1
+    return direction === 'desc' ? -cmp : cmp
+  }
+
   const sorted = [...filtered].sort((a, b) => {
     if (sortConfig.key) {
-      const primary = compareValues(a, b, sortConfig.key, sortConfig.direction)
+      const primary = sortConfig.key === 'tasks'
+        ? compareTaskColumn(a, b, sortConfig.direction)
+        : compareValues(a, b, sortConfig.key, sortConfig.direction)
       if (primary !== 0) return primary
 
       // Smart tiebreakers — always ascending, nulls last via compareValues.
@@ -904,18 +995,7 @@ function ProspectTable() {
         <span className={`text-sm ${cwpHeatClass(p.cwp_contacts ?? 0)}`}>{displayValue(p.cwp_contacts)}</span>
       </td>
       <td className="px-2 py-2.5 text-center">
-        {p.follow_up_date ? (
-          <span className={`text-xs font-medium ${
-            getProspectUrgency(p)?.color === 'red' ? 'text-red-600 font-bold' :
-            getProspectUrgency(p)?.color === 'amber' ? 'text-amber-600 font-bold' :
-            getProspectUrgency(p)?.color === 'orange' ? 'text-orange-500' :
-            'text-gray-500'
-          }`}>
-            {parseLocalDate(p.follow_up_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '\u2014'}
-          </span>
-        ) : (
-          <span className="text-xs text-gray-300">{'\u2014'}</span>
-        )}
+        <TaskCell taskInfo={taskCounts.get(p.id)} />
       </td>
       <td className="px-3 py-2.5">
         <span className="text-xs text-gray-600 flex items-center gap-1">
@@ -1110,18 +1190,7 @@ function ProspectTable() {
           <span className={`text-sm font-medium ${cwpHeatClass(aggregates.totalCWP)}`}>{aggregates.totalCWP || '\u2014'}</span>
         </td>
         <td className="px-2 py-2.5 text-center">
-          {parentP.follow_up_date ? (
-            <span className={`text-xs font-medium ${
-              getProspectUrgency(parentP)?.color === 'red' ? 'text-red-600 font-bold' :
-              getProspectUrgency(parentP)?.color === 'amber' ? 'text-amber-600 font-bold' :
-              getProspectUrgency(parentP)?.color === 'orange' ? 'text-orange-500' :
-              'text-gray-500'
-            }`}>
-              {parseLocalDate(parentP.follow_up_date)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) || '\u2014'}
-            </span>
-          ) : (
-            <span className="text-xs text-gray-300">{'\u2014'}</span>
-          )}
+          <TaskCell taskInfo={parentP.id ? taskCounts.get(parentP.id) : null} />
         </td>
         <td className="px-3 py-2.5">
           <span className="text-xs text-gray-600 flex items-center gap-1">
@@ -1178,6 +1247,26 @@ function ProspectTable() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
                 Charts
+              </span>
+            </button>
+            <button
+              onClick={() => setSubView('tasks')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+                subView === 'tasks'
+                  ? 'bg-white text-[#041E42] border-gray-200'
+                  : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Tasks
+                {taskBadgeCount > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 min-w-[18px]">
+                    {taskBadgeCount}
+                  </span>
+                )}
               </span>
             </button>
           </div>
@@ -1239,15 +1328,31 @@ function ProspectTable() {
         </div>
       </div>
 
-      <ProspectFilters
-        filters={filters}
-        onFilterChange={setFilters}
-        totalCount={prospects.length}
-        filteredCount={filtered.length}
-        actionItemCount={actionItemCount}
-      />
+      {subView !== 'tasks' && (
+        <ProspectFilters
+          filters={filters}
+          onFilterChange={setFilters}
+          totalCount={prospects.length}
+          filteredCount={filtered.length}
+          actionItemCount={taskBadgeCount}
+          onOpenTasks={() => setSubView('tasks')}
+        />
+      )}
 
-      {subView === 'charts' ? (
+      {subView === 'tasks' ? (
+        <div className="flex-1 overflow-auto">
+          <TasksView
+            onOpenProspect={(prospectId) => {
+              const found = prospects.find(p => p.id === prospectId)
+              if (found) {
+                setSelectedProspect(found)
+                setSubView('table')
+              }
+            }}
+            onTasksChanged={refreshTaskData}
+          />
+        </div>
+      ) : subView === 'charts' ? (
         <div className="flex-1 overflow-auto bg-gray-50">
           <ProspectAnalytics filters={filters} onFilterChange={setFilters} />
         </div>
@@ -1300,8 +1405,8 @@ function ProspectTable() {
               <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-16 cursor-pointer" onClick={() => handleSort('cwp_contacts')}>
                 CWP <SortIcon column="cwp_contacts" />
               </th>
-              <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-20 cursor-pointer" onClick={() => handleSort('follow_up_date')}>
-                Due <SortIcon column="follow_up_date" />
+              <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-20 cursor-pointer" onClick={() => handleSort('tasks')}>
+                Tasks <SortIcon column="tasks" />
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider w-28 cursor-pointer" onClick={() => handleSort('ownership_type')}>
                 Ownership <SortIcon column="ownership_type" />
@@ -1348,6 +1453,7 @@ function ProspectTable() {
             const found = prospects.find(p => p.id === id)
             if (found) setSelectedProspect(found)
           }}
+          onTasksChanged={refreshTaskData}
         />
       )}
       </>

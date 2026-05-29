@@ -2233,6 +2233,63 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Tasks (Threads 2+3): list or count prospect_tasks rows ───
+    if (action === 'tasks') {
+      try {
+        const { assignee = 'all', current_user, status = 'open', prospect_id: pid, format = 'full' } = req.query
+
+        const conditions = []
+        const params = []
+
+        if (pid) {
+          params.push(pid)
+          conditions.push(`t.prospect_id = $${params.length}`)
+        }
+
+        // SYNC: badge logic — also in src/components/prospects/tasks/taskUtils.js
+        // The "My Tasks" badge counts open tasks where assignee = current_user OR assignee IS NULL.
+        if (assignee === 'me') {
+          if (!current_user) {
+            return res.status(400).json({ error: 'current_user query param is required when assignee=me' })
+          }
+          params.push(current_user)
+          conditions.push(`(t.assignee = $${params.length} OR t.assignee IS NULL)`)
+        } else if (assignee === 'unassigned') {
+          conditions.push('t.assignee IS NULL')
+        } else if (assignee !== 'all') {
+          params.push(assignee)
+          conditions.push(`t.assignee = $${params.length}`)
+        }
+
+        if (status !== 'all') {
+          params.push(status)
+          conditions.push(`t.status = $${params.length}`)
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+        if (format === 'count') {
+          const countQuery = `SELECT COUNT(*)::int AS count FROM prospect_tasks t ${whereClause}`
+          const [row] = await sql.query(countQuery, params)
+          return res.status(200).json({ count: row?.count ?? 0 })
+        }
+
+        // Full format: join with prospect_companies so the UI gets company_name without a second fetch.
+        const listQuery = `
+          SELECT t.*, p.company AS company_name, p.prospect_status, p.outreach_group
+          FROM prospect_tasks t
+          JOIN prospect_companies p ON p.id = t.prospect_id
+          ${whereClause}
+          ORDER BY t.due_date ASC NULLS LAST, t.created_at ASC
+        `
+        const rows = await sql.query(listQuery, params)
+        return res.status(200).json(rows)
+      } catch (error) {
+        console.error('Error fetching tasks:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Single prospect by ID
     if (id) {
       try {
@@ -2397,6 +2454,32 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: error.message })
       }
     }
+
+    // ─── Tasks (Threads 2+3): hard delete a task row ───
+    if (action === 'tasks') {
+      const { task_id, deleted_by } = req.query
+      if (!task_id) {
+        return res.status(400).json({ error: 'task_id query param is required' })
+      }
+      const actor = deleted_by || 'Unknown'
+      try {
+        const [task] = await sql`SELECT * FROM prospect_tasks WHERE id = ${task_id}`
+        if (!task) return res.status(404).json({ error: 'Task not found' })
+
+        await sql`DELETE FROM prospect_tasks WHERE id = ${task_id}`
+
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${task.prospect_id}, ${'⌫ Task deleted: ' + task.description}, ${actor})
+        `
+
+        return res.status(200).json({ deleted: true, id: parseInt(task_id, 10) })
+      } catch (error) {
+        console.error('Error deleting task:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     return res.status(400).json({ error: 'Unknown DELETE action' })
   }
 
@@ -2839,6 +2922,34 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Tasks (Threads 2+3): create a new task ───
+    // Emits an activity-log entry but does NOT touch suggested_next_step
+    // (preserved exclusively for the existing add-activity flow).
+    if (action === 'tasks') {
+      try {
+        const { prospect_id, description, due_date, assignee, created_by } = req.body
+        if (!prospect_id || !description?.trim() || !created_by?.trim()) {
+          return res.status(400).json({ error: 'prospect_id, description, and created_by are required' })
+        }
+
+        const [task] = await sql`
+          INSERT INTO prospect_tasks (prospect_id, description, due_date, assignee, status, created_by)
+          VALUES (${prospect_id}, ${description.trim()}, ${due_date || null}, ${assignee || null}, 'open', ${created_by})
+          RETURNING *
+        `
+
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${prospect_id}, ${'Task created: ' + description.trim()}, ${created_by})
+        `
+
+        return res.status(201).json(task)
+      } catch (error) {
+        console.error('Error creating task:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // One-time seed: POST /api/prospects?action=seed
     if (action === 'seed') {
       try {
@@ -3067,6 +3178,75 @@ export default async function handler(req, res) {
 
   // ─── PATCH ─────────────────────────────────────────────
   if (req.method === 'PATCH') {
+    // ─── Tasks (Threads 2+3): update task fields, with status-transition activity logging ───
+    if (action === 'tasks') {
+      try {
+        const { task_id } = req.query
+        if (!task_id) {
+          return res.status(400).json({ error: 'task_id query param is required for PATCH ?action=tasks' })
+        }
+
+        const { description, due_date, assignee, status, updated_by } = req.body
+        if (!updated_by?.trim()) {
+          return res.status(400).json({ error: 'updated_by is required' })
+        }
+
+        if (status !== undefined && !['open', 'done', 'dismissed'].includes(status)) {
+          return res.status(400).json({ error: "status must be 'open', 'done', or 'dismissed'" })
+        }
+
+        const [current] = await sql`SELECT * FROM prospect_tasks WHERE id = ${task_id}`
+        if (!current) return res.status(404).json({ error: 'Task not found' })
+
+        const setClauses = []
+        const params = []
+        if (description !== undefined) { params.push(description.trim()); setClauses.push(`description = $${params.length}`) }
+        if (due_date !== undefined) { params.push(due_date || null); setClauses.push(`due_date = $${params.length}`) }
+        if (assignee !== undefined) { params.push(assignee || null); setClauses.push(`assignee = $${params.length}`) }
+
+        // Status transition handling: completed_at/completed_by are managed implicitly.
+        // Only logs to activity feed on actual status change — editing description on an
+        // already-open task does not generate noise.
+        let transition = null
+        if (status !== undefined && status !== current.status) {
+          params.push(status); setClauses.push(`status = $${params.length}`)
+          if (status === 'done' || status === 'dismissed') {
+            params.push(updated_by); setClauses.push(`completed_by = $${params.length}`)
+            setClauses.push(`completed_at = NOW()`)
+            transition = status === 'done' ? 'completed' : 'dismissed'
+          } else if (status === 'open') {
+            setClauses.push(`completed_by = NULL`)
+            setClauses.push(`completed_at = NULL`)
+            transition = 'reopened'
+          }
+        }
+
+        if (setClauses.length === 0) {
+          return res.status(400).json({ error: 'No fields to update' })
+        }
+
+        params.push(task_id)
+        const idParam = params.length
+        const queryText = `UPDATE prospect_tasks SET ${setClauses.join(', ')} WHERE id = $${idParam} RETURNING *`
+        const updatedRows = await sql.query(queryText, params)
+        const updated = updatedRows[0]
+
+        if (transition) {
+          const symbol = transition === 'completed' ? '✓' : transition === 'dismissed' ? '✗' : '↺'
+          const entryText = `${symbol} Task ${transition}: ${updated.description}`
+          await sql`
+            INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+            VALUES (${updated.prospect_id}, ${entryText}, ${updated_by})
+          `
+        }
+
+        return res.status(200).json(updated)
+      } catch (error) {
+        console.error('Error updating task:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     if (!id) {
       return res.status(400).json({ error: 'id query param is required for PATCH' })
     }

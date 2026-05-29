@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Thread 1 Implementation Notes</title>
+  <title>Threads 2+3 Implementation Notes</title>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1.5rem; color: #1f2937; line-height: 1.55; }
     h1 { border-bottom: 2px solid #041E42; padding-bottom: 0.4rem; color: #041E42; }
@@ -15,90 +15,104 @@
     th, td { border: 1px solid #d1d5db; padding: 0.35rem 0.7rem; text-align: left; font-size: 0.9em; }
     th { background: #f9fafb; }
     .meta { color: #6b7280; font-size: 0.9em; }
+    .status-done { color: #16a34a; font-weight: 600; }
+    .status-pending { color: #d97706; font-weight: 600; }
   </style>
 </head>
 <body>
 
-<h1>Thread 1 Implementation Notes</h1>
-<p class="meta">Branch: <code>claude/thread1-parent-fka-cleanup</code> (off <code>origin/main</code> @ <code>6d6ba73</code>) — last updated during Phase 1 + 2 build.</p>
+<h1>Threads 2+3 Implementation Notes</h1>
+<p class="meta">Branch: <code>claude/adoring-cori-rynr9</code> (effectively from <code>main</code> post-Thread 1 merge — Thread 1 landed as PR #115 before this branch was cut). Companion to <code>tasks/threads-2-3-plan.md</code> and <code>docs/diagnostics/structural-threads-diagnostic.md</code>.</p>
 
 <h2>Design Decisions</h2>
 
-<h3>1. <code>former_names</code> type: TEXT[] (not JSONB)</h3>
-<p>Postgres <code>TEXT[]</code> is the native fit for an ordered list of plain strings. It supports <code>= ANY(former_names)</code> and <code>ARRAY_TO_STRING(former_names, ', ')</code> directly, which we'll use for the searchable index in Phase 3. JSONB would only be worth the complexity if we needed per-entry metadata (source, date_absorbed) — and the diagnostic didn't surface a need for that. If richer per-entry data becomes necessary later, migrating <code>TEXT[]</code> to <code>JSONB</code> of objects is a clean ALTER + transform.</p>
-<p>Convention check: the codebase uses JSONB only for <code>users.digest_preferences</code> (a settings blob, multiple fields per row); no existing TEXT[] usage was found, but that's because no field has previously needed multi-valued semantics. <code>former_names</code> is the natural first use.</p>
+<h3>1. Single endpoint with <code>format=count</code> instead of a sub-action</h3>
+<p>The diagnostic floated two shapes for the badge count: <code>?action=tasks&amp;scope=badge</code> or <code>?action=tasks&amp;format=count</code>. Picked the latter. Same endpoint serves list and count, just with different output shape. Matches the existing pattern of <code>?action=attachments&amp;id=X</code> (one action, modifier param). Avoids action proliferation.</p>
 
-<h3>2. <code>parent_relationship_kind</code> values</h3>
-<p>The column is plain <code>TEXT</code> with <strong>no CHECK constraint</strong> — UI dropdowns govern valid values. This keeps future additions (e.g. <code>'spinoff_of'</code>, <code>'joint_venture'</code>) friction-free. Initial enum surface for Phase 3 UI:</p>
-<ul>
-  <li><code>'subsidiary'</code> — operational parent; brand keeps identity (Barnes → Synventive).</li>
-  <li><code>'absorbed_into'</code> — parent absorbed the brand; the row's identity is the absorbing entity (SyBridge ← X-Cell).</li>
-  <li><code>'sister_company'</code> — same parent as another row, no direct parent-child relationship.</li>
-  <li><code>NULL</code> — independent / no parent.</li>
-</ul>
-<p>Phase 2 heuristic backfill emits only <code>'subsidiary'</code> and <code>'absorbed_into'</code>. <code>'sister_company'</code> requires reading <code>parent_company</code> values across rows — better suited to a separate manual triage pass than a noisy heuristic.</p>
+<h3>2. TasksView placement — sub-view of Prospects, not a new top-level tab</h3>
+<p>Added as a third option in the existing Table / Charts sub-view toggle inside the Prospects tab. The "My Tasks" badge in <code>ProspectFilters</code> switches the sub-view to Tasks. Rationale: keeps Brett in the Prospects workflow rather than navigating away; one less top-level tab to add; the Charts toggle pattern already exists so the visual affordance is familiar. A future global Header bell can open the same component if needed.</p>
 
-<h3>3. <code>financial_sponsor</code> is free text (not a controlled list)</h3>
-<p>Matches the existing free-text pattern of <code>parent_company</code> (and the prevailing convention across this codebase — only <code>ownership_type</code> is loosely controlled, and even that drifts). Promoting financial sponsors to a controlled list would require a sponsors table + FK + UI work that exceeds Phase 1's scope. Light normalization (<code>TRIM</code>, no casing enforcement) is sufficient for now. A future pass can introduce a sponsors lookup if PE-level analytics demand it.</p>
+<h3>3. Activity-log entries on task lifecycle</h3>
+<p>Create, mark-done, dismiss, reopen, delete each emit one activity-log entry. Edits to <code>description</code>, <code>due_date</code>, or <code>assignee</code> on an open task do <em>not</em> log — quick reschedules would otherwise flood the activity feed. Status transitions are the audit-worthy events.</p>
+<table>
+  <tr><th>Lifecycle event</th><th>Activity log text</th></tr>
+  <tr><td>Create</td><td><code>Task created: &lt;description&gt;</code></td></tr>
+  <tr><td>Mark done</td><td><code>✓ Task completed: &lt;description&gt;</code></td></tr>
+  <tr><td>Dismiss</td><td><code>✗ Task dismissed: &lt;description&gt;</code></td></tr>
+  <tr><td>Reopen</td><td><code>↺ Task reopened: &lt;description&gt;</code></td></tr>
+  <tr><td>Delete</td><td><code>⌫ Task deleted: &lt;description&gt;</code></td></tr>
+</table>
 
-<h3>4. <code>former_names</code> import delimiter: pipe <code>|</code></h3>
-<p><code>also_known_as</code> historically uses mixed delimiters — commas, slashes, semicolons — which are also common <em>inside</em> company names ("Sumitomo Bakelite Co., Ltd.", "F&amp;S Tool", "ABC / DEF"). Pipe is unambiguous and easy to type. <code>BulkImportModal.jsx</code> and <code>scripts/seed-prospects.js</code> both parse pipe-delimited cell values into TEXT[]; a single name (no pipe) becomes a one-element array; empty becomes NULL.</p>
+<h3>4. Task lifecycle does NOT update <code>suggested_next_step</code></h3>
+<p>The existing <code>add-activity</code> auto-overwrite of <code>prospect_companies.suggested_next_step</code> is preserved verbatim (<code>api/prospects.js:2766-2771</code>). Task-lifecycle log entries insert into <code>prospect_activity_log</code> but do <em>not</em> touch <code>suggested_next_step</code>. Otherwise creating a task would clobber whatever manual next-step note Brett has on the prospect, which violates the locked spec point 8.</p>
 
-<h3>5. <code>parent_company</code> and <code>also_known_as</code> kept untouched in Phase 1</h3>
-<p>Per the prompt: additive schema only. The existing columns continue to read/write exactly as before. Phase 3 will change <em>how the UI interprets them</em> (e.g., GitMerge driven by <code>parent_relationship_kind</code>, not <code>isChild</code>) without dropping the columns themselves. Deprecation, if pursued, is a later cleanup pass after the migration completes and downstream consumers (CSV exports, external reports) are confirmed safe.</p>
+<h3>5. Assignee dropdown source</h3>
+<p>Fetches the existing active users (4) via <code>GET /api/auth?action=list-users</code>, which is admin-only. Solution: lift the list of users onto the auth context at login (it's already there as <code>useAuth().user</code> for the current user, but not as the team list). Decision: TasksView/TaskInlineEditor fetch the team list once on mount via a new lightweight ungated endpoint? <strong>No — to avoid adding endpoints,</strong> I'll hard-code the 4 active users (Kyle, Duane, Steve, Brett) as a fallback constant in <code>taskUtils.js</code>, and additionally try to fetch from a new endpoint <code>?action=team-members</code> that returns name+color for active users (one extra branch in <code>api/auth.js</code>, no new function). The dropdown also includes "Unassigned" (maps to NULL).</p>
+<p><em>Update:</em> Used the new <code>api/auth.js?action=team-members</code> branch. Auth-gated but returns just <code>{ name, color }</code> for active users. No admin role required.</p>
 
-<h3>6. <code>ONTOLOGY_FIELDS</code> includes the new columns, but Layer-1 logic is unchanged in Phase 1</h3>
-<p>Adding the new columns to <code>ONTOLOGY_FIELDS</code> means PATCH edits to them retrigger <code>rebuildOntologyForProspect()</code>. The rebuild itself, in Phase 1, still only emits <code>subsidiary_of</code> from <code>parent_company</code> — so the trigger does nothing meaningful yet. This is deliberate: Phase 3 expands the rebuild to branch on the new columns. Triggering early keeps the timing right (no PATCH dropped on the floor when Phase 3 lands).</p>
+<h3>6. Dismissed tasks visibility</h3>
+<p>Hidden by default in the per-prospect Tasks section (rendered as a single "Show N completed/dismissed" expandable footer). Visible in TasksView when the user picks the "Completed" or "Dismissed" status chip.</p>
+
+<h3>7. Tasks column in ProspectTable replaces the Due column</h3>
+<p>The "Due" column (read from <code>follow_up_date</code>) is removed from the table. The new "Tasks" column shows count of open tasks with a small urgency dot for the earliest due date. Sort: by earliest open task due_date ASC, NULLS LAST. Companies with zero open tasks sink to the bottom.</p>
+<p>The <code>follow_up_date</code> column stays in the schema. Reads remain functional for the urgency function (which still treats it as Tier 1) — but the UI no longer surfaces it for editing in ProspectDetail. New work flows entirely through tasks.</p>
+
+<h3>8. Action items badge re-labeled "My Tasks"</h3>
+<p>The red pill at the top-right of ProspectFilters is preserved visually but its count semantics change: <code>(assignee = currentUser OR assignee IS NULL) AND status = 'open'</code>. Click switches the sub-view to Tasks with the default filter. The preset button "Action Items" in the same component is renamed "My Tasks" and is now identical to clicking the badge.</p>
 
 <h2>Deviations</h2>
-
-<h3>1. Companion SQL file <code>scripts/backfill-parent-types-dryrun.sql</code></h3>
-<p>The prompt called for a <code>GET ?action=backfill-parent-types-dryrun</code> route on <code>api/prospects.js</code> (delivered). I also added a SQL file that mirrors the same heuristic verbatim, so the candidates JSON can be generated directly in the Neon SQL Editor without requiring a preview deploy first. Both code paths produce the same output JSON shape; the SQL file is a convenience for the checkpoint hand-off (this container has no <code>DATABASE_URL</code>) and for any future re-runs that don't want to hit a deployed instance. The SQL file is checked in and lives alongside the migration.</p>
-
-<h3>2. Pre-existing gap in <code>seed-prospects.js</code></h3>
-<p>The seed script's INSERT (<code>insertProspect()</code>) was already missing <code>parent_company</code> and <code>decision_location</code> from its column list before this change. I did not fix that pre-existing gap (out of Thread 1 scope); my edits only add the three new Thread-1 columns. Worth a follow-up cleanup pass, but not blocking.</p>
+<ul>
+  <li><strong>Stale preset stays.</strong> Spec says staleness moves out of the badge but the "Stale" preset already exists separately in ProspectFilters and was untouched. This is consistent with the spec point 4 ("staleness indicators move out of the badge and into a separate 'stale prospects' filter that already exists").</li>
+  <li><strong>follow_up_date editor is removed from ProspectDetail.</strong> Spec says "UI stops reading it (deprecated in display)". I removed the date-picker block (lines 638-683). The column itself remains in the schema. The urgency function still reads it client-side for the legacy "Stale" preset compatibility (Tier 1 of <code>getProspectUrgency</code>), so the existing 3 follow-up rows still render their urgency until the migration script populates equivalent tasks.</li>
+</ul>
 
 <h2>Tradeoffs</h2>
-
-<h3>Backfill heuristics — false-positive vs false-negative bias</h3>
-<p>The heuristic dryrun is biased toward <strong>false negatives over false positives</strong>. It only flags candidates that match multi-signal patterns (e.g., a parent_company name match alone isn't enough for "high confidence" PE classification — we also want <code>ownership_type</code> to corroborate). The cost: some real PE sponsors won't get auto-flagged and will need manual classification. The benefit: rows that <em>are</em> auto-suggested are the ones Brett can rubber-stamp; the dryrun output won't be a wall of guesswork to wade through.</p>
-<p>Expected hit rates against the 934-row dataset (from the diagnostic): roughly 100–150 PE candidates flag at high+medium confidence (vs ~200 PE-shaped <code>parent_company</code> values in total — the rest need manual classification); ~30–50 absorbed candidates (vs 131 both-populated records — the rest are the brand-list cases or ambiguous); ~30–60 subsidiary candidates (the strong cases from Westfall/Barnes/Nolato); ~5–15 brand-list aka cleanup candidates (Barnes is the canonical case, plus a few others).</p>
-
-<h3>Why two routes (dryrun + apply) instead of one</h3>
-<p>Separating the read (<code>backfill-parent-types-dryrun</code>) from the write (<code>apply-parent-type-classifications</code>) protects against accidental writes during exploration. Kyle hits the dryrun route as many times as he likes (or via the candidates JSON saved at checkpoint); the write route only fires when he's reviewed the JSON and is ready. The write route accepts the (potentially edited) candidates JSON as its POST body, so Brett's edits flow through one path.</p>
-
-<h3>Why no auto-apply at checkpoint</h3>
-<p>This is the whole point of the checkpoint. The 131 both-populated records, the ~200 PE strings, and the Barnes-style aka stuffing all need human judgment — especially in the medium/low confidence bands. Auto-applying would risk corrupting rows that the heuristic can't safely classify. The dryrun + checkpoint is the explicit safety valve.</p>
-
-<h3>SQL vs JS heuristic fidelity</h3>
-<p><code>scripts/backfill-parent-types-dryrun.sql</code> and the <code>api/prospects.js</code> JS handler implement the <em>same</em> heuristic — but they use different regex flavors (POSIX <code>\m</code>/<code>\M</code> for word boundaries in SQL vs JS <code>\b</code>). I cross-checked: POSIX <code>~*</code> with <code>\m...\M</code> behaves identically to JS <code>/.../.i</code> with <code>\b</code> for the patterns used here (alphanumeric word boundaries). The CASE logic in SQL precisely mirrors the JS branch tree, including the "added_to_A" flag that emulates JS's <code>continue</code> after Category A so Category B and C don't double-classify the same row. If the heuristic needs to change later, edit both files (mark with a SYNC comment).</p>
-
-<h2>Decisions confirmed at checkpoint (Phase 3 inputs)</h2>
-<p>The five open questions were resolved by Kyle after the Phase 1 + 2 commit. Recorded here so Phase 3 reads from a single source.</p>
-<ol>
-  <li><strong>Sister-company UI option: defer.</strong> The <code>parent_relationship_kind</code> column accepts <code>'sister_company'</code>, but the Phase 3 dropdown exposes only <code>'subsidiary'</code>, <code>'absorbed_into'</code>, and <code>'none'</code> (NULL). Sister relationships are already implicit from shared parent.</li>
-  <li><strong>Atomic legacy-field clearing in the apply endpoint, per category:</strong>
-    <ul>
-      <li><em>PE / financial sponsor:</em> set <code>financial_sponsor</code>, set <code>parent_company = NULL</code>. (Already encoded in the dryrun's suggested payload.)</li>
-      <li><em>Absorbed:</em> set <code>parent_relationship_kind = 'absorbed_into'</code>, set <code>former_names = [aka]</code>, <strong>also clear <code>also_known_as = NULL</code></strong>. KEEP <code>parent_company</code> (the absorbing entity is still meaningful). The dryrun's absorbed-case suggested payload was updated in a follow-up commit to include this clear.</li>
-      <li><em>Subsidiary:</em> set <code>parent_relationship_kind = 'subsidiary'</code>. No clearing.</li>
-      <li><em>Brand-list aka cleanup:</em> set <code>also_known_as = NULL</code>. (Already encoded.)</li>
-    </ul>
-    Rationale: leaving both populated creates "which one is truth" ambiguity Phase 3 read paths shouldn't have to handle. Git history covers any revert need.
-  </li>
-  <li><strong>Financial sponsor in CSV export:</strong> include it.</li>
-  <li><strong>SyBridge per-attribute data split is OUT OF SCOPE for Phase 3.</strong> Phase 3 fixes the relationship model only. Splitting founded / revenue / press_count between the absorbed X-Cell and SyBridge-corporate is per-record investigative work for a follow-up Thread 4 cleanup, not Thread 1.</li>
-  <li><strong>PE-only with no operational parent: confirmed.</strong> A Crestview portfolio company with no other corporate parent gets <code>financial_sponsor = "Crestview Partners (PE, $9B)"</code> and <code>parent_company = NULL</code>. <strong>Phase 3 grouping must NOT group PE portfolio companies together</strong> — Crestview's 12 operationally independent companies are not the same as Westfall's 14 absorbed sites. Grouping scope is strictly <code>parent_relationship_kind IN ('subsidiary','absorbed_into')</code>.</li>
-</ol>
+<ul>
+  <li><strong>Single SQL count vs separate assigned/unassigned queries.</strong> Picked a single SQL with <code>WHERE (assignee = $1 OR assignee IS NULL) AND status = 'open'</code>. Two queries would have surfaced "Brett has 5 of his own + 3 unassigned", but the badge has room for one number, not two, and the spec is unambiguous about combining.</li>
+  <li><strong>Hard delete vs soft delete.</strong> Spec allows both. Implemented hard delete in the API behind an explicit confirm prompt. Primary affordances in the UI are Done and Dismiss; Delete is a less prominent action under a per-row overflow.</li>
+  <li><strong>Per-prospect task count fetch.</strong> Considered two options: (a) one query returning all open tasks grouped by prospect_id (single round-trip), (b) include a <code>task_count</code> subquery in the existing prospect list endpoint. Picked (a) — keeps the prospect list endpoint untouched and lets the Tasks column be a self-contained client concern.</li>
+</ul>
 
 <h2>Open Questions</h2>
-<p>For Kyle to answer at the checkpoint before Phase 3 begins:</p>
+<ul>
+  <li><strong>Task ordering on group header rows.</strong> The Tasks column on a parent-group header currently shows only the parent's own open task count, not aggregated across subsidiaries (unlike Sites/Acquisitions which aggregate). Confirm this is the right default — aggregation is a one-line change in the renderer if Brett prefers it.</li>
+  <li><strong>Hard-delete affordance.</strong> The trash-can button is exposed on every TaskRow behind a confirm prompt. Should this be admin-only? Current spec says "supported but prefer dismissed", which I read as "available to everyone, just not primary." Will defer to Brett's preference once he sees the UI.</li>
+  <li><strong>Migration apply timing.</strong> Recommendation in the wrap-up: Kyle reviews the dry-run output first, then runs `--apply`. There are only 3 candidate rows so this is low-risk.</li>
+  <li><strong>Activity log filtering.</strong> Task lifecycle entries now mingle with manual activity entries in the same `prospect_activity_log`. If the feed becomes noisy after team adoption, we could add a filter chip ("hide task lifecycle") — but that's a future enhancement, not part of this build.</li>
+</ul>
+
+<h2>Test Results</h2>
+<p>Empty-DB verification is the most that can run in this isolated container — actual runtime testing against production data lands when Kyle deploys + runs the SQL migration. Done so far:</p>
+<ul>
+  <li><span class="status-done">✓</span> <code>node --check</code> passes on the modified <code>api/prospects.js</code>, <code>api/auth.js</code>, <code>scripts/migrate-followup-to-tasks.js</code>, and <code>src/components/prospects/tasks/taskUtils.js</code>.</li>
+  <li><span class="status-done">✓</span> Full <code>vite build</code> succeeds. 2,628 modules transformed. Bundle 1.34 MB / 413 KB gzipped (within the existing oversize range — not introduced by this change). Build output:
+    <pre>dist/index.html              1.15 kB
+dist/assets/index-...css     45.24 kB │ gzip:   8.08 kB
+dist/assets/index-...js   1,337.37 kB │ gzip: 412.87 kB
+✓ built in 8.98s</pre>
+  </li>
+  <li><span class="status-done">✓</span> Migration script error-handles missing <code>DATABASE_URL</code> gracefully (exits with a clear message rather than throwing).</li>
+  <li><span class="status-pending">⏳</span> Manual lifecycle test (create / done / dismiss / reopen / delete + activity log emission): post-deploy. The endpoints have been written to mirror the existing <code>add-activity</code>/<code>flag-for-review</code> patterns one-to-one, so behavior matches.</li>
+  <li><span class="status-pending">⏳</span> Badge counter verification (assignee = me OR unassigned): post-deploy. SYNC contract is documented and the SQL is identical in shape to the existing analytics aggregations.</li>
+  <li><span class="status-pending">⏳</span> Tasks column sort (nulls-last): post-deploy. Logic is in <code>compareTaskColumn</code> with explicit null guards.</li>
+</ul>
+
+<h2>Vercel function count</h2>
+<p>Top-level <code>.js</code> files in <code>api/</code>: 10 (activities, analytics, auth, bulk-upload-reports, health, key-dates, meeting-minutes, opportunities, prospects, stage-transitions). Plus <code>api/opportunities/[id].js</code>. <strong>Total: 11 functions</strong>. Within Vercel Hobby's 12-function ceiling. No new files were added.</p>
+
+<h2>Migration dry-run output</h2>
+<p>The dry-run requires <code>DATABASE_URL</code> and is therefore deferred to Kyle's environment. Per the structural diagnostic (production snapshot 2026-05-28), the 3 candidate rows are:</p>
+<ul>
+  <li><strong>Silgan Dispensing</strong> (id 917) — follow_up_date <code>2026-05-29</code>, <code>suggested_next_step="Followed up with Viswa RE AI committee meeting…"</code>. Will produce a task with that description (the heuristic matches "Followed").</li>
+  <li><strong>FOBOHA</strong> — follow_up_date <code>2026-05-25</code>. If <code>suggested_next_step</code> looks forward-looking, that text is used; otherwise <code>"Follow up with FOBOHA"</code>.</li>
+  <li><strong>Nolato GW Inc.</strong> — follow_up_date <code>2026-04-21</code>. Same heuristic.</li>
+</ul>
+<p>Recommended sequence:</p>
 <ol>
-  <li><strong>Do we want the <code>'sister_company'</code> dropdown option in Phase 3's UI?</strong> The column accepts it now; the question is whether the relationship selector exposes it. Defer-to-later is fine; ship-now is also fine. No data depends on this in Phase 1/2.</li>
-  <li><strong>How should the import treat conflicts between <code>parent_relationship_kind</code> and the legacy <code>parent_company</code> / <code>also_known_as</code> values?</strong> Right now both can be set independently. Phase 3's UI will reconcile them at render-time. Do we want a one-shot script to normalize at apply-time (e.g., if <code>parent_relationship_kind = 'absorbed_into'</code> and <code>former_names</code> is populated, clear <code>also_known_as</code>)? Or leave both populated and rely on display logic? My recommendation: leave both populated through the transition; only clear legacy fields after Phase 3 is in production and Brett has reviewed.</li>
-  <li><strong>Should <code>financial_sponsor</code> appear in the CSV export?</strong> Phase 3 plan currently says yes (alongside existing columns, not replacing). Confirm.</li>
-  <li><strong>What's the canonical SyBridge classification?</strong> The diagnostic flagged that SyBridge (id 58)'s own row blends X-Cell's founding/revenue with SyBridge-corporate's site/acquisition counts. After Phase 2's classification, this row should be <code>parent_relationship_kind = 'absorbed_into'</code> with <code>former_names = ['X-Cell Tool &amp; Mold']</code>. But the founded/revenue/employees numbers on this row may still need correcting (separate from the relationship cleanup). Confirm scope: does Phase 3 include any data-value cleanup, or only the relationship-model migration?</li>
-  <li><strong>Crestview Partners (id 58's parent_company) — apply pattern:</strong> when the dryrun suggests <code>financial_sponsor = 'Crestview Partners (PE, $9B)'</code> and <code>parent_company = NULL</code>, what is the actual operational parent of SyBridge (if any)? Crestview is the PE owner; there's no operational parent. Confirm we're comfortable leaving <code>parent_company</code> NULL in that case.</li>
+  <li>Run <code>scripts/create-prospect-tasks-table.sql</code> in the Neon SQL Editor.</li>
+  <li>Deploy the branch.</li>
+  <li><code>node scripts/migrate-followup-to-tasks.js</code> (dry-run) — review the 3 proposed task rows.</li>
+  <li>If the dry-run output looks right, <code>node scripts/migrate-followup-to-tasks.js --apply</code>.</li>
 </ol>
 
 </body>
