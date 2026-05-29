@@ -1,0 +1,1386 @@
+{
+  "meta": {
+    "captured_at": "2026-05-29 00:25:59.282433+00",
+    "row_count": 153,
+    "purpose": "Pre-apply snapshot for Thread 1 parent-type classifications. Rollback reference if apply produces unexpected results."
+  },
+  "rows": [
+    {
+      "id": 3,
+      "company": "TTMP / PRISM Plastics",
+      "parent_company": "Marmon Engineered Components (Berkshire Hathaway)",
+      "also_known_as": "Tech Tool & Molded Plastics; Tech Tool & Mold; Tech Molded Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 6,
+      "company": "Caplugs",
+      "parent_company": "ShoreView Industries (PE)",
+      "also_known_as": "Niagara Plastics; Niagara Caps & Plugs; Tri-Star; Caps'n Plugs; Medbio; Evergreen Scientific; Polykap; Safeplast",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 11,
+      "company": "Currier Plastics",
+      "parent_company": "Sheridan Capital Partners (PE)",
+      "also_known_as": "Also acquired: Springboard Mfg, MOS Plastics, Stack Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 12,
+      "company": "DME Company",
+      "parent_company": "Hillenbrand",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 17,
+      "company": "Empire Precision Plastics",
+      "parent_company": "Kouza Capital (PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 23,
+      "company": "Allegheny Performance Plastics",
+      "parent_company": "JWI Capital + Squire Ridge Partners (PE)",
+      "also_known_as": "Holbrook Tool and Molding",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 26,
+      "company": "Mold-Masters",
+      "parent_company": "Hillenbrand",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 27,
+      "company": "Nolato Contour",
+      "parent_company": "Nolato AB",
+      "also_known_as": "Contour Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 38,
+      "company": "Essentra Components",
+      "parent_company": "Essentra plc (LSE: ESNT)",
+      "also_known_as": "Alliance Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 39,
+      "company": "Berry Global Tooling (Erie)",
+      "parent_company": "Berry Global (Amcor/Berry)",
+      "also_known_as": "F&S Tool",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 40,
+      "company": "Silgan Specialty Packaging",
+      "parent_company": "Silgan Dispensing",
+      "also_known_as": "Gateway Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 41,
+      "company": "Viking Plastics",
+      "parent_company": "Spell Capital Partners (PE)",
+      "also_known_as": "Genesis Plastics and Engineering",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 42,
+      "company": "ICU Medical (formerly Smiths Medical)",
+      "parent_company": "ICU Medical Inc. (NASDAQ: ICUI)",
+      "also_known_as": "Smiths Medical",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 58,
+      "company": "SyBridge Technologies",
+      "parent_company": "Crestview Partners (PE, $9B)",
+      "also_known_as": "X-Cell Tool & Mold",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 61,
+      "company": "Truck-Lite",
+      "parent_company": "Clarience Technologies",
+      "also_known_as": "Clarience Technologies",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 66,
+      "company": "Barnes Molding Solutions",
+      "parent_company": "Apollo Global Management (pending)",
+      "also_known_as": "Synventive / Manner / Thermoplay / Foboha / Priamus / Gammaflux",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 72,
+      "company": "Priamus System Technologies",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": "Barnes Group subsidiary",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 97,
+      "company": "iMARK Molding",
+      "parent_company": "Comar (Graham Partners PE)",
+      "also_known_as": "iMARK Molding (now part of Comar)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 99,
+      "company": "Clarion Technologies",
+      "parent_company": "Private (local investor)",
+      "also_known_as": "CNI Plastics (acq 2019); GTM Plastics (acq 2017); Drake Products (acq 2000)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 101,
+      "company": "Custom Tool & Design",
+      "parent_company": "Tessy Plastics Corporation",
+      "also_known_as": "Tessy Tooling",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 105,
+      "company": "Exo-s",
+      "parent_company": "Desjardins Capital (Quebec, Canada)",
+      "also_known_as": "Plastiques Moore (acq 2022)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 106,
+      "company": "Fort Wayne Plastics (dba Plasto-O-Foam)",
+      "parent_company": "American Plastics LLC (PE history)",
+      "also_known_as": "Plasto-O-Foam",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 131,
+      "company": "Xcentric Mold & Engineering",
+      "parent_company": "Quickparts (Trilantic North America PE, $9.9B)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 158,
+      "company": "RPM Tool",
+      "parent_company": "RPM Tool (Matthew Robbins)",
+      "also_known_as": "Holzmeyer Die & Mold",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 161,
+      "company": "Freudenberg Medical",
+      "parent_company": "Freudenberg Group (Germany, €9.4B+)",
+      "also_known_as": "MedVenture Technology",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 182,
+      "company": "AMA Plastics",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "Westfall Technik Company",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 192,
+      "company": "AMS Plastics Inc.",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "Westfall Technik Company",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 195,
+      "company": "Stack Plastics Inc.",
+      "parent_company": "Sheridan Capital Partners (via Currier Plastics)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 196,
+      "company": "ProPlas Technologies",
+      "parent_company": "Comar (Graham Partners PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 203,
+      "company": "Cosmetic Specialties International",
+      "parent_company": "Airlite Plastics (PE-backed)",
+      "also_known_as": "Canopy Beauty Packaging (rebranded)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 204,
+      "company": "MOS Plastics, Inc.",
+      "parent_company": "Currier Plastics → Sheridan Capital Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 212,
+      "company": "Gamma2",
+      "parent_company": "Petmate / Doskocil (Platinum Equity PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 216,
+      "company": "Plastic Molding Technology",
+      "parent_company": "Tide Rock Holdings (PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 217,
+      "company": "Ring Container Technologies",
+      "parent_company": "BDT & MSD Partners (PE, connected to Michael Dell)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 218,
+      "company": "Doskocil Mfg / Petmate",
+      "parent_company": "Platinum Equity (PE, $25B+ AUM)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 220,
+      "company": "Handgards",
+      "parent_company": "Wynnchurch Capital ($8.6B AUM PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 221,
+      "company": "Pipeline Plastics",
+      "parent_company": "SCF Partners (PE)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 240,
+      "company": "National Molding LLC",
+      "parent_company": "Southfield Capital / Taglich / Calvert Street",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 241,
+      "company": "MRPC",
+      "parent_company": "Vance Street Capital (Oct 2025)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 243,
+      "company": "Technimark",
+      "parent_company": "Oak Hill Capital / Pritzker",
+      "also_known_as": "Technimark LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 245,
+      "company": "Bright Plastics",
+      "parent_company": "Thunderbird LLC (Westbourne Capital)",
+      "also_known_as": "Thunderbird Molding-Greensboro",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 248,
+      "company": "Sarstedt, Inc.",
+      "parent_company": "Sarstedt AG (Germany)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 251,
+      "company": "Greiner Bio-One",
+      "parent_company": "Greiner Group (Austria)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 252,
+      "company": "Wilbert Plastic Services",
+      "parent_company": "Marmon Group / Berkshire Hathaway",
+      "also_known_as": "United Southern Industries (absorbed 2010)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 256,
+      "company": "CPP Global",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "Carolina Precision Plastics LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 258,
+      "company": "Schaefer Systems International",
+      "parent_company": "SSI SCHÄFER Group (Germany)",
+      "also_known_as": "SSI SCHÄFER Plastics NA",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 260,
+      "company": "Blue Ridge Molding",
+      "parent_company": "Atlas Holdings (via Marcal/von Drehle)",
+      "also_known_as": "Marcal Blue Ridge LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 261,
+      "company": "Raleigh Precision Products",
+      "parent_company": "Quantum Plastics (Elgin, IL)",
+      "also_known_as": "Quantum Plastics-Raleigh",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 263,
+      "company": "Technimark",
+      "parent_company": "Oak Hill Capital / Pritzker",
+      "also_known_as": "Technimark LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 265,
+      "company": "Bright Plastics",
+      "parent_company": "Thunderbird LLC (Westbourne Capital)",
+      "also_known_as": "Thunderbird Molding-Greensboro",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 268,
+      "company": "Sarstedt, Inc.",
+      "parent_company": "Sarstedt AG (Germany)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 271,
+      "company": "Greiner Bio-One",
+      "parent_company": "Greiner Group (Austria)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 272,
+      "company": "Wilbert Plastic Services",
+      "parent_company": "Marmon Group / Berkshire Hathaway",
+      "also_known_as": "United Southern Industries (absorbed 2010)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 278,
+      "company": "Schaefer Systems International",
+      "parent_company": "SSI SCHÄFER Group (Germany)",
+      "also_known_as": "SSI SCHÄFER Plastics NA",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 280,
+      "company": "Blue Ridge Molding",
+      "parent_company": "Atlas Holdings (via Marcal/von Drehle)",
+      "also_known_as": "Marcal Blue Ridge LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 281,
+      "company": "Raleigh Precision Products",
+      "parent_company": "Quantum Plastics (Elgin, IL)",
+      "also_known_as": "Quantum Plastics-Raleigh",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 283,
+      "company": "Teamvantage",
+      "parent_company": "Velosity / Graham Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 285,
+      "company": "Forj Medical",
+      "parent_company": "Altaris Capital ($241M)",
+      "also_known_as": "IntriCon / Minnetronix",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 286,
+      "company": "Beacon Engineered",
+      "parent_company": "Beacon Mfg Group / Akoya + Trinity PE",
+      "also_known_as": "Donnelly Custom Manufacturing",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 288,
+      "company": "Donatelle",
+      "parent_company": "DuPont (NYSE: DD) / Spectrum Plastics Group",
+      "also_known_as": "Donatelle Plastics Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 294,
+      "company": "Custom Mold & Design",
+      "parent_company": "Velosity / Graham Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 299,
+      "company": "Mold Craft, Inc.",
+      "parent_company": "Westfall Technik",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 308,
+      "company": "AIRBORN",
+      "parent_company": "Molex / Koch Industries",
+      "also_known_as": "AIRBORN INC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 309,
+      "company": "MME Group",
+      "parent_company": "Seaway / ICG ($71B AUM)",
+      "also_known_as": "Seaway Plastics (MN facility)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 313,
+      "company": "Spectrum Plastics Group (MN)",
+      "parent_company": "DuPont (NYSE: DD)",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 314,
+      "company": "Sil-Pro",
+      "parent_company": "Trelleborg AB (Sweden)",
+      "also_known_as": "Trelleborg Sil-Pro",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 330,
+      "company": "Facet Technologies",
+      "parent_company": "Tower Three Partners",
+      "also_known_as": "Facet Medical Technologies",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 337,
+      "company": "Norton Packaging",
+      "parent_company": "Platinum Equity",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 349,
+      "company": "F&M Tool & Plastics",
+      "parent_company": "GSC Technologies / Speyside",
+      "also_known_as": "GSC Technologies",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 351,
+      "company": "EPTAM Precision Solutions",
+      "parent_company": "Frazier Healthcare Partners",
+      "also_known_as": "Sterling Mfg, Albright Silicone",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 366,
+      "company": "Nypro/Jabil Clinton",
+      "parent_company": "Jabil Inc.",
+      "also_known_as": "Nypro",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 380,
+      "company": "Injection Works",
+      "parent_company": "New Water Capital (via NMG)",
+      "also_known_as": "Nelson Miller Group, A.L. Hyde",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 381,
+      "company": "COMAR LLC",
+      "parent_company": "PCI (Morgan Stanley)",
+      "also_known_as": "iMARK (WI division)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 395,
+      "company": "TAH Industries",
+      "parent_company": "Nordson Corporation",
+      "also_known_as": "Nordson EFD",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 431,
+      "company": "ONGUARD Industries",
+      "parent_company": "Dunlop Holdings (Netherlands)",
+      "also_known_as": "Dunlop Protective Footwear",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 432,
+      "company": "SP Industries",
+      "parent_company": "ATS Corporation",
+      "also_known_as": "ATS Scientific",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 439,
+      "company": "Mission Plastics North",
+      "parent_company": "Peterson Manufacturing",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 440,
+      "company": "Permian Plastics",
+      "parent_company": "NewCo Plastics / White Wolf Capital",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 441,
+      "company": "R&D/Leverage",
+      "parent_company": "Adler Industrial Solutions",
+      "also_known_as": "RRPD (CWP garbled entry)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 443,
+      "company": "Koller Craft Plastic Products",
+      "parent_company": "Koller Enterprises",
+      "also_known_as": "Koller Craft Plastic Products Div.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 449,
+      "company": "Vector Tool & Engineering",
+      "parent_company": "Peterson Manufacturing",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 459,
+      "company": "MWV Calmar",
+      "parent_company": "Smurfit WestRock (~$34B)",
+      "also_known_as": "Meadwestvaco Calmar",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 461,
+      "company": "Jarden Plastic Solutions",
+      "parent_company": "One Rock Capital Partners",
+      "also_known_as": "Jarden Plastic Solutions / Newell Brands",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 466,
+      "company": "Alltrista Plastics LLC",
+      "parent_company": "Jadex Inc. / One Rock Capital",
+      "also_known_as": "Jarden Plastic Solutions",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 472,
+      "company": "PSI Molded Plastics",
+      "parent_company": "Gladstone Investment (NASDAQ: GAIN)",
+      "also_known_as": "Precision Southeast, GI Plastek, Plastics Solutions",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 475,
+      "company": "Marchel Industries Inc.",
+      "parent_company": "Plastifab Industries / Regimen Equity Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 491,
+      "company": "Techniplas US South LLC",
+      "parent_company": "CIE Automotive (Spain)",
+      "also_known_as": "Proper Polymers",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 492,
+      "company": "Variblend Dual Dispensing",
+      "parent_company": "J. Burke Capital / Emil Capital",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 496,
+      "company": "Forum Contract Manufacturing",
+      "parent_company": "Squadron Capital",
+      "also_known_as": "Forum Plastics Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 514,
+      "company": "NPI Medical",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "Westfall Technik (CT division)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 518,
+      "company": "Albea Group",
+      "parent_company": "PAI Partners",
+      "also_known_as": "Eyelematic",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 531,
+      "company": "Creative Liquid Coatings",
+      "parent_company": "CLC (Kendallville, IN)",
+      "also_known_as": "McKechnie Vehicle Components",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 534,
+      "company": "ABC Technologies (Plastikon)",
+      "parent_company": "ABC Technologies (Canada)",
+      "also_known_as": "Plastikon Industries",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 552,
+      "company": "Atrion Medical Products",
+      "parent_company": "Nordson Corporation",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 553,
+      "company": "CSP Technologies",
+      "parent_company": "AptarGroup (NYSE)",
+      "also_known_as": "C.V. Holdings",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 554,
+      "company": "SyBridge Technologies (AL)",
+      "parent_company": "SyBridge / Crestview Partners (Canada)",
+      "also_known_as": "Concours Mold (former)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 555,
+      "company": "Revere Plastics Systems",
+      "parent_company": "Atlas Holdings",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 576,
+      "company": "Revere Plastics Systems (IA)",
+      "parent_company": "Ardian (via Techniplas bankruptcy 2020)",
+      "also_known_as": "Dickten Masch Plastics (CWP legacy name)",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 594,
+      "company": "Biomerics",
+      "parent_company": "ONCAP / Wasatch Equity Partners",
+      "also_known_as": "Utah Plastics Group Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 598,
+      "company": "Sport Court International",
+      "parent_company": "Gerflor S.A.S. (France)",
+      "also_known_as": "Connor Sport Court International",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 599,
+      "company": "Spectrum Plastics (UT)",
+      "parent_company": "DuPont (NYSE: DD)",
+      "also_known_as": "Apollo Medical Extrusion",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 601,
+      "company": "Sun Products / Henkel SLC",
+      "parent_company": "Henkel AG (Germany, €20B+)",
+      "also_known_as": "Huish Detergents",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 604,
+      "company": "Obrist Americas / CSI",
+      "parent_company": "Closure Systems International / Cerberus Capital",
+      "also_known_as": "Global Closure Systems",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 607,
+      "company": "Sorenson BioScience",
+      "parent_company": "Corning Inc. (NYSE: GLW)",
+      "also_known_as": "Multi Technology",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 614,
+      "company": "Arcane Capital Partners",
+      "parent_company": "Bluehenge Capital",
+      "also_known_as": "Arcane Industries, Johnson Mfg, PolyTech Molding, Bentonville Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 617,
+      "company": "Colson Monette",
+      "parent_company": "Colson Group / Marmon / Berkshire Hathaway",
+      "also_known_as": "Colson Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 618,
+      "company": "Micro Plastics",
+      "parent_company": "Essentra plc (UK, LSE: ESNT)",
+      "also_known_as": "Micro Plastics Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 621,
+      "company": "Georg Fischer / GF Piping",
+      "parent_company": "Georg Fischer AG (SIX: FI-N)",
+      "also_known_as": "George Fischer Sloane Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 622,
+      "company": "PRADCO Outdoor Brands",
+      "parent_company": "EBSCO Industries (~$3B+)",
+      "also_known_as": "Plastic Research and Development Corp",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 624,
+      "company": "Mission Plastics of Arkansas",
+      "parent_company": "Peterson Manufacturing",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 626,
+      "company": "Bentonville Plastics",
+      "parent_company": "Arcane Capital Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 638,
+      "company": "AIM Processing",
+      "parent_company": "MCM Capital Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 639,
+      "company": "Injectech",
+      "parent_company": "Vance Street Capital",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 641,
+      "company": "Tenere / Cadrex",
+      "parent_company": "CGI Mfg Holdings / Core Industrial Partners",
+      "also_known_as": "Denver Tool & Die, Protogenic, Mountain Molding",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 645,
+      "company": "Relucent Plastics Solutions",
+      "parent_company": "Maruho Hatsujou (Japan)",
+      "also_known_as": "Magnum Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 647,
+      "company": "Aptyx",
+      "parent_company": "TruArc Partners LP",
+      "also_known_as": "Molded Devices Inc. (MDI), Southwest Mold",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 670,
+      "company": "Canon Virginia, Inc.",
+      "parent_company": "Canon Inc. (Japan)",
+      "also_known_as": "Canon Virginia Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 671,
+      "company": "TekniPlex (Phoenix Packaging)",
+      "parent_company": "TekniPlex",
+      "also_known_as": "Phoenix Packaging",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 675,
+      "company": "Essel Propack / EPL Americas",
+      "parent_company": "Blackstone / EPL",
+      "also_known_as": "Essel Propack",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 679,
+      "company": "STIHL Inc.",
+      "parent_company": "STIHL AG (Germany)",
+      "also_known_as": "Stihl Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 683,
+      "company": "DEMGY Pacific",
+      "parent_company": "DEMGY Group (France)",
+      "also_known_as": "Tool Gauge & Machine Works",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 686,
+      "company": "Cascadia Custom Molding",
+      "parent_company": "Blue Point Capital",
+      "also_known_as": "Mold Rite Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 687,
+      "company": "Molded Dimensions Group (Fife)",
+      "parent_company": "ShoreView PE (Molded Dimensions)",
+      "also_known_as": "globaltech plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 707,
+      "company": "Wescon Plastics, LLC",
+      "parent_company": "Arcane Capital Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 715,
+      "company": "Viega LLC (McPherson)",
+      "parent_company": "Viega GmbH (Germany)",
+      "also_known_as": "Midtec of America",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 720,
+      "company": "MRPC Northeast Division",
+      "parent_company": "Vance Street Capital",
+      "also_known_as": "Molded Rubber & Plastic Corp",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 728,
+      "company": "Advantage Plastic Products (APP)",
+      "parent_company": "Mark Krauss / American Cord & Webbing",
+      "also_known_as": "ACW Plastic Products",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 729,
+      "company": "Precision Tool & Die / Carclo CTP",
+      "parent_company": "Carclo plc (UK, AIM-listed)",
+      "also_known_as": "Precision Tool & Die",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 732,
+      "company": "Tecomet / Symmetry Medical",
+      "parent_company": "Tecomet (Charlesbank Capital PE)",
+      "also_known_as": "Symmetry Medical Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 737,
+      "company": "Commercial Plastics NE",
+      "parent_company": "Commercial Plastics Co. (Mundelein IL)",
+      "also_known_as": "Lenco Inc.-PMC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 740,
+      "company": "Vantec LLC",
+      "parent_company": "Angstrom Automotive Group",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 741,
+      "company": "Triad Fastener LP",
+      "parent_company": "Triad Group",
+      "also_known_as": "Merrick Machine",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 742,
+      "company": "Garner Industries",
+      "parent_company": "ShoreView Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 777,
+      "company": "Kaman Composites Vermont",
+      "parent_company": "Arcline Investment",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 800,
+      "company": "Star Plastics Inc.",
+      "parent_company": "Akoya Capital Partners",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 814,
+      "company": "Beaver State Plastics",
+      "parent_company": "Quadel Industries",
+      "also_known_as": "Div. of Quadel Industries",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 876,
+      "company": "D.A. Inc.",
+      "parent_company": "Kojima Group (Japan)",
+      "also_known_as": "Daiwa Kasei",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 879,
+      "company": "Jabil Inc. (ABQ Site)",
+      "parent_company": "Jabil Inc. (NYSE: JBL)",
+      "also_known_as": "Nypro Healthcare Baja",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 886,
+      "company": "GVS North America",
+      "parent_company": "GVS S.p.A. (Italy, Borsa Italiana: GVS)",
+      "also_known_as": "Maine Manufacturing LLC",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 902,
+      "company": "Nordson EFD",
+      "parent_company": "Nordson Corp",
+      "also_known_as": "EFD Inc.",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 912,
+      "company": "Synventive Molding Solutions",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 913,
+      "company": "Männer",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": "Manner USA",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 914,
+      "company": "Thermoplay",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 915,
+      "company": "FOBOHA",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 916,
+      "company": "Gammaflux",
+      "parent_company": "Barnes Molding Solutions",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 918,
+      "company": "MHS (Mold Hotrunner Solutions)",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "Rheo-Pro",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 919,
+      "company": "Extreme Tool & Engineering",
+      "parent_company": "Westfall Technik",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 920,
+      "company": "Fairway Injection Molds",
+      "parent_company": "Westfall Technik",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 921,
+      "company": "Delta Pacific Products",
+      "parent_company": "Westfall Technik",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 923,
+      "company": "Inceptive Design Group",
+      "parent_company": "Westfall Technik",
+      "also_known_as": "IDG",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 925,
+      "company": "Prism Plastics Products",
+      "parent_company": "Westfall Technik",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 928,
+      "company": "Phillips-Medisize",
+      "parent_company": "Molex",
+      "also_known_as": "Phillips Plastics",
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    },
+    {
+      "id": 934,
+      "company": "Weener Plastik GmbH",
+      "parent_company": "Silgan Dispensing",
+      "also_known_as": null,
+      "parent_relationship_kind": null,
+      "financial_sponsor": null,
+      "former_names": null
+    }
+  ]
+}
