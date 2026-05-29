@@ -11,7 +11,9 @@ const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outre
 const CATEGORY_OPTIONS = PARENT_CATEGORY_OPTIONS.filter(o => o !== 'All')
 
 const PRESETS = [
-  { label: 'Action Items', filter: { preset: 'action_items' } },
+  // 'My Tasks' is no longer a prospect filter — it switches the sub-view to the Tasks queue.
+  // Marked here so callers can intercept it and call onOpenTasks instead of onFilterChange.
+  { label: 'My Tasks', isTasksView: true },
   { label: 'Stale', filter: { preset: 'stale' } },
   { label: 'Group 1', filter: { group: ['Group 1'] } },
   { label: 'Group 2', filter: { group: ['Group 2'] } },
@@ -96,7 +98,7 @@ function MultiSelectFilter({ label, options, selected, onChange }) {
   )
 }
 
-function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, actionItemCount = 0 }) {
+function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, actionItemCount = 0, onOpenTasks }) {
   const [searchText, setSearchText] = useState('')
   const [showLegend, setShowLegend] = useState(() => {
     try { return localStorage.getItem(LEGEND_KEY) !== 'true' } catch { return true }
@@ -116,6 +118,11 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
 
   const handlePreset = (preset) => {
     setSearchText('')
+    // "My Tasks" is a sub-view switch, not a prospect filter.
+    if (preset.isTasksView) {
+      onOpenTasks?.()
+      return
+    }
     if (preset.filter.preset) {
       onFilterChange({ ...emptyFilters, preset: preset.filter.preset })
     } else {
@@ -140,6 +147,7 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
   const arraysEqual = (a, b) => a.length === b.length && a.every(v => b.includes(v))
 
   const isActivePreset = (preset) => {
+    if (preset.isTasksView) return false  // Tasks view is a sub-view, never reflects as active in the preset bar
     if (preset.filter.preset) return filters.preset === preset.filter.preset
     if (preset.filter.group) return arraysEqual(filters.group, preset.filter.group) && filters.category.length === 0 && filters.priority.length === 0 && filters.geo.length === 0 && filters.status.length === 0 && !filters.preset
     if (preset.filter.category) return arraysEqual(filters.category, preset.filter.category) && filters.group.length === 0 && filters.priority.length === 0 && filters.geo.length === 0 && filters.status.length === 0 && !filters.preset
@@ -211,10 +219,11 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
           {actionItemCount > 0 && (
             <button
               type="button"
-              onClick={() => { setSearchText(''); onFilterChange({ ...emptyFilters, preset: 'action_items' }) }}
+              onClick={() => { setSearchText(''); onOpenTasks?.() }}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700 cursor-pointer hover:bg-red-200 transition-colors"
+              title="Open your task queue"
             >
-              {actionItemCount} action item{actionItemCount !== 1 ? 's' : ''}
+              {actionItemCount} task{actionItemCount !== 1 ? 's' : ''}
             </button>
           )}
         </span>

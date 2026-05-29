@@ -26,3 +26,12 @@
 - ~35 **exact duplicate-name rows** from two double-imports (id bands 243–262↔263–282, 843–848↔849–854) that bypassed the name-keyed upsert.
 - `needs_review` flag feature is built but unused (0 rows).
 - Activity log: 629/645 entries are "System (migrated)"; exclude that batch from analytics.
+
+## Threads 2+3 build (2026-05-28/29)
+- New table `prospect_tasks` with `(prospect_id, status)`, `(assignee, status)`, `(due_date)` indexes.
+- All task routes added to `api/prospects.js` under `?action=tasks` + HTTP method dispatch (no new functions; count stays at 11/12).
+- `?action=tasks&format=count` is the single-endpoint shortcut for the badge — avoids action proliferation. Pattern is reusable for other count-style endpoints.
+- Activity log lifecycle entries use prefix symbols matching the existing pattern: `✓` completed, `✗` dismissed, `↺` reopened, `⌫` deleted. The `add-activity` auto-overwrite of `suggested_next_step` is preserved by NOT calling the same UPDATE from task lifecycle handlers.
+- Auth gained an unprivileged `?action=team-members` endpoint (returns name+color for active users only) so the assignee dropdown doesn't need admin role.
+- Tasks column replaces the Due column in ProspectTable — sort is custom (`compareTaskColumn`) reading from a `taskCounts` Map fetched alongside the prospect list. Tasks lifecycle mutations trigger a `refreshTaskData` callback chain that re-fetches counts.
+- "My Tasks" badge query (assignee = me OR unassigned, status = open) is SYNC'd between server SQL and client `isMyTaskInBadge` in `taskUtils.js`. Mark with the same `// SYNC: badge logic` comment on both sides.

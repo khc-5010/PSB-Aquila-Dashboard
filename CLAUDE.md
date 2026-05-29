@@ -239,6 +239,33 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Scoring: `priority_score` (INTEGER, nullable) — calculated 0-100 score; `ai_readiness` (TEXT, nullable) — 'green'/'yellow'/'red'/'exempt'; `priority_manual` (TEXT, nullable) — manual override value
   - Timestamps: `created_at`, `updated_at`
 
+### Task Tables (Threads 2+3)
+
+- **`prospect_tasks`** — Forward-looking work items tied to a prospect, with assignment
+  - `id` (SERIAL, PK)
+  - `prospect_id` (INTEGER, FK → prospect_companies.id, ON DELETE CASCADE)
+  - `description` (TEXT, NOT NULL) — What needs to happen
+  - `due_date` (DATE, nullable) — Day-precision target
+  - `assignee` (TEXT, nullable) — `user.name` string; NULL = unassigned (available pickup)
+  - `status` (TEXT, NOT NULL, CHECK IN ('open','done','dismissed'), DEFAULT 'open')
+  - `created_by` (TEXT, nullable) — Authenticated user's name at creation
+  - `created_at` (TIMESTAMPTZ, DEFAULT NOW())
+  - `completed_at` (TIMESTAMPTZ, nullable) — Filled when status flips to done/dismissed
+  - `completed_by` (TEXT, nullable) — Actor on the done/dismissed transition
+  - Indexes: `(assignee, status)`, `(prospect_id, status)`, `(due_date)`
+
+- **Lifecycle → activity log integration.** Creating, completing, dismissing, reopening, and deleting tasks each insert an entry into `prospect_activity_log` (`Task created`, `✓ Task completed`, `✗ Task dismissed`, `↺ Task reopened`, `⌫ Task deleted`). Edits to description / due_date / assignee on an open task do NOT log. The `add-activity` auto-overwrite of `suggested_next_step` is unchanged — tasks do not touch that column.
+
+- **Badge query (SYNC across two locations).** "My Tasks" count = open tasks where `assignee = currentUser OR assignee IS NULL`. Server SQL in `api/prospects.js` (`?action=tasks&format=count`); JS predicate `isMyTaskInBadge` in `src/components/prospects/tasks/taskUtils.js`. Both marked with `// SYNC: badge logic` comments — keep aligned.
+
+- **API endpoints** (all on `api/prospects.js` via `?action=tasks` + HTTP method dispatch):
+  - `GET /api/prospects?action=tasks` — list. Query params: `assignee` (`me`|`unassigned`|`all`|name), `current_user` (required when `assignee=me`), `status` (`open`|`done`|`dismissed`|`all`), `prospect_id`, `format` (`full`|`count`). Sort: `due_date ASC NULLS LAST, created_at ASC`.
+  - `POST /api/prospects?action=tasks` — create. Body: `{ prospect_id, description, due_date?, assignee?, created_by }`. Emits `Task created: ...` activity log entry.
+  - `PATCH /api/prospects?action=tasks&task_id=X` — update. Body: any of `{ description, due_date, assignee, status, updated_by }`. Status transitions auto-fill / clear `completed_at`/`completed_by` and emit a lifecycle activity log entry.
+  - `DELETE /api/prospects?action=tasks&task_id=X&deleted_by=...` — hard delete with activity log entry.
+
+- **`follow_up_date` disposition.** Column stays in `prospect_companies` for backward compat. The ProspectDetail editor is removed; the table's "Due" column is replaced by a "Tasks" column showing open count + earliest-due urgency dot. `getProspectUrgency`'s Tier-1 follow_up_date branch is preserved (so the "Stale" preset still works on the 3 legacy rows until they're migrated via `scripts/migrate-followup-to-tasks.js`).
+
 ### State Research Tables
 
 - **`state_research_reports`** - State-level research reports for National Map

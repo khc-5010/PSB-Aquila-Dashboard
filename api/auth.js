@@ -228,6 +228,24 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Failed to list users' })
       }
     }
+
+    // ── Team members (any authenticated user) ────────────
+    // Lightweight read so the Tasks assignee dropdown can list teammates without
+    // requiring admin role. Returns only display fields (no email, no role, no PIN).
+    if (action === 'team-members') {
+      const user = await getSessionUser()
+      if (!user) return res.status(401).json({ error: 'Not authenticated' })
+
+      try {
+        const members = await sql`
+          SELECT name, color FROM users WHERE is_active = true ORDER BY name ASC
+        `
+        return res.status(200).json(members)
+      } catch (err) {
+        console.error('Team members error:', err)
+        return res.status(500).json({ error: 'Failed to list team members' })
+      }
+    }
   }
 
   // ─── PATCH ─────────────────────────────────────────────
