@@ -296,6 +296,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `POST /api/prospects?action=update-attachment` — Update attachment content in place (no status auto-advancement). Body: `{ attachment_id, content, updated_by }`
 - `DELETE /api/prospects?action=delete-attachment&attachmentId=X` — Delete attachment
 - `GET /api/prospects?action=data-audit` — Data quality audit: runs 16 diagnostic rules and returns counts, severity, examples, state signal health, and ontology health
+- `GET /api/prospects?action=export-json&id=X` — Full single-company export: the live company + its 1-hop corporate links (typed parent/children + former-name rows) + each record's attachments, activity log, and tasks, assembled into one JSON payload (see "Company JSON Export" below)
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
@@ -464,6 +465,41 @@ Two-tier "attention needed" system combining explicit follow-up dates with auto-
 - Client-side CSV generation from the in-memory prospects array (no API call)
 - Two options: "Export filtered" (respects current filters) and "Export all" (full dataset)
 - Export button in the sub-view toggle header area of ProspectTable
+
+### Company JSON Export (per-company)
+
+One-click serialization of a single company's **live** record into a JSON payload to paste into an external AI assistant (closes the staleness gap where the assistant works from point-in-time research). The defining requirement: it **follows corporate links** so absorbed/legacy entities and their contact-bearing data aren't dropped (motivating case: Sybridge Technologies → the absorbed **X-Cell Tool & Mold** record, where the workable contacts actually live).
+
+**Endpoint**: `GET /api/prospects?action=export-json&id=X` — server-side assembly inside `api/prospects.js` (no new serverless file; reuses the single-prospect read at `:2356` + the attachments/activity/tasks read shapes; same `sql` client). Function count stays 10.
+
+**Linked-entity serialization rule (1-hop, cycle-guarded, deduped by row id):**
+- **Typed children** — rows where `LOWER(TRIM(parent_company)) = LOWER(TRIM(primary.company))` AND `parent_relationship_kind IN ('subsidiary','absorbed_into')` → `relationship` = that kind.
+- **Typed parent** — the row whose `company` matches `primary.parent_company`, only when `primary.parent_relationship_kind` is typed → `relationship: 'parent'`.
+- **Former-name rows** — each `primary.former_names[]` entry resolved to its own prospect row when one exists → `relationship: 'former_name'`.
+- Dedup prefers the more specific **typed label over `former_name`** (children processed first). `financial_sponsor` (PE) siblings are **excluded** (consistent with the locked grouping rule — they'd drag in large PE portfolios). Cap 25 (`linked_entities_truncated: true` if exceeded).
+
+**Contacts**: there is **no structured contacts table** for prospects, so `contacts: []` is an empty placeholder on every record. Person-level names live as free text in `company.notes` / `company.psb_connection_notes` and inside `research_brief` attachments — all of which are included on both the primary and every linked record, so the names travel with the payload.
+
+**JSON schema (v1.0):**
+```jsonc
+{
+  "generated_at": "<ISO-8601>", "schema_version": "1.0",
+  "company": { /* all prospect_companies columns (SELECT p.*) + conversion_count */ },
+  "contacts": [],                                   // placeholder — not modeled
+  "attachments": [ { "type", "title", "body", "created_at", "created_by" } ],
+  "activity_log": [ { "timestamp", "author", "type": "note|task|flag", "entry" } ],
+  "tasks": [ { "task", "assignee", "due_date", "status", "created_by", "created_at", "completed_at", "completed_by" } ],
+  "linked_entities": [ { "relationship": "parent|subsidiary|absorbed_into|former_name", "link_basis": "parent_company|former_names",
+                         "company": {...}, "contacts": [], "attachments": [...], "activity_log": [...], "tasks": [...] } ]
+}
+```
+- `activity_log[].type` is **derived** from entry-text prefixes (`Task…/✓/✗/↺/⌫ Task`→`task`; `⚑`/`✓ Review`→`flag`; else `note`). There is no `type` column, and status changes are not individually logged (only `updated_at`), so `status_change` never appears.
+
+**Round-trip with the import path**: re-import via `POST ?action=import` with `{ prospects: [payload.company], added_by }`. The ~35 importable columns round-trip cleanly (`former_names` re-imports as a JS array). Export-only keys (`priority_score`, `ai_readiness`, timestamps, `added_by`, `prospect_status`, `conversion_count`, etc.) and the **partner-managed fields** (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`) are silently ignored by the upsert — no clobber, no error. Sub-entities (`linked_entities`, top-level `attachments`/`activity_log`/`tasks`/`contacts`) are not re-importable (import is flat-company-only) — documented divergence, not a break.
+
+**UI**: "Export" button (`FileJson` icon) in the `ProspectDetail` header action cluster → opens `ExportJsonModal` (`src/components/prospects/ExportJsonModal.jsx`, z-[60] sub-modal mirroring `ResearchPromptModal`): fetches the payload, previews pretty-printed JSON with a size + linked-count indicator, **Copy to clipboard** (primary) + **Download .json** (fallback). Helpers in `src/utils/exportProspect.js` (`downloadJson`, `copyText`, `formatBytes`, `companySlug`). Escape/backdrop close, included in ProspectDetail's `anySubModalOpen` stacking guard.
+
+**Verification**: `node scripts/verify-export.js --mock` (Sybridge fixture; mirrors the endpoint walk) and `--url <base> --id <id>` (deployed integration check).
 
 ### Parent-Company Grouping (Expandable Rows)
 Companies that share a `parent_company` value are grouped into expandable/collapsible rows in ProspectTable. All grouping is **client-side**, applied after filtering and sorting — no API or schema changes.
