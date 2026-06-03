@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Threads 2+3 Implementation Notes</title>
+  <title>Export JSON — Implementation Notes</title>
   <style>
     body { font-family: -apple-system, system-ui, sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1.5rem; color: #1f2937; line-height: 1.55; }
     h1 { border-bottom: 2px solid #041E42; padding-bottom: 0.4rem; color: #041E42; }
@@ -15,127 +15,85 @@
     th, td { border: 1px solid #d1d5db; padding: 0.35rem 0.7rem; text-align: left; font-size: 0.9em; }
     th { background: #f9fafb; }
     .meta { color: #6b7280; font-size: 0.9em; }
-    .status-done { color: #16a34a; font-weight: 600; }
-    .status-pending { color: #d97706; font-weight: 600; }
+    .ok { color: #16a34a; font-weight: 600; }
+    .warn { color: #d97706; font-weight: 600; }
   </style>
 </head>
 <body>
 
-<h1>Threads 2+3 Implementation Notes</h1>
-<p class="meta">Branch: <code>claude/adoring-cori-rynr9</code> (effectively from <code>main</code> post-Thread 1 merge — Thread 1 landed as PR #115 before this branch was cut). Companion to <code>tasks/threads-2-3-plan.md</code> and <code>docs/diagnostics/structural-threads-diagnostic.md</code>.</p>
+<h1>Export JSON — Implementation Notes</h1>
+<p class="meta">
+  Feature: per-company "Export JSON" button. Branch: <code>claude/sleepy-lovelace-qRi2X</code>.
+  Companion to the approved plan (<code>tasks/todo.md</code>).
+  <strong>This file replaces the prior "Threads 2+3" notes</strong> (those remain in git history on branch <code>claude/adoring-cori-rynr9</code>) — it is the per-task communication channel for this feature.
+</p>
 
 <h2>Design Decisions</h2>
 
-<h3>1. Single endpoint with <code>format=count</code> instead of a sub-action</h3>
-<p>The diagnostic floated two shapes for the badge count: <code>?action=tasks&amp;scope=badge</code> or <code>?action=tasks&amp;format=count</code>. Picked the latter. Same endpoint serves list and count, just with different output shape. Matches the existing pattern of <code>?action=attachments&amp;id=X</code> (one action, modifier param). Avoids action proliferation.</p>
+<h3>1. Server-side assembly (new <code>action=export-json</code>), not client-side stitching</h3>
+<p>The payload must follow corporate links and include each linked record's attachments / activity / tasks. Doing that client-side would mean many round-trips (the detail view doesn't load linked entities or their sub-data). A single server endpoint assembles the whole graph in a handful of queries and returns one clean object. Lives as a new <code>action</code> branch inside <code>api/prospects.js</code> (no new file — Vercel 12-function limit; "one file per feature"), using the same <code>sql</code> client already in the file.</p>
 
-<h3>2. TasksView placement — sub-view of Prospects, not a new top-level tab</h3>
-<p>Added as a third option in the existing Table / Charts sub-view toggle inside the Prospects tab. The "My Tasks" badge in <code>ProspectFilters</code> switches the sub-view to Tasks. Rationale: keeps Brett in the Prospects workflow rather than navigating away; one less top-level tab to add; the Charts toggle pattern already exists so the visual affordance is familiar. A future global Header bell can open the same component if needed.</p>
+<h3>2. <code>SELECT p.*</code> for company rows (schema-agnostic)</h3>
+<p><code>tasks/lessons.md</code> warns that <code>scripts/create-prospect-table.sql</code> is stale vs. the live schema (~52 columns live). Using <code>SELECT *</code> / <code>SELECT p.*</code> captures whatever columns actually exist, so the export never drifts from the live schema and I don't hardcode a column list. Mirrors the existing single-prospect read at <code>api/prospects.js:2356</code>.</p>
 
-<h3>3. Activity-log entries on task lifecycle</h3>
-<p>Create, mark-done, dismiss, reopen, delete each emit one activity-log entry. Edits to <code>description</code>, <code>due_date</code>, or <code>assignee</code> on an open task do <em>not</em> log — quick reschedules would otherwise flood the activity feed. Status transitions are the audit-worthy events.</p>
+<h3>3. Link walk: typed links + <code>former_names</code> rows, 1-hop, cycle-guarded</h3>
+<p>Per user decision. Relationships are denormalized strings, so matching is case-insensitive (<code>LOWER(TRIM(...))</code>), consistent with the import upsert and the table grouping. Three sources, deduped by row id (typed label wins over <code>former_name</code>):</p>
 <table>
-  <tr><th>Lifecycle event</th><th>Activity log text</th></tr>
-  <tr><td>Create</td><td><code>Task created: &lt;description&gt;</code></td></tr>
-  <tr><td>Mark done</td><td><code>✓ Task completed: &lt;description&gt;</code></td></tr>
-  <tr><td>Dismiss</td><td><code>✗ Task dismissed: &lt;description&gt;</code></td></tr>
-  <tr><td>Reopen</td><td><code>↺ Task reopened: &lt;description&gt;</code></td></tr>
-  <tr><td>Delete</td><td><code>⌫ Task deleted: &lt;description&gt;</code></td></tr>
+  <tr><th>Source</th><th>Match</th><th>relationship</th><th>link_basis</th></tr>
+  <tr><td>Typed children</td><td><code>parent_company = primary.company</code> AND <code>parent_relationship_kind IN (subsidiary, absorbed_into)</code></td><td><code>subsidiary</code> / <code>absorbed_into</code></td><td><code>parent_company</code></td></tr>
+  <tr><td>Typed parent</td><td><code>company = primary.parent_company</code> (only if primary has a typed kind)</td><td><code>parent</code></td><td><code>parent_company</code></td></tr>
+  <tr><td>Former names</td><td><code>company = ANY(primary.former_names)</code></td><td><code>former_name</code></td><td><code>former_names</code></td></tr>
 </table>
+<p>This catches <strong>Sybridge → X-Cell</strong> whether X-Cell is wired as a typed child (<code>parent_company='SyBridge Technologies'</code>) or only listed in Sybridge's <code>former_names[]</code>. <code>financial_sponsor</code> (PE) siblings are deliberately excluded — <code>lessons.md</code> confirms <code>parent_company</code>/sponsor is overloaded with ~200 PE strings; the typed-kind filter is what keeps the walk tight. Cycle guard: a <code>visited</code> Set seeded with the primary id; 1-hop only (no recursion into linked entities' own links); cap 25 linked entities (<code>linked_entities_truncated: true</code> if exceeded).</p>
 
-<h3>4. Task lifecycle does NOT update <code>suggested_next_step</code></h3>
-<p>The existing <code>add-activity</code> auto-overwrite of <code>prospect_companies.suggested_next_step</code> is preserved verbatim (<code>api/prospects.js:2766-2771</code>). Task-lifecycle log entries insert into <code>prospect_activity_log</code> but do <em>not</em> touch <code>suggested_next_step</code>. Otherwise creating a task would clobber whatever manual next-step note Brett has on the prospect, which violates the locked spec point 8.</p>
+<h3>4. Contacts: <code>contacts: []</code> placeholder, real names ride in free text</h3>
+<p>Per user decision and Phase-1 finding: there is no structured contacts table for prospects. The workable contacts (e.g. Jaeger, Przybylski under X-Cell) live only in <code>company.notes</code>, <code>company.psb_connection_notes</code>, and <code>research_brief</code> attachments. Because the export includes the <em>full</em> linked X-Cell record plus its attachments, those names travel with the payload — the empty <code>contacts</code> array is a forward-compatible placeholder, documented as not-yet-modeled.</p>
 
-<h3>5. Assignee dropdown source</h3>
-<p>Fetches the existing active users (4) via <code>GET /api/auth?action=list-users</code>, which is admin-only. Solution: lift the list of users onto the auth context at login (it's already there as <code>useAuth().user</code> for the current user, but not as the team list). Decision: TasksView/TaskInlineEditor fetch the team list once on mount via a new lightweight ungated endpoint? <strong>No — to avoid adding endpoints,</strong> I'll hard-code the 4 active users (Kyle, Duane, Steve, Brett) as a fallback constant in <code>taskUtils.js</code>, and additionally try to fetch from a new endpoint <code>?action=team-members</code> that returns name+color for active users (one extra branch in <code>api/auth.js</code>, no new function). The dropdown also includes "Unassigned" (maps to NULL).</p>
-<p><em>Update:</em> Used the new <code>api/auth.js?action=team-members</code> branch. Auth-gated but returns just <code>{ name, color }</code> for active users. No admin role required.</p>
-
-<h3>6. Dismissed tasks visibility</h3>
-<p>Hidden by default in the per-prospect Tasks section (rendered as a single "Show N completed/dismissed" expandable footer). Visible in TasksView when the user picks the "Completed" or "Dismissed" status chip.</p>
-
-<h3>7. Tasks column in ProspectTable replaces the Due column</h3>
-<p>The "Due" column (read from <code>follow_up_date</code>) is removed from the table. The new "Tasks" column shows count of open tasks with a small urgency dot for the earliest due date. Sort: by earliest open task due_date ASC, NULLS LAST. Companies with zero open tasks sink to the bottom.</p>
-<p>The <code>follow_up_date</code> column stays in the schema. Reads remain functional for the urgency function (which still treats it as Tier 1) — but the UI no longer surfaces it for editing in ProspectDetail. New work flows entirely through tasks.</p>
-
-<h3>8. Action items badge re-labeled "My Tasks"</h3>
-<p>The red pill at the top-right of ProspectFilters is preserved visually but its count semantics change: <code>(assignee = currentUser OR assignee IS NULL) AND status = 'open'</code>. Click switches the sub-view to Tasks with the default filter. The preset button "Action Items" in the same component is renamed "My Tasks" and is now identical to clicking the badge.</p>
+<h3>5. <code>activity_log[].type</code> is derived, best-effort</h3>
+<p>The table has no <code>type</code> column. I derive it from entry-text prefixes (matching the lifecycle symbols documented in the prior notes): <code>Task…/✓/✗/↺/⌫ Task → task</code>; <code>⚑ / ✓ Review → flag</code>; else <code>note</code>. <span class="warn">Divergence:</span> the target shape listed <code>status_change</code>, but status changes are not individually logged (only reflected in <code>updated_at</code>), so that value never appears. Raw <code>entry</code>, <code>author</code>, and <code>timestamp</code> are always included so nothing is lost.</p>
 
 <h2>Deviations</h2>
 <ul>
-  <li><strong>Stale preset stays.</strong> Spec says staleness moves out of the badge but the "Stale" preset already exists separately in ProspectFilters and was untouched. This is consistent with the spec point 4 ("staleness indicators move out of the badge and into a separate 'stale prospects' filter that already exists").</li>
-  <li><strong>follow_up_date editor is removed from ProspectDetail.</strong> Spec says "UI stops reading it (deprecated in display)". I removed the date-picker block (lines 638-683). The column itself remains in the schema. The urgency function still reads it client-side for the legacy "Stale" preset compatibility (Tier 1 of <code>getProspectUrgency</code>), so the existing 3 follow-up rows still render their urgency until the migration script populates equivalent tasks.</li>
+  <li><strong>No live-DB verification in this container.</strong> <code>lessons.md</code> confirms there is no <code>DATABASE_URL</code> here. In-env verification is therefore: <code>node --check</code> (server syntax), <code>npm run build</code> (client), and <code>scripts/verify-export.js --mock</code> (a Sybridge fixture run that proves the link-walk/dedup/shape and prints the assembled payload). Live-data confirmation is handed to the user as a read-only Neon SQL query + a deployed-endpoint test (URL mode of the same script).</li>
+  <li><strong>Replaced (not appended) <code>implementation-notes.html</code>.</strong> The prior file documented the unrelated Threads 2+3 work; this is a fresh per-task channel. Prior content is preserved in git history.</li>
 </ul>
 
 <h2>Tradeoffs</h2>
 <ul>
-  <li><strong>Single SQL count vs separate assigned/unassigned queries.</strong> Picked a single SQL with <code>WHERE (assignee = $1 OR assignee IS NULL) AND status = 'open'</code>. Two queries would have surfaced "Brett has 5 of his own + 3 unassigned", but the badge has room for one number, not two, and the spec is unambiguous about combining.</li>
-  <li><strong>Hard delete vs soft delete.</strong> Spec allows both. Implemented hard delete in the API behind an explicit confirm prompt. Primary affordances in the UI are Done and Dismiss; Delete is a less prominent action under a per-row overflow.</li>
-  <li><strong>Per-prospect task count fetch.</strong> Considered two options: (a) one query returning all open tasks grouped by prospect_id (single round-trip), (b) include a <code>task_count</code> subquery in the existing prospect list endpoint. Picked (a) — keeps the prospect list endpoint untouched and lets the Tasks column be a self-contained client concern.</li>
+  <li><strong>Inlined assembly logic vs. importable helper.</strong> A shared, unit-testable module isn't possible: Vercel serverless can't import from <code>src/</code>, and adding a file under <code>api/</code> would create a phantom 13th function. So the assembly lives inline in the endpoint, and <code>scripts/verify-export.js</code> carries a faithful reference implementation of the same algorithm for fixture testing (cross-referenced in comments to guard drift).</li>
+  <li><strong>Batched <code>= ANY(${allIds})</code> sub-entity reads vs. per-record loops.</strong> Chose 3 batched queries (attachments / activity / tasks) over <code>3 × N</code> round-trips. Proven idiom in this file (<code>api/prospects.js:1413</code>). Keeps a deep export well within the 10s Vercel timeout.</li>
 </ul>
 
-<h2>Open Questions — Resolved</h2>
-<p>Kyle's decisions on the three open questions from the original build:</p>
+<h2>Open Questions</h2>
 <ul>
-  <li><strong>Q1 — Parent-group rollup.</strong> <span class="status-done">Applied.</span> The Tasks column on a parent-group header now aggregates open task count <em>and</em> earliest due date across the parent plus all visible children. Helper <code>aggregateGroupTaskInfo(parentP, children, taskCounts)</code> in <code>ProspectTable.jsx</code>. Used in both virtual-parent rows (which previously rendered an empty cell) and real-parent rows (which previously showed only the parent's own count). Children naturally reflect any active filters because grouping runs after filtering.</li>
-  <li><strong>Q2 — Hard-delete affordance.</strong> <span class="status-done">Acknowledged as-is.</span> The trash-can button stays exposed on every TaskRow behind the existing confirm prompt. Four-user team + confirm dialog is sufficient defense against accidents.</li>
-  <li><strong>Q3 — Activity log mixing.</strong> <span class="status-done">Acknowledged as-is.</span> Task lifecycle entries and manual activity entries continue to share <code>prospect_activity_log</code>. A hide-task-lifecycle filter chip is deferred — will revisit if Brett flags the feed as noisy after real use.</li>
+  <li>None blocking. If duplicate-name rows exist (lessons.md notes ~35), a <code>former_names</code> string could resolve to more than one row; both are included (deduped by id). Acceptable for an export, but flagging in case you want a tighter match later.</li>
 </ul>
 
-<h2>Test Results</h2>
-<p>Empty-DB verification is the most that can run in this isolated container — actual runtime testing against production data lands when Kyle deploys + runs the SQL migration. Done so far:</p>
+<h2>Verification Results</h2>
 <ul>
-  <li><span class="status-done">✓</span> <code>node --check</code> passes on the modified <code>api/prospects.js</code>, <code>api/auth.js</code>, <code>scripts/migrate-followup-to-tasks.js</code>, and <code>src/components/prospects/tasks/taskUtils.js</code>.</li>
-  <li><span class="status-done">✓</span> Full <code>vite build</code> succeeds. 2,628 modules transformed. Bundle 1.34 MB / 413 KB gzipped (within the existing oversize range — not introduced by this change). Build output:
-    <pre>dist/index.html              1.15 kB
-dist/assets/index-...css     45.24 kB │ gzip:   8.08 kB
-dist/assets/index-...js   1,337.37 kB │ gzip: 412.87 kB
-✓ built in 8.98s</pre>
-  </li>
-  <li><span class="status-done">✓</span> Migration script error-handles missing <code>DATABASE_URL</code> gracefully (exits with a clear message rather than throwing).</li>
-  <li><span class="status-pending">⏳</span> Manual lifecycle test (create / done / dismiss / reopen / delete + activity log emission): post-deploy. The endpoints have been written to mirror the existing <code>add-activity</code>/<code>flag-for-review</code> patterns one-to-one, so behavior matches.</li>
-  <li><span class="status-pending">⏳</span> Badge counter verification (assignee = me OR unassigned): post-deploy. SYNC contract is documented and the SQL is identical in shape to the existing analytics aggregations.</li>
-  <li><span class="status-pending">⏳</span> Tasks column sort (nulls-last): post-deploy. Logic is in <code>compareTaskColumn</code> with explicit null guards.</li>
+  <li><span class="ok">PASS</span> — <code>node --check api/prospects.js</code> (server syntax).</li>
+  <li><span class="ok">PASS</span> — <code>npm run build</code> (Vite, 2630 modules; new modal + util + ProspectDetail wiring compile, imports resolve; only the pre-existing chunk-size advisory).</li>
+  <li><span class="ok">PASS</span> — <code>node scripts/verify-export.js --mock</code> (26/26 checks). Sybridge fixture proves: X-Cell included as <code>absorbed_into</code> (typed label wins over former_name), Pyramid Mold included via <code>former_names</code>, PE sibling excluded, self-name excluded, dedup by id, contact names ride along in <code>company.notes</code> + the research-brief attachment, activity-type derivation (flag/task/note), standalone company → empty <code>linked_entities</code>, and the round-trip contract (import never writes the 4 partner-managed fields; <code>former_names</code> stays an array).</li>
 </ul>
 
-<h2>Vercel function count</h2>
-<p>Top-level <code>.js</code> files in <code>api/</code>: 10 (activities, analytics, auth, bulk-upload-reports, health, key-dates, meeting-minutes, opportunities, prospects, stage-transitions). Plus <code>api/opportunities/[id].js</code>. <strong>Total: 11 functions</strong>. Within Vercel Hobby's 12-function ceiling. No new files were added.</p>
-
-<h2>Migration dry-run output</h2>
-<p>The dry-run requires <code>DATABASE_URL</code> and is therefore deferred to Kyle's environment. Per the structural diagnostic (production snapshot 2026-05-28), the 3 candidate rows are:</p>
-<ul>
-  <li><strong>Silgan Dispensing</strong> (id 917) — follow_up_date <code>2026-05-29</code>, <code>suggested_next_step="Followed up with Viswa RE AI committee meeting…"</code>. Will produce a task with that description (the heuristic matches "Followed").</li>
-  <li><strong>FOBOHA</strong> — follow_up_date <code>2026-05-25</code>. If <code>suggested_next_step</code> looks forward-looking, that text is used; otherwise <code>"Follow up with FOBOHA"</code>.</li>
-  <li><strong>Nolato GW Inc.</strong> — follow_up_date <code>2026-04-21</code>. Same heuristic.</li>
-</ul>
-<p>Recommended sequence:</p>
-<ol>
-  <li>Run <code>scripts/create-prospect-tasks-table.sql</code> in the Neon SQL Editor.</li>
-  <li>Deploy the branch.</li>
-  <li><code>node scripts/migrate-followup-to-tasks.js</code> (dry-run) — review the 3 proposed task rows.</li>
-  <li>If the dry-run output looks right, <code>node scripts/migrate-followup-to-tasks.js --apply</code>.</li>
-</ol>
-
-<hr>
-<h1>Item 2 — Multi-vendor cavity-pressure count (ontology-state-summary)</h1>
-<p><em>Closes item 2 from <code>docs/diagnostics/status-check-2026-05-28.md</code>. Added 2026-05-29. (Appended below the prior Threads 2+3 notes.)</em></p>
-
-<h2>Change</h2>
-<p>The per-state cavity-pressure company count in the <code>ontology-state-summary</code> endpoint (the <code>rjgCount</code> sub-query, <code>api/prospects.js</code> ~line 1068) matched only the <code>'RJG Cavity Pressure Monitoring'</code> entity by exact equality, so Kistler and Priamus shops — functionally equivalent to RJG for AI-readiness scoring — were excluded. The predicate now reads <code>oe_obj.name IN ('RJG Cavity Pressure Monitoring', 'Kistler Cavity Pressure Monitoring', 'Priamus Cavity Pressure Monitoring')</code>.</p>
-
-<h2>Design decisions</h2>
-<ul>
-  <li><strong>Hardcoded <code>IN (...)</code> list over a derived <code>LIKE '%Cavity Pressure Monitoring'</code>.</strong> The three names are the exact, finite output set of <code>getCavityPressureEntityName()</code> (<code>api/prospects.js:43</code>), so the predicate stays in lockstep with the helper and cannot accidentally match an unrelated future entity. Adding a vendor requires editing both spots — acceptable, since adding a vendor already means editing the helper.</li>
-  <li><strong><code>Likely</code>-confidence rows still counted.</strong> <code>getCavityPressureEntityName('Likely')</code> returns the RJG entity name, which remains in the list, so Likely rows are unaffected.</li>
-</ul>
-
-<h2>Consumer trace</h2>
-<p>Sole consumer: <code>src/components/national-map/OntologySummary.jsx</code> (one <code>fetch</code>, line 12). It reads <code>companies_with_rjg</code> as a scalar count (rendered line 149, display-gated on <code>&gt; 0</code> at line 139); it does <em>not</em> parse entity names out of the response. The response shape is unchanged (same keys/types) — only the count value broadens. The <code>top_technologies</code> array already lists all vendor entities (unfiltered <code>uses_technology</code> rollup), so it was already correct.</p>
-
-<h2>Open question</h2>
-<p>The consumer's amber stat card is labeled <strong>"RJG Technology"</strong> (<code>OntologySummary.jsx:150</code>). Now that the count includes Kistler/Priamus, that label undercounts its own meaning. Relabeling (e.g. "Cavity Pressure (RJG/Kistler/Priamus)") is a JSX change outside the single-line scope of this PR, so it was intentionally left out — flagged for a follow-up decision.</p>
-
-<h2>Verification</h2>
-<p>No test framework exists in the repo; verification is read-only code inspection plus an optional sanity SELECT against Neon. The change is a static SQL-literal predicate inside an existing tagged-template query — no parameter binding, no response-shape change.</p>
+<h3>Live-data confirmation (for you to run — no DATABASE_URL in this container)</h3>
+<p><strong>Option A — deployed endpoint</strong> (once this branch is on a Vercel preview):</p>
+<pre>node scripts/verify-export.js --url https://&lt;preview&gt;.vercel.app --id &lt;sybridge_id&gt;</pre>
+<p>Then open the company in the dashboard, click <strong>Export</strong> in the detail header, and confirm the payload shows X-Cell + Pyramid under <code>linked_entities</code> with X-Cell's research brief and free-text contacts.</p>
+<p><strong>Option B — read-only Neon SQL</strong> (paste into the Neon SQL editor; confirms the live link graph the walk depends on):</p>
+<pre>WITH primary AS (
+  SELECT id, company, parent_company, parent_relationship_kind, former_names
+  FROM prospect_companies WHERE company ILIKE '%sybridge%'
+)
+SELECT 'children' AS link, c.id, c.company, c.parent_relationship_kind
+FROM prospect_companies c, primary p
+WHERE LOWER(TRIM(c.parent_company)) = LOWER(TRIM(p.company))
+  AND c.parent_relationship_kind IN ('subsidiary','absorbed_into')
+UNION ALL
+SELECT 'former_name' AS link, c.id, c.company, NULL
+FROM prospect_companies c, primary p
+WHERE LOWER(TRIM(c.company)) = ANY(SELECT LOWER(TRIM(x)) FROM unnest(p.former_names) x)
+  AND c.id &lt;&gt; p.id;</pre>
 
 </body>
 </html>

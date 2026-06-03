@@ -2078,6 +2078,179 @@ export default async function handler(req, res) {
       }
     }
 
+    // Full single-company export: the live company + its 1-hop corporate links
+    // (typed parent/children + former-name rows) + each record's attachments,
+    // activity log, and tasks, assembled into one JSON payload for an external
+    // AI assistant. Reuses the single-prospect read shape (the `if (id)` handler
+    // below), plus the attachments / get-activity-log / tasks read shapes above.
+    if (action === 'export-json' && id) {
+      try {
+        const SCHEMA_VERSION = '1.0'
+        const TYPED_KINDS = ['subsidiary', 'absorbed_into']
+        const LINKED_CAP = 25
+
+        // 1. Primary company — same shape as GET ?id=X (SELECT p.* keeps this
+        //    robust to the live schema, which drifts from create-prospect-table.sql).
+        const primaryRows = await sql`
+          SELECT p.*,
+            (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+          FROM prospect_companies p
+          WHERE p.id = ${id}
+        `
+        if (!primaryRows || primaryRows.length === 0) {
+          return res.status(404).json({ error: 'Prospect not found' })
+        }
+        const primary = primaryRows[0]
+        const primaryId = Number(primary.id)
+
+        // 2. Resolve 1-hop corporate links. Relationships are denormalized strings,
+        //    so matching is case-insensitive (LOWER(TRIM(...))) — consistent with the
+        //    import upsert and the table's name-string grouping. Deduped by row id
+        //    (a typed label wins over former_name); cycle-guarded via `visited`.
+        //    SYNC: this walk mirrors the reference implementation in
+        //    scripts/verify-export.js — keep the two aligned.
+        const visited = new Set([primaryId])
+        const linked = [] // { row, relationship, link_basis }
+        const addLinked = (row, relationship, link_basis) => {
+          const rid = Number(row.id)
+          if (visited.has(rid)) return
+          visited.add(rid)
+          linked.push({ row, relationship, link_basis })
+        }
+
+        // 2a. Typed children: rows naming this company as their typed parent.
+        const children = await sql`
+          SELECT * FROM prospect_companies
+          WHERE LOWER(TRIM(parent_company)) = LOWER(TRIM(${primary.company}))
+            AND parent_relationship_kind = ANY(${TYPED_KINDS})
+            AND id <> ${primaryId}
+        `
+        for (const row of children) addLinked(row, row.parent_relationship_kind, 'parent_company')
+
+        // 2b. Typed parent: this company's own parent (only when its kind is typed).
+        if (primary.parent_company && TYPED_KINDS.includes(primary.parent_relationship_kind)) {
+          const parents = await sql`
+            SELECT * FROM prospect_companies
+            WHERE LOWER(TRIM(company)) = LOWER(TRIM(${primary.parent_company}))
+              AND id <> ${primaryId}
+            LIMIT 1
+          `
+          for (const row of parents) addLinked(row, 'parent', 'parent_company')
+        }
+
+        // 2c. Former-name rows: each former_names entry resolved to its own row, if one exists.
+        //     This is what catches an absorbed legacy shop (e.g. X-Cell under Sybridge)
+        //     when it is linked only through former_names rather than parent_company.
+        if (Array.isArray(primary.former_names) && primary.former_names.length > 0) {
+          const lowered = primary.former_names
+            .filter(Boolean)
+            .map((n) => String(n).trim().toLowerCase())
+          if (lowered.length > 0) {
+            const fkaRows = await sql`
+              SELECT * FROM prospect_companies
+              WHERE LOWER(TRIM(company)) = ANY(${lowered})
+                AND id <> ${primaryId}
+            `
+            for (const row of fkaRows) addLinked(row, 'former_name', 'former_names')
+          }
+        }
+
+        const truncated = linked.length > LINKED_CAP
+        const linkedFinal = truncated ? linked.slice(0, LINKED_CAP) : linked
+
+        // 3. Batch-fetch sub-records for every involved company (1 query each).
+        const allIds = [primaryId, ...linkedFinal.map((l) => Number(l.row.id))]
+        const [attachmentRows, activityRows, taskRows] = await Promise.all([
+          sql`SELECT * FROM prospect_attachments WHERE prospect_id = ANY(${allIds}) ORDER BY created_at DESC`,
+          sql`SELECT * FROM prospect_activity_log WHERE prospect_id = ANY(${allIds}) ORDER BY created_at DESC`,
+          sql`SELECT * FROM prospect_tasks WHERE prospect_id = ANY(${allIds}) ORDER BY due_date ASC NULLS LAST, created_at ASC`,
+        ])
+
+        const groupByProspect = (rows) => {
+          const m = new Map()
+          for (const r of rows) {
+            const key = Number(r.prospect_id)
+            if (!m.has(key)) m.set(key, [])
+            m.get(key).push(r)
+          }
+          return m
+        }
+        const attByP = groupByProspect(attachmentRows)
+        const actByP = groupByProspect(activityRows)
+        const taskByP = groupByProspect(taskRows)
+
+        // 4. Shapers — stable, LLM-friendly keys.
+        const shapeAttachment = (a) => ({
+          type: a.attachment_type,
+          title: a.title || null,
+          body: a.content || '',
+          created_at: a.created_at,
+          created_by: a.created_by || null,
+        })
+        // No `type` column exists; derive best-effort from the lifecycle entry prefixes.
+        const deriveActivityType = (text) => {
+          const t = (text || '').replace(/^\s+/, '')
+          if (/^(Task |✓ Task|✗ Task|↺ Task|⌫ Task)/.test(t)) return 'task'
+          if (/^⚑/.test(t) || /^✓ Review/.test(t)) return 'flag'
+          return 'note'
+        }
+        const shapeActivity = (e) => ({
+          timestamp: e.created_at,
+          author: e.created_by || null,
+          type: deriveActivityType(e.entry_text),
+          entry: e.entry_text || '',
+        })
+        const shapeTask = (t) => ({
+          task: t.description,
+          assignee: t.assignee || null,
+          due_date: t.due_date,
+          status: t.status,
+          created_by: t.created_by || null,
+          created_at: t.created_at,
+          completed_at: t.completed_at || null,
+          completed_by: t.completed_by || null,
+        })
+        // contacts[]: not modeled at prospect level — person names live in free text
+        // (notes / psb_connection_notes) and research-brief attachments, which ARE included.
+        const subRecords = (pid) => ({
+          contacts: [],
+          attachments: (attByP.get(pid) || []).map(shapeAttachment),
+          activity_log: (actByP.get(pid) || []).map(shapeActivity),
+          tasks: (taskByP.get(pid) || []).map(shapeTask),
+        })
+
+        // 5. Assemble payload.
+        const primarySub = subRecords(primaryId)
+        const payload = {
+          generated_at: new Date().toISOString(),
+          schema_version: SCHEMA_VERSION,
+          company: primary,
+          contacts: primarySub.contacts,
+          attachments: primarySub.attachments,
+          activity_log: primarySub.activity_log,
+          tasks: primarySub.tasks,
+          linked_entities: linkedFinal.map(({ row, relationship, link_basis }) => {
+            const sub = subRecords(Number(row.id))
+            return {
+              relationship,
+              link_basis,
+              company: row,
+              contacts: sub.contacts,
+              attachments: sub.attachments,
+              activity_log: sub.activity_log,
+              tasks: sub.tasks,
+            }
+          }),
+        }
+        if (truncated) payload.linked_entities_truncated = true
+
+        return res.status(200).json(payload)
+      } catch (error) {
+        console.error('Error building export-json:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Analytics aggregation
     if (action === 'analytics') {
       try {
