@@ -78,6 +78,11 @@ npx prisma generate      # Generate Prisma client (if using Prisma)
 npx prisma db push       # Push schema to Neon
 npx prisma studio        # Open database GUI
 
+# One-off data scripts (require DATABASE_URL in the environment)
+node scripts/backfill-fda-snapshots.js            # PLAN: list prospects with no FDA snapshot (read-only, no FDA calls)
+node scripts/backfill-fda-snapshots.js --dry-run  # Query openFDA per company, print results, no DB writes
+node scripts/backfill-fda-snapshots.js --apply    # Query openFDA and write fda_snapshot attachments
+
 # Auth Setup
 node scripts/setup-admin.js        # Create admin user + auth tables (run once)
 node scripts/setup-admin.js --reset # Reset admin PIN
@@ -677,6 +682,8 @@ Mark with `// SYNC` comments. Vercel serverless cannot import from `src/`.
 - All existing checks were updated in the ripple audit: ontology rebuild, data audit, analytics, Medical Molders filter, ShieldCheck icon, NeighborhoodPanel probe
 
 **No new serverless functions** — zero API route changes beyond the `LIKE 'Yes%'` ripple updates.
+
+**Identifying unchecked companies / backfill.** Because FDA enrichment is client-side and the snapshot is only persisted when a user clicks "Update to Yes (confirmed)", the **sole** durable "was checked" marker is a `prospect_attachments` row with `attachment_type = 'fda_snapshot'`. To find never-checked companies, anti-join: `SELECT p.* FROM prospect_companies p LEFT JOIN prospect_attachments a ON a.prospect_id = p.id AND a.attachment_type = 'fda_snapshot' WHERE a.id IS NULL`. Note this set also includes companies that were checked but returned no matches (the UI never persists a no-match state). `scripts/backfill-fda-snapshots.js` automates the backfill: it replicates `runFdaCheck` (same endpoints/name-cascade/dedup) for each snapshot-less company and writes the snapshot in the UI's JSON shape. It is **snapshot-only** (never touches `medical_device_mfg`/`notes` — humans confirm medical status in the UI) and **saves empty snapshots on no-match** (so runs are resumable and don't re-spend the openFDA rate-limit budget). PLAN mode (no flags) is read-only; `--dry-run` queries openFDA without writing; `--apply` writes. Supports `--limit`, `--delay`, and `OPENFDA_API_KEY` (keyless openFDA caps at 1,000 req/day).
 
 ### Manufacturing Corridors (replaced Geography Tiers)
 The analytics chart and filter system uses **Manufacturing Corridors** — industry-meaningful geographic groupings derived from `country` + `state` at query time. The old `geography_tier` column (Tier 1/2/3/Infrastructure) still exists in the database but is no longer used for analytics or filtering.
