@@ -213,6 +213,20 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   const [showFlagInput, setShowFlagInput] = useState(false)
   const [flagNote, setFlagNote] = useState('')
 
+  // When navigating between prospects (prev/next), reset per-prospect fetched
+  // state *synchronously during render* so no section flashes the previous
+  // company's data while the new data re-fetches. Pairs with the key={p.id} on
+  // <FdaEnrichment> below, which forces that section to remount fresh per company
+  // (it holds its FDA results in local state, so without a remount it stays stuck
+  // on the first company it loaded).
+  const [loadedProspectId, setLoadedProspectId] = useState(prospect?.id)
+  if (prospect?.id !== loadedProspectId) {
+    setLoadedProspectId(prospect?.id)
+    setAttachments([])
+    setActivityLog([])
+    setActivityLoading(true)
+  }
+
   const fetchAttachments = useCallback(async () => {
     if (!prospect?.id) return
     try {
@@ -1039,7 +1053,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
 
                 {/* FDA Intelligence */}
                 <Section title="FDA Intelligence" defaultOpen={false}>
-                  <FdaEnrichment prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
+                  <FdaEnrichment key={p.id} prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
                 </Section>
 
                 {/* PSB Relationship */}
