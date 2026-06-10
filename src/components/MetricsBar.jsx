@@ -16,7 +16,7 @@ const formatValue = (value) => {
  * @param {Function} props.onActionClick - Handler for Need Action metric click
  * @param {Function} props.onActiveClick - Handler for Active Projects metric click
  */
-function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveClick }) {
+function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveClick, onImpactClick }) {
   // Total Pipeline: count of non-complete opportunities
   const totalPipeline = opportunities.filter(opp => opp.stage !== 'complete').length
 
@@ -37,9 +37,16 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
   // Active Projects: count where stage is 'active'
   const activeProjects = opportunities.filter(opp => opp.stage === 'active').length
 
+  // From Prospects: pipeline $ on opportunities sourced from the prospect
+  // database (source_prospect_id set via Promote to Pipeline) — the ROI number
+  const sourcedValue = opportunities
+    .filter(opp => opp.source_prospect_id && opp.stage !== 'complete')
+    .reduce((sum, opp) => sum + (parseFloat(opp.est_value) || 0), 0)
+
   const metrics = [
     { key: 'total', value: totalPipeline, label: 'Total Pipeline', clickable: false },
     { key: 'value', value: formatValue(estValue), label: 'Est. Value', clickable: true, onClick: onValueClick },
+    { key: 'sourced', value: formatValue(sourcedValue), label: 'From Prospects', clickable: true, onClick: onImpactClick },
     { key: 'action', value: needAction, label: 'Need Action', clickable: true, onClick: onActionClick },
     { key: 'active', value: activeProjects, label: 'Active Projects', clickable: true, onClick: onActiveClick },
   ]

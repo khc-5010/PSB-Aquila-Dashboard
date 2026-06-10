@@ -14,6 +14,7 @@ import DroppableColumn from './components/pipeline/DroppableColumn'
 import SortableOpportunityCard from './components/pipeline/SortableOpportunityCard'
 import OpportunityDetail from './components/OpportunityDetail'
 import ValueBreakdownModal from './components/ValueBreakdownModal'
+import ImpactModal from './components/ImpactModal'
 import ActionSummaryModal from './components/ActionSummaryModal'
 import ActiveProjectsModal from './components/ActiveProjectsModal'
 import DeadlineBanner from './components/DeadlineBanner'
@@ -275,6 +276,7 @@ function App() {
             onValueClick={() => setMetricsModal('value')}
             onActionClick={() => setMetricsModal('action')}
             onActiveClick={() => setMetricsModal('active')}
+            onImpactClick={() => setMetricsModal('impact')}
           />
 
           <DeadlineBanner />
@@ -358,6 +360,13 @@ function App() {
 
           {metricsModal === 'value' && (
             <ValueBreakdownModal
+              opportunities={opportunities}
+              onClose={() => setMetricsModal(null)}
+              onSelectOpportunity={handleMetricsSelect}
+            />
+          )}
+          {metricsModal === 'impact' && (
+            <ImpactModal
               opportunities={opportunities}
               onClose={() => setMetricsModal(null)}
               onSelectOpportunity={handleMetricsSelect}

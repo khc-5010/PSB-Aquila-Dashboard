@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, X, Flag, FileJson } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 
-import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPEOwnership } from '../../utils/priorityScore'
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
+import { buildHookLine } from '../../utils/buildHookLine'
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
 import ResearchPromptModal from './ResearchPromptModal'
@@ -68,40 +69,8 @@ function getCertColor(cert) {
   return { bg: 'bg-gray-100', text: 'text-gray-600' }
 }
 
-function buildHookLine(p) {
-  const hooks = []
-
-  if (p.rjg_cavity_pressure?.includes('Yes') || p.rjg_cavity_pressure?.includes('confirmed')) {
-    hooks.push('RJG cavity pressure user')
-  }
-
-  if (p.in_house_tooling === 'Yes' && p.category?.includes('Converter')) {
-    hooks.push('vertically integrated (converter + tooling)')
-  }
-
-  if (p.press_count) hooks.push(`${p.press_count}-press operation`)
-  else if ((p.employees_approx ?? 0) >= 500) hooks.push(`${p.employees_approx}+ employees`)
-
-  if ((p.site_count ?? 0) >= 10) hooks.push(`${p.site_count} sites`)
-  if ((p.acquisition_count ?? 0) >= 5) hooks.push(`${p.acquisition_count} acquisitions`)
-
-  if ((p.years_in_business ?? 0) >= 30) hooks.push(`${p.years_in_business}-year legacy`)
-
-  if (isPEOwnership(p.ownership_type) && p.recent_ma) {
-    hooks.push('PE-backed, recent M&A')
-  } else if (isPEOwnership(p.ownership_type)) {
-    hooks.push('PE-backed')
-  }
-
-  if (p.medical_device_mfg?.startsWith('Yes')) hooks.push('medical device mfg')
-
-  if ((p.cwp_contacts ?? 0) >= 20) hooks.push('deep PSB relationship')
-  else if ((p.cwp_contacts ?? 0) >= 5) hooks.push('warm PSB lead')
-
-  if (hooks.length < 2 && p.top_signal) hooks.push(p.top_signal)
-
-  return hooks.slice(0, 4).join(' \u00B7 ')
-}
+// buildHookLine ("Why this company" one-liner) moved to
+// src/utils/buildHookLine.js \u2014 shared with the Call Sheet.
 
 function displayValue(val) {
   if (val === null || val === undefined || val === '') return '\u2014'
