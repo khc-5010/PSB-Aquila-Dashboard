@@ -42,27 +42,25 @@ src/
 │   │   ├── GraphExplorer.jsx        # Graph viewer with expand/collapse, type filters, search
 │   │   ├── QueryPanel.jsx           # Query builder with filter chips and state dropdown
 │   │   ├── QueryResults.jsx         # Result cards with "Find similar" button
-│   │   ├── NeighborhoodPanel.jsx    # Compact graph for ProspectDetail (entity resolution + neighborhood)
-│   │   └── ForceGraphTestPage.jsx   # Temporary test harness (remove after Session 2)
+│   │   └── NeighborhoodPanel.jsx    # Compact graph for ProspectDetail (entity resolution + neighborhood)
 │   ├── notifications/   # DigestPrefsModal (daily digest email preferences)
-│   ├── opportunities/   # Detail panel, forms, stakeholder alerts
-│   └── layout/          # Header, sidebar, navigation
-├── hooks/               # Custom React hooks
+│   ├── auth/            # LoginScreen, AdminPanel, ChangePinModal
+│   ├── analytics/       # HIDDEN tab components (preserved, not routed)
+│   └── layout/          # Header (nav tabs, avatars, admin/digest/PIN menus)
+│   (OpportunityDetail, EditOpportunityModal, MetricsBar, DeadlineBanner, and the
+│    metrics modals live directly in src/components/ — there is no opportunities/ subdir)
 ├── data/
-│   └── us-states.js     # Static SVG path data for all 50 US states + DC (viewBox 960×600)
-├── lib/
-│   ├── db.js            # Database connection and queries
-│   ├── api.js           # API client functions
-│   └── utils.js         # Helper functions
-├── pages/               # Route-level components
-├── context/             # React context providers
-├── utils/               # Shared utilities (categoryGroups.js)
-├── constants/           # Project types, stages, stakeholder mappings
+│   ├── us-states.js     # Static SVG path data for all 50 US states + DC (viewBox 960×600)
+│   └── corridors.js     # Manufacturing corridor constants (CORRIDOR_COLORS, STATE_TO_CORRIDOR)
+├── context/             # AuthContext (exports useAuth hook + standalone authFetch)
+├── utils/               # Shared utilities (categoryGroups.js, priorityScore.js, exportProspect.js)
+├── constants/           # Project types, stages (pipeline.js, options.js)
 ├── App.jsx
 ├── main.jsx
 └── index.css            # Tailwind imports only
 public/
-api/                     # Vercel serverless functions (if needed)
+api/                     # Vercel serverless functions (one file per feature)
+api/_lib/                # Shared server helpers (underscore = NOT a deployed function)
 ```
 
 ## Key Commands
@@ -348,7 +346,7 @@ The Company Info section in `ProspectDetail.jsx` is now fully editable (previous
 
 **Downstream-impact fields** — `category`, `in_house_tooling`, `ownership_type`, `recent_ma`, `parent_company` are all in `ONTOLOGY_FIELDS` and/or `SCORE_INPUT_FIELDS`, so edits trigger server-side rebuild/recalc automatically via the existing PATCH handler. No extra client-side handling needed.
 
-**Ownership Type string contract** — downstream indicator logic in `ProspectTable.jsx` keys off `.includes('PE')`, `.includes('Family')`, and `=== 'ESOP'`. The preset values (`'PE-Backed'`, `'Family/Founder-Owned'`, `'ESOP'`) satisfy all three patterns. If adding new values to `OWNERSHIP_TYPES`, preserve these substrings.
+**Ownership Type string contract** — PE detection goes through `isPeOwnership()` (SYNC pair: `src/utils/priorityScore.js` exports it for the client; identical copy in `api/prospects.js`). It matches `'PE-Backed'`, legacy `'Private Equity …'` free text, and standalone "PE" tokens (word-boundary regex, so 'Cooperative' doesn't match). Used by: priority-score Ownership Urgency, the digest PE Window Watch, and the ProspectTable PE clock icons. Family/ESOP indicators still key off `.includes('Family')` and `=== 'ESOP'`. If adding new values to `OWNERSHIP_TYPES`, preserve these patterns.
 
 **Constants live at the top of `ProspectDetail.jsx`** alongside `GROUP_OPTIONS` and `STATUS_OPTIONS`: `US_STATES`, `IN_HOUSE_TOOLING_OPTIONS`, `OWNERSHIP_TYPES`.
 
@@ -440,7 +438,7 @@ Two-tier "attention needed" system combining explicit follow-up dates with auto-
 **`parseLocalDate()` — Date Parsing Utility (critical pattern):**
 - PostgreSQL `DATE` columns may come back as `"2026-04-21"` or `"2026-04-21T00:00:00.000Z"` depending on driver serialization
 - `parseLocalDate(val)` safely handles both formats (plus Date objects and null) by splitting on `'T'` first, then parsing `YYYY-MM-DD` components into a local-timezone Date
-- **SYNC**: Exists in both `ProspectTable.jsx` and `api/prospects.js` — keep identical
+- **SYNC**: Exists in THREE places — `ProspectTable.jsx`, `tasks/taskUtils.js`, and `api/prospects.js` — keep all identical
 - **Rule**: Never use `new Date(follow_up_date + 'T00:00:00')` — always use `parseLocalDate()` for any DATE column parsing
 
 **Visual indicators:**
@@ -687,8 +685,8 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 | Corridor | States |
 |----------|--------|
 | **Great Lakes Auto** | MI, OH, IN, IL, WI |
-| **Northeast Tool** | PA, NY, CT, NJ, MA, NH, VT, ME, RI, DC |
-| **Southeast Growth** | NC, GA, FL, TN, SC, VA, AL, MS, KY |
+| **Northeast Tool** | PA, NY, CT, NJ, MA, NH, VT, ME, RI, DC, DE, MD |
+| **Southeast Growth** | NC, GA, FL, TN, SC, VA, AL, MS, KY, WV |
 | **Gulf / Resin Belt** | TX, LA, OK, AR |
 | **Upper Midwest Medical** | MN |
 | **West Coast** | CA, OR, WA |
@@ -773,6 +771,8 @@ Filter state uses **arrays** (not strings). Empty array = no filter (show all).
 - **Sessions persist until explicit logout** — no expiry, no timeout.
 - Session token stored in `localStorage` as `session_token`, sent as `Authorization: Bearer <token>` header.
 - All auth endpoints consolidated in a single `api/auth.js` (Vercel function limit).
+- **ALL data API endpoints require authentication.** Every handler in `api/` validates the Bearer session token via the shared `requireAuth` helper (`api/_lib/requireAuth.js` — underscore-prefixed files in `api/` are NOT deployed as functions). Exceptions: `?action=daily-digest` (CRON_SECRET), `api/meeting-minutes.js` (x-api-key), `api/health.js` (public, returns no data). Client code MUST use `authFetch` (exported standalone from `AuthContext.jsx`, usable outside hooks) for every `/api/` call — a plain `fetch` will 401. On a 401 from a data endpoint, `authFetch` dispatches an `auth:unauthorized` event and AuthProvider force-logs-out the dead session.
+- **Login brute-force protection:** per-email failed-attempt tracking in `login_attempts` (auto-created on first login; DDL in `scripts/create-login-attempts.sql`). 5 failures → 15-minute lockout (HTTP 429). Unknown-email logins run a dummy bcrypt compare (no timing oracle); deactivated accounts get the generic error.
 
 ### Key Components
 - `src/context/AuthContext.jsx` — `AuthProvider` wraps the app in `main.jsx`. Exposes `useAuth()` hook providing `{ user, login, logout, loading, authFetch }`.
@@ -781,14 +781,17 @@ Filter state uses **arrays** (not strings). Empty array = no filter (show all).
 - `Header.jsx` — Shows logged-in user avatar, team member avatars, admin gear icon (admin only), logout button.
 
 ### Auth API Routes (`api/auth.js`)
-- `POST ?action=login` — Validate email + PIN, create session
+- `POST ?action=login` — Validate email + PIN, create session (rate-limited)
 - `POST ?action=logout` — Delete session
 - `GET ?action=validate` — Validate session token
 - `GET ?action=me` — Get current user profile
 - `POST ?action=create-user` — Admin: add new user (returns one-time PIN)
-- `PATCH ?action=update-user&id=X` — Admin: edit user
-- `POST ?action=reset-pin&id=X` — Admin: generate new PIN
+- `PATCH ?action=update-user&id=X` — Admin: edit user. Refuses to demote/deactivate the last active admin.
+- `POST ?action=reset-pin&id=X` — Admin: generate new PIN (invalidates that user's sessions)
+- `POST ?action=change-pin` — Any user: change own PIN (requires current PIN)
 - `GET ?action=list-users` — Admin: get all users
+- `GET ?action=team-members` — Any user: active members' `{ name, color }`. Use this (NOT admin-only list-users) for owner dropdowns and avatar displays.
+- Initial bootstrap is `node scripts/setup-admin.js` only — the old unauthenticated `?action=setup` endpoint was removed (it leaked admin identity).
 
 ### User Identity Pattern
 - `useAuth()` is the canonical way to get the current user (`{ id, name, email, color, role }`)
@@ -806,6 +809,7 @@ Filter state uses **arrays** (not strings). Empty array = no filter (show all).
 ### Database Tables
 - `users` — id, name, email, pin_hash, color, role, is_active, created_at, last_login_at
 - `sessions` — id (token), user_id, created_at
+- `login_attempts` — email (PK), failed_count, last_failed_at, locked_until (brute-force throttling; auto-created on first login)
 
 ### Initial Setup
 Run `node scripts/setup-admin.js` to create auth tables and the initial admin (Kyle) account. The script generates a 6-digit PIN displayed once. Kyle then creates other users via the admin panel.
