@@ -22,7 +22,7 @@
 
 const TYPED_KINDS = ['subsidiary', 'absorbed_into']
 const LINKED_CAP = 25
-const SCHEMA_VERSION = '1.0'
+const SCHEMA_VERSION = '1.1' // 1.1: contacts[] populated from prospect_contacts (E5)
 
 // ── Reference implementation (mirror of api/prospects.js export-json) ──────────
 
@@ -77,7 +77,18 @@ function assemblePayload(primary, allRows, subByPid) {
   const sub = (pid) => {
     const s = subByPid[pid] || {}
     return {
-      contacts: [],
+      // Fixture has no contacts; the live endpoint fills this from prospect_contacts (schema 1.1)
+      contacts: (s.contacts || []).map((c) => ({
+        name: c.name,
+        role: c.role || null,
+        email: c.email || null,
+        phone: c.phone || null,
+        notes: c.notes || null,
+        source: c.source || null,
+        last_contacted: c.last_contacted || null,
+        created_by: c.created_by || null,
+        created_at: c.created_at,
+      })),
       attachments: (s.attachments || []).map((a) => ({
         type: a.attachment_type,
         title: a.title || null,
@@ -217,9 +228,9 @@ function runMock() {
   const payload = assemblePayload(sybridge, ROWS, SUB)
   const byCompany = Object.fromEntries(payload.linked_entities.map((l) => [l.company.company, l]))
 
-  check('payload has schema_version 1.0', payload.schema_version === '1.0')
+  check('payload has schema_version 1.1', payload.schema_version === '1.1')
   check('payload.company is Sybridge', payload.company.company === 'SyBridge Technologies')
-  check('contacts[] is an empty array (not modeled)', Array.isArray(payload.contacts) && payload.contacts.length === 0)
+  check('contacts[] is an array (fixture has none)', Array.isArray(payload.contacts) && payload.contacts.length === 0)
   check('X-Cell is included as a linked entity', !!byCompany['X-Cell Tool & Mold'])
   check('X-Cell relationship is the typed label (absorbed_into wins over former_name)', byCompany['X-Cell Tool & Mold']?.relationship === 'absorbed_into')
   check('X-Cell link_basis is parent_company', byCompany['X-Cell Tool & Mold']?.link_basis === 'parent_company')
@@ -278,7 +289,7 @@ async function runUrl(baseUrl, id) {
   }
   const p = await res.json()
   check('has generated_at', typeof p.generated_at === 'string')
-  check('has schema_version', p.schema_version === '1.0')
+  check('has schema_version', p.schema_version === '1.1')
   check('company present', p.company && typeof p.company === 'object')
   check('contacts is an array', Array.isArray(p.contacts))
   check('attachments is an array', Array.isArray(p.attachments))

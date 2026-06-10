@@ -708,12 +708,13 @@ async function recalculateAllPriorities(sql) {
   return { updated, exempt, total: all.length }
 }
 
-// ─── Bundle B schema additions (self-ensuring) ───────────────────────
-// prospect_status_transitions (QA audit E7) + prospect_companies.ma_date (E4).
-// Applied lazily, once per warm instance, from the endpoints that touch them —
-// there is no local-dev/migration workflow, so endpoints self-ensure instead
-// of erroring until SQL is run by hand. Mirrored in
-// scripts/create-status-transitions.sql for schema reproducibility.
+// ─── Section E schema additions (self-ensuring) ───────────────────────
+// prospect_status_transitions (QA audit E7), prospect_companies.ma_date (E4),
+// prospect_contacts (E5). Applied lazily, once per warm instance, from the
+// endpoints that touch them — there is no local-dev/migration workflow, so
+// endpoints self-ensure instead of erroring until SQL is run by hand.
+// Mirrored in scripts/create-status-transitions.sql and
+// scripts/create-prospect-contacts.sql for schema reproducibility.
 // (Unlike the unguarded ALTER in api/opportunities.js, this runs once per
 // cold start, not on every request.)
 let schemaAdditionsEnsured = false
@@ -732,6 +733,23 @@ async function ensureProspectSchemaAdditions(sql) {
   await sql`CREATE INDEX IF NOT EXISTS idx_status_transitions_prospect ON prospect_status_transitions(prospect_id)`
   await sql`CREATE INDEX IF NOT EXISTS idx_status_transitions_at ON prospect_status_transitions(transitioned_at)`
   await sql`ALTER TABLE prospect_companies ADD COLUMN IF NOT EXISTS ma_date DATE`
+  await sql`
+    CREATE TABLE IF NOT EXISTS prospect_contacts (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospect_companies(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      role TEXT,
+      email TEXT,
+      phone TEXT,
+      notes TEXT,
+      source TEXT,
+      last_contacted DATE,
+      created_by TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_prospect_contacts_prospect ON prospect_contacts(prospect_id)`
   schemaAdditionsEnsured = true
 }
 
@@ -2334,6 +2352,22 @@ export default async function handler(req, res) {
       }
     }
 
+    // Contacts for a prospect (QA audit E5)
+    if (action === 'contacts' && id) {
+      try {
+        await ensureProspectSchemaAdditions(sql)
+        const contacts = await sql`
+          SELECT * FROM prospect_contacts
+          WHERE prospect_id = ${id}
+          ORDER BY name ASC
+        `
+        return res.status(200).json(contacts)
+      } catch (error) {
+        console.error('Error fetching contacts:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     // Activity log for a prospect
     if (action === 'get-activity-log' && id) {
       try {
@@ -2356,9 +2390,11 @@ export default async function handler(req, res) {
     // below), plus the attachments / get-activity-log / tasks read shapes above.
     if (action === 'export-json' && id) {
       try {
-        const SCHEMA_VERSION = '1.0'
+        // 1.1: contacts[] now populated from prospect_contacts (QA audit E5)
+        const SCHEMA_VERSION = '1.1'
         const TYPED_KINDS = ['subsidiary', 'absorbed_into']
         const LINKED_CAP = 25
+        await ensureProspectSchemaAdditions(sql)
 
         // 1. Primary company — same shape as GET ?id=X (SELECT p.* keeps this
         //    robust to the live schema, which drifts from create-prospect-table.sql).
@@ -2431,10 +2467,11 @@ export default async function handler(req, res) {
 
         // 3. Batch-fetch sub-records for every involved company (1 query each).
         const allIds = [primaryId, ...linkedFinal.map((l) => Number(l.row.id))]
-        const [attachmentRows, activityRows, taskRows] = await Promise.all([
+        const [attachmentRows, activityRows, taskRows, contactRows] = await Promise.all([
           sql`SELECT * FROM prospect_attachments WHERE prospect_id = ANY(${allIds}) ORDER BY created_at DESC`,
           sql`SELECT * FROM prospect_activity_log WHERE prospect_id = ANY(${allIds}) ORDER BY created_at DESC`,
           sql`SELECT * FROM prospect_tasks WHERE prospect_id = ANY(${allIds}) ORDER BY due_date ASC NULLS LAST, created_at ASC`,
+          sql`SELECT * FROM prospect_contacts WHERE prospect_id = ANY(${allIds}) ORDER BY name ASC`,
         ])
 
         const groupByProspect = (rows) => {
@@ -2449,6 +2486,7 @@ export default async function handler(req, res) {
         const attByP = groupByProspect(attachmentRows)
         const actByP = groupByProspect(activityRows)
         const taskByP = groupByProspect(taskRows)
+        const contactByP = groupByProspect(contactRows)
 
         // 4. Shapers — stable, LLM-friendly keys.
         const shapeAttachment = (a) => ({
@@ -2481,10 +2519,22 @@ export default async function handler(req, res) {
           completed_at: t.completed_at || null,
           completed_by: t.completed_by || null,
         })
-        // contacts[]: not modeled at prospect level — person names live in free text
-        // (notes / psb_connection_notes) and research-brief attachments, which ARE included.
+        // contacts[]: structured rows from prospect_contacts (E5, schema 1.1).
+        // Older person-level mentions still live in free text (notes /
+        // psb_connection_notes) and research-brief attachments, which travel too.
+        const shapeContact = (c) => ({
+          name: c.name,
+          role: c.role || null,
+          email: c.email || null,
+          phone: c.phone || null,
+          notes: c.notes || null,
+          source: c.source || null,
+          last_contacted: c.last_contacted || null,
+          created_by: c.created_by || null,
+          created_at: c.created_at,
+        })
         const subRecords = (pid) => ({
-          contacts: [],
+          contacts: (contactByP.get(pid) || []).map(shapeContact),
           attachments: (attByP.get(pid) || []).map(shapeAttachment),
           activity_log: (actByP.get(pid) || []).map(shapeActivity),
           tasks: (taskByP.get(pid) || []).map(shapeTask),
@@ -2984,6 +3034,30 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Contacts (QA audit E5): delete with activity log entry ───
+    if (action === 'contacts') {
+      const { contact_id, deleted_by } = req.query
+      if (!contact_id) {
+        return res.status(400).json({ error: 'contact_id query param is required' })
+      }
+      try {
+        await ensureProspectSchemaAdditions(sql)
+        const [contact] = await sql`SELECT * FROM prospect_contacts WHERE id = ${contact_id}`
+        if (!contact) return res.status(404).json({ error: 'Contact not found' })
+
+        await sql`DELETE FROM prospect_contacts WHERE id = ${contact_id}`
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${contact.prospect_id}, ${'Contact removed: ' + contact.name}, ${deleted_by || 'Unknown'})
+        `
+
+        return res.status(200).json({ deleted: true, id: parseInt(contact_id, 10) })
+      } catch (error) {
+        console.error('Error deleting contact:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     return res.status(400).json({ error: 'Unknown DELETE action' })
   }
 
@@ -3328,6 +3402,36 @@ export default async function handler(req, res) {
         return res.status(201).json(result[0])
       } catch (error) {
         console.error('Error creating attachment:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Contacts (QA audit E5): create ───
+    if (action === 'contacts') {
+      try {
+        const { prospect_id, name, role, email, phone, notes, source, last_contacted, created_by } = req.body
+        if (!prospect_id || !name?.trim()) {
+          return res.status(400).json({ error: 'prospect_id and name are required' })
+        }
+
+        await ensureProspectSchemaAdditions(sql)
+        const [contact] = await sql`
+          INSERT INTO prospect_contacts (prospect_id, name, role, email, phone, notes, source, last_contacted, created_by)
+          VALUES (${prospect_id}, ${name.trim()}, ${role || null}, ${email || null}, ${phone || null},
+                  ${notes || null}, ${source || null}, ${last_contacted || null}, ${created_by || null})
+          RETURNING *
+        `
+
+        // Activity log entry on add/delete only — edits don't log (same
+        // anti-noise rule as tasks). Does NOT touch suggested_next_step.
+        await sql`
+          INSERT INTO prospect_activity_log (prospect_id, entry_text, created_by)
+          VALUES (${prospect_id}, ${'Contact added: ' + contact.name + (contact.role ? ` (${contact.role})` : '')}, ${created_by || 'Unknown'})
+        `
+
+        return res.status(201).json(contact)
+      } catch (error) {
+        console.error('Error creating contact:', error)
         return res.status(500).json({ error: error.message })
       }
     }
@@ -3789,6 +3893,48 @@ export default async function handler(req, res) {
         return res.status(200).json(updated)
       } catch (error) {
         console.error('Error updating task:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Contacts (QA audit E5): update fields ───
+    if (action === 'contacts') {
+      try {
+        const { contact_id } = req.query
+        if (!contact_id) {
+          return res.status(400).json({ error: 'contact_id query param is required for PATCH ?action=contacts' })
+        }
+        const { name, role, email, phone, notes, source, last_contacted } = req.body
+        if (name !== undefined && !String(name).trim()) {
+          return res.status(400).json({ error: 'name cannot be empty' })
+        }
+
+        await ensureProspectSchemaAdditions(sql)
+        const setClauses = []
+        const params = []
+        if (name !== undefined) { params.push(String(name).trim()); setClauses.push(`name = $${params.length}`) }
+        if (role !== undefined) { params.push(role || null); setClauses.push(`role = $${params.length}`) }
+        if (email !== undefined) { params.push(email || null); setClauses.push(`email = $${params.length}`) }
+        if (phone !== undefined) { params.push(phone || null); setClauses.push(`phone = $${params.length}`) }
+        if (notes !== undefined) { params.push(notes || null); setClauses.push(`notes = $${params.length}`) }
+        if (source !== undefined) { params.push(source || null); setClauses.push(`source = $${params.length}`) }
+        if (last_contacted !== undefined) { params.push(last_contacted || null); setClauses.push(`last_contacted = $${params.length}`) }
+
+        if (setClauses.length === 0) {
+          return res.status(400).json({ error: 'No fields to update' })
+        }
+
+        params.push(contact_id)
+        const updated = await sql.query(
+          `UPDATE prospect_contacts SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${params.length} RETURNING *`,
+          params
+        )
+        if (!updated || updated.length === 0) {
+          return res.status(404).json({ error: 'Contact not found' })
+        }
+        return res.status(200).json(updated[0])
+      } catch (error) {
+        console.error('Error updating contact:', error)
         return res.status(500).json({ error: error.message })
       }
     }
