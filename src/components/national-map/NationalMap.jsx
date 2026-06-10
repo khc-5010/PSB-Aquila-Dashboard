@@ -7,6 +7,7 @@ import StateDetailPanel from './StateDetailPanel'
 import { getMetricValue } from './USMap'
 import { US_STATES } from '../../data/us-states'
 import { STATE_TO_CORRIDOR } from '../../data/corridors'
+import { authFetch } from "../../context/AuthContext"
 
 const ORIENTATION_KEY = 'national-map-orientation-dismissed'
 const CORRIDORS_KEY = 'national-map-corridors-visible'
@@ -155,7 +156,7 @@ function NationalMap() {
   })
 
   function fetchReportMeta() {
-    fetch('/api/prospects?action=state-reports')
+    authFetch('/api/prospects?action=state-reports')
       .then(res => res.ok ? res.json() : [])
       .then(reports => {
         const lookup = {}
@@ -169,12 +170,12 @@ function NationalMap() {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      fetch('/api/prospects?action=state-stats').then(res => {
+      authFetch('/api/prospects?action=state-stats').then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
       }),
-      fetch('/api/prospects?action=state-reports').then(res => res.ok ? res.json() : []),
-      fetch('/api/prospects?action=ontology-density-by-state').then(res => res.ok ? res.json() : {}),
+      authFetch('/api/prospects?action=state-reports').then(res => res.ok ? res.json() : []),
+      authFetch('/api/prospects?action=ontology-density-by-state').then(res => res.ok ? res.json() : {}),
     ])
       .then(([statsData, reports, ontDensity]) => {
         const { _totals, ...states } = statsData

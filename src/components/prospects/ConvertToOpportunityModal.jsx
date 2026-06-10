@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { PROJECT_TYPES } from '../../constants/pipeline'
 
 function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
@@ -17,14 +17,13 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
     notes: '',
   })
 
-  // Fetch users for owner dropdown
+  // Fetch teammates for the owner dropdown. team-members works for any
+  // authenticated user (list-users is admin-only and 401'd for members,
+  // which left this dropdown permanently empty). Returns active users only.
   useEffect(() => {
-    fetch('/api/auth?action=list-users')
+    authFetch('/api/auth?action=team-members')
       .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        const active = (Array.isArray(data) ? data : []).filter(u => u.is_active)
-        setUsers(active)
-      })
+      .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [])
 
@@ -48,7 +47,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
 
     try {
       // 1. Create opportunity
-      const oppRes = await fetch('/api/opportunities', {
+      const oppRes = await authFetch('/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -69,30 +68,46 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
         throw new Error(data.error || 'Failed to create opportunity')
       }
 
+      const warnings = []
+
       // 2. Update prospect status to Converted (only if not already)
       if (prospect.prospect_status !== 'Converted') {
-        await fetch(`/api/prospects?id=${prospect.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prospect_status: 'Converted',
-            last_edited_by: user?.name || 'Unknown',
-          }),
-        })
+        try {
+          const statusRes = await authFetch(`/api/prospects?id=${prospect.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prospect_status: 'Converted',
+              last_edited_by: user?.name || 'Unknown',
+            }),
+          })
+          if (!statusRes.ok) warnings.push('prospect status was not set to Converted')
+        } catch {
+          warnings.push('prospect status was not set to Converted')
+        }
       }
 
       // 3. Log initial stage transition
       const opp = await oppRes.json()
-      await fetch('/api/stage-transitions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          opportunity_id: opp.id,
-          from_stage: null,
-          to_stage: 'channel_routing',
-          transitioned_by: user?.name || 'system',
-        }),
-      })
+      try {
+        const logRes = await authFetch('/api/stage-transitions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            opportunity_id: opp.id,
+            from_stage: null,
+            to_stage: 'channel_routing',
+            transitioned_by: user?.name || 'system',
+          }),
+        })
+        if (!logRes.ok) warnings.push('the initial stage transition was not logged')
+      } catch {
+        warnings.push('the initial stage transition was not logged')
+      }
+
+      if (warnings.length > 0) {
+        window.alert(`Opportunity created, but ${warnings.join(' and ')}.`)
+      }
 
       onSuccess?.(opp)
       onClose()
@@ -162,7 +177,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
               >
                 <option value="">Select owner...</option>
                 {users.map(u => (
-                  <option key={u.id} value={u.name}>{u.name}</option>
+                  <option key={u.name} value={u.name}>{u.name}</option>
                 ))}
               </select>
             </div>

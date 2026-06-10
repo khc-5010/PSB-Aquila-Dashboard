@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { useAuth } from './context/AuthContext'
+import { useAuth, authFetch } from './context/AuthContext'
 import LoginScreen from './components/auth/LoginScreen'
 import OpportunityCard from './components/pipeline/OpportunityCard'
 import DroppableColumn from './components/pipeline/DroppableColumn'
@@ -68,24 +68,28 @@ function App() {
     ? opportunities.find(o => o.id === activeId)
     : null
 
-  // Fetch users for owner display
+  // Fetch team members for owner display. team-members (any authenticated
+  // user) replaces the old admin-only list-users call, which silently 401'd
+  // for everyone and left all owner avatars gray.
   useEffect(() => {
-    fetch('/api/auth?action=list-users')
+    if (!user) return
+    authFetch('/api/auth?action=team-members')
       .then(r => r.ok ? r.json() : [])
-      .then(data => setUsers(Array.isArray(data) ? data.filter(u => u.is_active) : []))
+      .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(() => {})
-  }, [])
+  }, [user])
 
-  // Fetch opportunities
+  // Fetch opportunities (requires an authenticated session)
   const fetchOpportunities = useCallback(() => {
     setLoading(true)
-    fetch('/api/opportunities')
+    authFetch('/api/opportunities')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
       })
       .then(data => {
         setOpportunities(data)
+        setError(null)
         setLoading(false)
       })
       .catch(err => {
@@ -96,8 +100,9 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!user) return
     fetchOpportunities()
-  }, [fetchOpportunities])
+  }, [user, fetchOpportunities])
 
   // Group opportunities by stage using PIPELINE_STAGES keys
   const opportunitiesByStage = PIPELINE_STAGES.reduce((acc, stage) => {
@@ -137,7 +142,15 @@ function App() {
     if (!over) return
 
     const opportunityId = active.id
-    const newStage = over.id
+
+    // over.id is only a stage key when dropping on empty column space — cards
+    // are themselves droppable targets, so dropping on/near another card
+    // yields that card's UUID. Resolve to the target card's stage in that
+    // case, and never PATCH anything that isn't a valid stage key.
+    const stageKeys = PIPELINE_STAGES.map(s => s.key)
+    const overOpportunity = opportunities.find(o => o.id === over.id)
+    const newStage = stageKeys.includes(over.id) ? over.id : overOpportunity?.stage
+    if (!newStage || !stageKeys.includes(newStage)) return
 
     const opportunity = opportunities.find(o => o.id === opportunityId)
     if (!opportunity || opportunity.stage === newStage) return
@@ -150,16 +163,28 @@ function App() {
     )
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage }),
       })
 
       if (!res.ok) throw new Error('Failed to update')
+    } catch (error) {
+      // Revert on failure
+      console.error('Failed to update stage:', error)
+      setOpportunities(prev =>
+        prev.map(o =>
+          o.id === opportunityId ? { ...o, stage: opportunity.stage } : o
+        )
+      )
+      return
+    }
 
-      // Log the stage transition
-      await fetch('/api/stage-transitions', {
+    // Log the stage transition — outside the try/catch above so a failed log
+    // never reverts a stage move that already committed.
+    try {
+      const logRes = await authFetch('/api/stage-transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -169,14 +194,9 @@ function App() {
           transitioned_by: user?.name || 'user',
         }),
       })
+      if (!logRes.ok) console.error('Stage transition log failed:', logRes.status)
     } catch (error) {
-      // Revert on failure
-      console.error('Failed to update stage:', error)
-      setOpportunities(prev =>
-        prev.map(o =>
-          o.id === opportunityId ? { ...o, stage: opportunity.stage } : o
-        )
-      )
+      console.error('Stage transition log failed:', error)
     }
   }
 
@@ -191,14 +211,14 @@ function App() {
 
     try {
       // Delete the opportunity
-      const res = await fetch(`/api/opportunities?id=${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities?id=${opportunity.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to delete opportunity')
 
       // If it came from a prospect, set status to Nurture
       if (opportunity.source_prospect_id) {
-        await fetch(`/api/prospects?id=${opportunity.source_prospect_id}`, {
+        const prospectRes = await authFetch(`/api/prospects?id=${opportunity.source_prospect_id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -206,6 +226,9 @@ function App() {
             last_edited_by: user?.name || 'Unknown',
           }),
         })
+        if (!prospectRes.ok) {
+          window.alert('Opportunity removed, but the prospect status could not be set to Nurture. Update it manually from the Prospects tab.')
+        }
       }
     } catch (error) {
       console.error('No Fit action failed:', error)

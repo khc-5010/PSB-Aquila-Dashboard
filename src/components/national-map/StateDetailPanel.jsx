@@ -3,6 +3,7 @@ import StateReportSection from './StateReportSection'
 import StateReportModal from './StateReportModal'
 import StatePromptBuilderModal from './StatePromptBuilderModal'
 import OntologySummary from './OntologySummary'
+import { authFetch } from "../../context/AuthContext"
 
 function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, onReportChanged }) {
   const [report, setReport] = useState(null)
@@ -15,7 +16,7 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
     if (!stateId) return
     setReportLoading(true)
     setReport(null)
-    fetch(`/api/prospects?action=state-report&state=${stateId}`)
+    authFetch(`/api/prospects?action=state-report&state=${stateId}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => { setReport(data); setReportLoading(false) })
       .catch(() => setReportLoading(false))
@@ -23,7 +24,7 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
 
   function handleReportSaved() {
     // Re-fetch the report
-    fetch(`/api/prospects?action=state-report&state=${stateId}`)
+    authFetch(`/api/prospects?action=state-report&state=${stateId}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => setReport(data))
     // Notify parent to refresh freshness data

@@ -43,7 +43,7 @@ export default function TasksView({ onOpenProspect, onTasksChanged }) {
       if (assigneeFilter === 'me' && user?.name) {
         params.set('current_user', user.name)
       }
-      const res = await fetch(`/api/prospects?${params.toString()}`)
+      const res = await authFetch(`/api/prospects?${params.toString()}`)
       if (!res.ok) throw new Error('Failed to load tasks')
       const data = await res.json()
       setTasks(Array.isArray(data) ? data : [])
@@ -59,7 +59,7 @@ export default function TasksView({ onOpenProspect, onTasksChanged }) {
   }, [fetchTasks])
 
   const handleUpdate = async (taskId, fields) => {
-    const res = await fetch(`/api/prospects?action=tasks&task_id=${taskId}`, {
+    const res = await authFetch(`/api/prospects?action=tasks&task_id=${taskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...fields, updated_by: user?.name || 'Unknown' }),
@@ -74,7 +74,7 @@ export default function TasksView({ onOpenProspect, onTasksChanged }) {
   }
 
   const handleDelete = async (taskId) => {
-    const res = await fetch(`/api/prospects?action=tasks&task_id=${taskId}&deleted_by=${encodeURIComponent(user?.name || 'Unknown')}`, {
+    const res = await authFetch(`/api/prospects?action=tasks&task_id=${taskId}&deleted_by=${encodeURIComponent(user?.name || 'Unknown')}`, {
       method: 'DELETE',
     })
     if (!res.ok) {

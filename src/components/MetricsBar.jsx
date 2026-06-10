@@ -20,16 +20,19 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
   // Total Pipeline: count of non-complete opportunities
   const totalPipeline = opportunities.filter(opp => opp.stage !== 'complete').length
 
-  // Est. Value: sum of est_value for non-complete opportunities
+  // Est. Value: sum of est_value for non-complete opportunities.
+  // NUMERIC columns arrive as strings from the API — parseFloat prevents
+  // string concatenation ("0" + "50000" = "050000").
   const estValue = opportunities
     .filter(opp => opp.stage !== 'complete')
-    .reduce((sum, opp) => sum + (opp.est_value || 0), 0)
+    .reduce((sum, opp) => sum + (parseFloat(opp.est_value) || 0), 0)
 
-  // Need Action: opportunities with next_action set AND in early pipeline stages
+  // Need Action: opportunities with next_action set AND in pre-active stages.
+  // Stage set must match ActionSummaryModal so the count equals the modal list.
   const needAction = opportunities.filter(opp =>
     opp.next_action &&
     opp.next_action.trim() !== '' &&
-    (opp.stage === 'channel_routing' || opp.stage === 'client_readiness')
+    ['channel_routing', 'client_readiness', 'project_setup'].includes(opp.stage)
   ).length
 
   // Active Projects: count where stage is 'active'

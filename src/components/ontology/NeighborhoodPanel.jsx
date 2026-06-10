@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ExternalLink } from 'lucide-react'
 import ForceGraph, { ENTITY_COLORS } from './ForceGraph'
 import InfoTooltip from '../national-map/InfoTooltip'
+import { authFetch } from "../../context/AuthContext"
 
 const MAX_VISIBLE_NODES = 15
 
@@ -34,7 +35,7 @@ export default function NeighborhoodPanel({ prospect }) {
 
       try {
         // Step 1: Check if company has ontology data via similar endpoint
-        const similarRes = await fetch(
+        const similarRes = await authFetch(
           `${apiBase}/api/prospects?action=ontology-similar&prospect_id=${prospectId}&limit=1`
         )
         if (!similarRes.ok) {
@@ -46,7 +47,7 @@ export default function NeighborhoodPanel({ prospect }) {
         }
 
         // Step 2: Get the graph to find a super-node connected to our company
-        const graphRes = await fetch(`${apiBase}/api/prospects?action=ontology-graph`)
+        const graphRes = await authFetch(`${apiBase}/api/prospects?action=ontology-graph`)
         if (!graphRes.ok) throw new Error(`Graph HTTP ${graphRes.status}`)
         const graph = await graphRes.json()
 
@@ -93,7 +94,7 @@ export default function NeighborhoodPanel({ prospect }) {
         }
 
         // Step 3: Fetch probe node's neighborhood to find our company's entity_id
-        const probeRes = await fetch(
+        const probeRes = await authFetch(
           `${apiBase}/api/prospects?action=ontology-neighborhood&entity_id=${probeNode.entityId}`
         )
         if (!probeRes.ok) throw new Error(`Probe HTTP ${probeRes.status}`)
@@ -111,7 +112,7 @@ export default function NeighborhoodPanel({ prospect }) {
         const companyEntityId = companyNode.id
 
         // Step 4: Fetch the actual company neighborhood
-        const hoodRes = await fetch(
+        const hoodRes = await authFetch(
           `${apiBase}/api/prospects?action=ontology-neighborhood&entity_id=${companyEntityId}`
         )
         if (!hoodRes.ok) throw new Error(`Neighborhood HTTP ${hoodRes.status}`)

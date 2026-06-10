@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
 import { getProjectTypeLabel } from '../constants/options'
+import { authFetch } from "../context/AuthContext"
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -77,7 +78,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     if (!opportunity?.id) return
     setLoadingActivities(true)
     try {
-      const res = await fetch(`/api/activities?opportunity_id=${opportunity.id}`)
+      const res = await authFetch(`/api/activities?opportunity_id=${opportunity.id}`)
       const data = res.ok ? await res.json() : []
       setActivities(Array.isArray(data) ? data : [])
     } catch {
@@ -97,7 +98,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     if (!opportunity?.id) return
     setAlertsLoading(true)
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}?action=alerts`)
+      const res = await authFetch(`/api/opportunities/${opportunity.id}?action=alerts`)
       const data = res.ok ? await res.json() : { alerts: [] }
       setAlerts(data.alerts || [])
     } catch (err) {
@@ -121,7 +122,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       const url = fetchAll
         ? `/api/key-dates?opportunityId=${opportunity.id}&all=true`
         : `/api/key-dates?opportunityId=${opportunity.id}`
-      const res = await fetch(url)
+      const res = await authFetch(url)
       const data = res.ok ? await res.json() : { dates: [], hasMore: false, totalCount: 0 }
       setKeyDates(data.dates || [])
       setHasMoreDates(data.hasMore || false)
@@ -145,7 +146,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Handle dismiss alert
   const handleDismissAlert = async (ruleId) => {
     try {
-      await fetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
+      await authFetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dismissed_by: 'kyle' }) // TODO: get from auth context
@@ -257,7 +258,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     setSubmitError('')
 
     try {
-      const res = await fetch('/api/activities', {
+      const res = await authFetch('/api/activities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -303,7 +304,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     setIsEditingNextAction(false)
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ next_action: trimmedValue || null }),
@@ -352,7 +353,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     }
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -365,7 +366,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       if (!res.ok) throw new Error('Failed to update outcome')
 
       // Log the stage transition
-      await fetch('/api/stage-transitions', {
+      await authFetch('/api/stage-transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

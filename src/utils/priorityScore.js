@@ -16,6 +16,16 @@ function isExempt(prospect) {
   return false
 }
 
+// PE ownership detection. Accepts any case; matches the dropdown preset
+// 'PE-Backed' as well as legacy free-text like 'Private Equity (Sponsor)'.
+// Word-boundary regex so 'Cooperative' (contains "pe") does not match.
+// SYNC: Keep in sync with isPeOwnership() in api/prospects.js
+export function isPeOwnership(ownershipValue) {
+  if (!ownershipValue) return false
+  const o = String(ownershipValue).toLowerCase()
+  return o.includes('private equity') || /\bpe\b/.test(o)
+}
+
 function calculatePriorityScore(p) {
   if (isExempt(p)) return null
 
@@ -50,9 +60,9 @@ function calculatePriorityScore(p) {
   const ownership = (p.ownership_type || '').toLowerCase()
   const recentMa = (p.recent_ma || '').toLowerCase()
   const yearsInBiz = p.years_in_business ?? 0
-  if (ownership.includes('private equity') && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
+  if (isPeOwnership(ownership) && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
     breakdown.urgency = 15
-  } else if (ownership.includes('private equity')) {
+  } else if (isPeOwnership(ownership)) {
     breakdown.urgency = 10
   } else if (ownership.includes('family') && yearsInBiz >= 30) {
     breakdown.urgency = 8

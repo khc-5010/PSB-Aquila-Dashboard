@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
@@ -72,9 +72,10 @@ const STATE_TO_CORRIDOR = {
   'PA': 'Northeast Tool', 'NY': 'Northeast Tool', 'CT': 'Northeast Tool',
   'NJ': 'Northeast Tool', 'MA': 'Northeast Tool', 'NH': 'Northeast Tool',
   'VT': 'Northeast Tool', 'ME': 'Northeast Tool', 'RI': 'Northeast Tool', 'DC': 'Northeast Tool',
+  'DE': 'Northeast Tool', 'MD': 'Northeast Tool',
   'NC': 'Southeast Growth', 'GA': 'Southeast Growth', 'FL': 'Southeast Growth',
   'TN': 'Southeast Growth', 'SC': 'Southeast Growth', 'VA': 'Southeast Growth',
-  'AL': 'Southeast Growth', 'MS': 'Southeast Growth', 'KY': 'Southeast Growth',
+  'AL': 'Southeast Growth', 'MS': 'Southeast Growth', 'KY': 'Southeast Growth', 'WV': 'Southeast Growth',
   'TX': 'Gulf / Resin Belt', 'LA': 'Gulf / Resin Belt', 'OK': 'Gulf / Resin Belt', 'AR': 'Gulf / Resin Belt',
   'MN': 'Upper Midwest Medical',
   'CA': 'West Coast', 'OR': 'West Coast', 'WA': 'West Coast',
@@ -575,7 +576,7 @@ function ProspectTable() {
 
   // Fetch prospects
   useEffect(() => {
-    fetch('/api/prospects')
+    authFetch('/api/prospects')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -601,7 +602,7 @@ function ProspectTable() {
           action: 'tasks', format: 'count', assignee: 'me',
           current_user: user.name, status: 'open',
         })
-        const badgeRes = await fetch(`/api/prospects?${badgeParams.toString()}`)
+        const badgeRes = await authFetch(`/api/prospects?${badgeParams.toString()}`)
         if (badgeRes.ok) {
           const { count } = await badgeRes.json()
           setTaskBadgeCount(count || 0)
@@ -609,7 +610,7 @@ function ProspectTable() {
       }
 
       // 2) Per-prospect open task counts (drives the Tasks column).
-      const listRes = await fetch('/api/prospects?action=tasks&assignee=all&status=open')
+      const listRes = await authFetch('/api/prospects?action=tasks&assignee=all&status=open')
       if (listRes.ok) {
         const tasks = await listRes.json()
         const map = new Map()
@@ -647,7 +648,7 @@ function ProspectTable() {
     }
 
     try {
-      const res = await fetch(`/api/prospects?id=${id}`, {
+      const res = await authFetch(`/api/prospects?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value, last_edited_by: editedBy }),
@@ -659,13 +660,13 @@ function ProspectTable() {
     } catch (err) {
       console.error('Update failed:', err)
       // Revert — refetch
-      fetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
+      authFetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
     }
   }, [selectedProspect, user])
 
   const refreshProspects = useCallback(() => {
     setLoading(true)
-    fetch('/api/prospects')
+    authFetch('/api/prospects')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()

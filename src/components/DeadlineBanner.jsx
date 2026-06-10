@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { authFetch } from '../context/AuthContext'
 
 function DeadlineBanner() {
   const [deadlines, setDeadlines] = useState([])
@@ -7,7 +8,7 @@ function DeadlineBanner() {
   const [showEvents, setShowEvents] = useState(false)
 
   useEffect(() => {
-    fetch('/api/key-dates')
+    authFetch('/api/key-dates')
       .then(res => res.json())
       .then(data => {
         // Only show deadlines that are yellow, red, or active urgency
@@ -27,8 +28,13 @@ function DeadlineBanner() {
   }
 
   const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    // calculated_date is a YYYY-MM-DD string — new Date(str) would parse it as
+    // UTC midnight and render the previous day in US timezones (the Aug 15
+    // Senior Design deadline showed as Aug 14). Parse components as local.
+    if (!dateStr) return ''
+    const [y, m, d] = String(dateStr).split('T')[0].split('-').map(Number)
+    if (!y || !m || !d) return ''
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
   const urgencyStyles = {

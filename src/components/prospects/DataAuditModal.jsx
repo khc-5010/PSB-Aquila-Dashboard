@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, AlertTriangle, XCircle, Info, CheckCircle, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import { authFetch } from "../../context/AuthContext"
 
 const SEVERITY_CONFIG = {
   critical: { icon: XCircle, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', label: 'Critical', dot: 'bg-red-500' },
@@ -30,7 +31,7 @@ export default function DataAuditModal({ onClose }) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/prospects?action=data-audit')
+      const res = await authFetch('/api/prospects?action=data-audit')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const result = await res.json()
       cacheRef.current = result

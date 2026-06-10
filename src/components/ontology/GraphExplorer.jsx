@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ArrowLeft, Search, X, AlertTriangle } from 'lucide-react'
 import ForceGraph, { ENTITY_COLORS } from './ForceGraph'
+import { authFetch } from "../../context/AuthContext"
 
 const TYPE_FILTERS = [
   { key: 'all', label: 'All' },
@@ -41,7 +42,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
           entity_id: initialCompanyId,
         })
         if (stateFilter) params.set('state', stateFilter)
-        const res = await fetch(`${apiBase}/api/prospects?${params}`)
+        const res = await authFetch(`${apiBase}/api/prospects?${params}`)
         if (!res.ok) return
         const data = await res.json()
         const rootNode = data.nodes?.find(n => n.id === initialCompanyId)
@@ -95,7 +96,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
         entity_id: node.entityId || node.id,
       })
       if (stateFilter) params.set('state', stateFilter)
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setNeighborhoodData(data)

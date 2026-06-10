@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { ENTITY_COLORS } from './ForceGraph'
 import QueryResults from './QueryResults'
+import { authFetch } from "../../context/AuthContext"
 
 const FILTER_SECTIONS = [
   { key: 'certifications', label: 'Certifications', type: 'Certification', param: 'certifications' },
@@ -67,7 +68,7 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
       }
       if (stateFilter) params.set('state', stateFilter)
 
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setResults(data)
@@ -92,7 +93,7 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
         action: 'ontology-similar',
         prospect_id: prospectId,
       })
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setSimilarData({ ...data, sourceCompany: companyName })

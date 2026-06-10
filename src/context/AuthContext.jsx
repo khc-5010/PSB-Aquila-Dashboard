@@ -9,7 +9,16 @@ function authFetch(url, options = {}) {
   const headers = { ...options.headers }
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json'
-  return fetch(url, { ...options, headers })
+  return fetch(url, { ...options, headers }).then(res => {
+    // A 401 from a data endpoint means the session is dead (PIN reset,
+    // deactivation, deleted session) — broadcast so AuthProvider can log out.
+    // /api/auth is excluded: e.g. change-pin legitimately 401s on a wrong
+    // current PIN without the session being invalid.
+    if (res.status === 401 && !String(url).includes('/api/auth')) {
+      window.dispatchEvent(new Event('auth:unauthorized'))
+    }
+    return res
+  })
 }
 
 export function AuthProvider({ children }) {
@@ -28,20 +37,41 @@ export function AuthProvider({ children }) {
     fetch('/api/auth?action=validate', {
       headers: { 'Authorization': `Bearer ${token}` },
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.valid && data.user) {
-          setUser(data.user)
-        } else {
+      .then(async res => {
+        if (res.ok) {
+          const data = await res.json()
+          if (data.valid && data.user) {
+            setUser(data.user)
+            setLoading(false)
+            return
+          }
+        }
+        if (res.status === 401) {
+          // Explicitly invalid session — discard the token
           localStorage.removeItem(TOKEN_KEY)
           setSessionError('Session expired, please sign in again.')
+        } else {
+          // Server error — keep the token so a reload can retry validation
+          setSessionError('Could not verify your session. Check your connection and reload.')
         }
         setLoading(false)
       })
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY)
+        // Network failure — do NOT delete the token; the session may be fine
+        setSessionError('Could not verify your session. Check your connection and reload.')
         setLoading(false)
       })
+  }, [])
+
+  // Force logout when any data API reports a dead session (see authFetch)
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem(TOKEN_KEY)
+      setUser(null)
+      setSessionError('Session expired, please sign in again.')
+    }
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized)
   }, [])
 
   const login = useCallback(async (email, pin) => {

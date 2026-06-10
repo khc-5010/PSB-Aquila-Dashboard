@@ -12,18 +12,20 @@ function Header({ activeView, onViewChange }) {
   const [showDigestPrefs, setShowDigestPrefs] = useState(false)
   const [teamUsers, setTeamUsers] = useState([])
 
-  // Fetch active team members for avatar display
+  // Fetch active team members for avatar display. team-members works for any
+  // authenticated user — previously this was admin-gated list-users, so only
+  // Kyle ever saw the teammate avatar cluster.
   useEffect(() => {
-    if (user?.role === 'admin') {
-      authFetch('/api/auth?action=list-users')
-        .then(res => res.ok ? res.json() : [])
-        .then(data => setTeamUsers(data.filter(u => u.is_active)))
-        .catch(() => {})
-    }
+    if (!user) return
+    authFetch('/api/auth?action=team-members')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setTeamUsers(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [user, authFetch])
 
-  // Other active users (not the current user)
-  const otherUsers = teamUsers.filter(u => u.id !== user?.id)
+  // Other active users (not the current user). team-members returns only
+  // display fields, so compare by name.
+  const otherUsers = teamUsers.filter(u => u.name !== user?.name)
 
   return (
     <>

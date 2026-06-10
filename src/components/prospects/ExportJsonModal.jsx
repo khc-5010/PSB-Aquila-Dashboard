@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { downloadJson, copyText, formatBytes, companySlug } from '../../utils/exportProspect'
+import { authFetch } from "../../context/AuthContext"
 
 // Preview + copy/download the full JSON export for one company. Fetches the
 // server-assembled payload (GET /api/prospects?action=export-json&id=X), which
@@ -20,7 +21,7 @@ export default function ExportJsonModal({ prospect, onClose }) {
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/prospects?action=export-json&id=${prospect.id}`)
+        const res = await authFetch(`/api/prospects?action=export-json&id=${prospect.id}`)
         if (!res.ok) {
           const body = await res.json().catch(() => ({}))
           throw new Error(body.error || `Export failed (${res.status})`)

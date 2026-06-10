@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { authFetch } from "../../context/AuthContext"
 
 let templateCache = null
 
@@ -39,7 +40,7 @@ export default function ExtractionPromptModal({ prospect, attachment, onClose })
 
   async function fetchExistingEntities() {
     try {
-      const res = await fetch('/api/prospects?action=ontology-existing-entities')
+      const res = await authFetch('/api/prospects?action=ontology-existing-entities')
       if (!res.ok) return {}
       return await res.json()
     } catch {

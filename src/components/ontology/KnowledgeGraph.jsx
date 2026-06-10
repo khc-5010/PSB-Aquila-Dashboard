@@ -3,6 +3,7 @@ import InfoTooltip from '../national-map/InfoTooltip'
 import QueryPanel from './QueryPanel'
 import GraphExplorer from './GraphExplorer'
 import { ENTITY_COLORS } from './ForceGraph'
+import { authFetch } from "../../context/AuthContext"
 
 const VIEW_MODES = [
   { key: 'split', label: 'Query + Graph' },
@@ -41,7 +42,7 @@ export default function KnowledgeGraph() {
     try {
       const params = new URLSearchParams({ action: 'ontology-graph' })
       if (state) params.set('state', state)
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setGraphData(data)

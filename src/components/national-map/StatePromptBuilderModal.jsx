@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { STATE_ABBR_TO_NAME } from '../../data/us-states'
 
 let templateCache = null
@@ -61,7 +61,7 @@ export default function StatePromptBuilderModal({ stateCode, stateName, onClose 
 
   // Fetch prospects for exclusion list
   useEffect(() => {
-    fetch('/api/prospects')
+    authFetch('/api/prospects')
       .then(res => res.ok ? res.json() : [])
       .then(data => setProspects(Array.isArray(data) ? data : []))
       .catch(() => setProspects([]))

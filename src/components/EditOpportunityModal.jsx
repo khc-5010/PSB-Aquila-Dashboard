@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PROJECT_TYPES, STAGES, OWNERS } from '../constants/options'
+import { authFetch } from "../context/AuthContext"
 
 function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
   const [formData, setFormData] = useState({
@@ -59,9 +60,8 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       }
 
       const url = `/api/opportunities/${opportunity.id}`
-      console.log('Saving to:', url, 'payload:', payload)
-
-      const res = await fetch(url, {
+      
+      const res = await authFetch(url, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
