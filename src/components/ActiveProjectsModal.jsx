@@ -11,18 +11,17 @@ const formatValue = (value) => {
 }
 
 /**
- * Get owner badge color
+ * Owner badge style from the live team list (replaces the hardcoded
+ * Kyle/Duane/Steve class map that left Brett — and any future user — gray).
+ * Hex + alpha suffixes derive a pastel tint from the user's canonical color.
  */
-const getOwnerColor = (owner) => {
-  const colors = {
-    Kyle: 'bg-purple-100 text-purple-700 border-purple-200',
-    Duane: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    Steve: 'bg-amber-100 text-amber-700 border-amber-200',
-  }
-  return colors[owner] || 'bg-gray-100 text-gray-700 border-gray-200'
+const getOwnerBadgeStyle = (owner, users) => {
+  const color = users.find(u => u.name === owner)?.color
+  if (!color) return { backgroundColor: '#F3F4F6', color: '#374151', borderColor: '#E5E7EB' }
+  return { backgroundColor: `${color}1A`, color, borderColor: `${color}40` }
 }
 
-function ActiveProjectsModal({ opportunities, onClose, onSelectOpportunity }) {
+function ActiveProjectsModal({ opportunities, onClose, onSelectOpportunity, users = [] }) {
   // Filter opportunities where stage is 'active'
   const activeOpps = opportunities.filter(opp => opp.stage === 'active')
 
@@ -82,7 +81,10 @@ function ActiveProjectsModal({ opportunities, onClose, onSelectOpportunity }) {
                         </span>
                       )}
                       {opp.owner && (
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getOwnerColor(opp.owner)}`}>
+                        <span
+                          className="px-2 py-0.5 text-xs font-medium rounded-full border"
+                          style={getOwnerBadgeStyle(opp.owner, users)}
+                        >
                           {opp.owner}
                         </span>
                       )}

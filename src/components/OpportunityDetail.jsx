@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
 import { getProjectTypeLabel } from '../constants/options'
 import { useAuth, authFetch } from '../context/AuthContext'
+import { parseLocalDate } from './prospects/tasks/taskUtils'
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -39,7 +40,7 @@ const alertStyles = {
   }
 }
 
-function OpportunityDetail({ opportunity, onClose, onUpdate }) {
+function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
   const { user } = useAuth()
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
@@ -229,13 +230,9 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       .slice(0, 2)
   }
 
-  // Owner color mapping
-  const ownerColors = {
-    Kyle: 'bg-[#7C3AED] text-white',
-    Duane: 'bg-[#0891B2] text-white',
-    Steve: 'bg-[#D97706] text-white',
-  }
-  const getOwnerColorClass = (name) => ownerColors[name] || 'bg-indigo-100 text-indigo-700'
+  // Owner avatar color from the live team list (replaces the hardcoded
+  // Kyle/Duane/Steve map that left Brett — and any future user — on a fallback)
+  const getOwnerColor = (name) => users.find(u => u.name === name)?.color || '#6B7280'
 
   // Derive contacts from owner (MVP - simplified)
   const getContacts = () => {
@@ -721,13 +718,13 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className={`font-medium ${color.text}`}>
-                                  {new Date(date.calculated_date).toLocaleDateString('en-US', {
+                                  {parseLocalDate(date.calculated_date)?.toLocaleDateString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
                                     year: 'numeric'
                                   })}
                                   {date.calculated_end_date && (
-                                    <> - {new Date(date.calculated_end_date).toLocaleDateString('en-US', {
+                                    <> - {parseLocalDate(date.calculated_end_date)?.toLocaleDateString('en-US', {
                                       month: 'short',
                                       day: 'numeric'
                                     })}</>
@@ -755,7 +752,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                             </div>
                             <div className="text-right">
                               <span className={`text-sm font-bold ${color.text}`}>
-                                {date.is_active ? 'NOW' : date.days_until > 0 ? `${date.days_until}d` : 'Past'}
+                                {date.is_active ? 'NOW' : date.days_until > 0 ? `${date.days_until}d` : date.days_until === 0 ? 'Today' : 'Past'}
                               </span>
                             </div>
                           </div>
@@ -834,7 +831,10 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`flex-shrink-0 w-8 h-8 rounded-full ${getOwnerColorClass(contacts.aquilaLead)} text-xs font-medium flex items-center justify-center`}>
+                <span
+                  className="flex-shrink-0 w-8 h-8 rounded-full text-white text-xs font-medium flex items-center justify-center"
+                  style={{ backgroundColor: getOwnerColor(contacts.aquilaLead) }}
+                >
                   {getInitials(contacts.aquilaLead)}
                 </span>
                 <div className="min-w-0">

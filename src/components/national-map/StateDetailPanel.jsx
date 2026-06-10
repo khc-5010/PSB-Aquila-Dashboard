@@ -83,17 +83,21 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
-          {!hasData ? (
-            <div className="p-8 text-center">
+          {/* Zero-prospect states still get the research section below — they're
+              exactly the states the research workflow targets, and an existing
+              report must stay reachable even if its prospects were removed. */}
+          {!hasData && (
+            <div className="p-8 pb-6 text-center border-b border-gray-100">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                 </svg>
               </div>
               <h3 className="text-sm font-semibold text-gray-700 mb-1">No prospects in {stateName}</h3>
-              <p className="text-sm text-gray-500">This state hasn't been covered in research sweeps yet.</p>
+              <p className="text-sm text-gray-500">This state hasn't been covered in research sweeps yet — run state research below to start coverage.</p>
             </div>
-          ) : (
+          )}
+          {hasData && (
             <>
               {/* Summary Stats */}
               <div className="px-5 py-4 border-b border-gray-100">
@@ -195,32 +199,35 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
                 </div>
               )}
 
-              {/* State Research Report */}
-              {reportLoading ? (
-                <div className="px-5 py-4 border-b border-gray-100">
-                  <p className="text-xs text-gray-400 mb-1">Comprehensive market research for this state's plastics manufacturing landscape</p>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Research Report</h3>
-                  <div className="flex items-center justify-center py-6">
-                    <div className="w-5 h-5 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin" />
-                  </div>
-                </div>
-              ) : (
-                <StateReportSection
-                  stateCode={stateId}
-                  stateName={stateName}
-                  report={report}
-                  currentProspectCount={data?.prospect_count || 0}
-                  onReportSaved={handleReportSaved}
-                  onOpenPromptBuilder={() => setShowPromptBuilder(true)}
-                  onOpenFullReport={report ? () => setShowReportModal(true) : undefined}
-                />
-              )}
-
-              {/* Ontology Summary */}
-              <div className="border-t border-gray-100">
-                <OntologySummary stateCode={stateId} ontologyDensity={ontologyDensity} />
-              </div>
             </>
+          )}
+
+          {/* State Research Report — rendered for ALL states, with or without prospects */}
+          {reportLoading ? (
+            <div className="px-5 py-4 border-b border-gray-100">
+              <p className="text-xs text-gray-400 mb-1">Comprehensive market research for this state's plastics manufacturing landscape</p>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Research Report</h3>
+              <div className="flex items-center justify-center py-6">
+                <div className="w-5 h-5 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin" />
+              </div>
+            </div>
+          ) : (
+            <StateReportSection
+              stateCode={stateId}
+              stateName={stateName}
+              report={report}
+              currentProspectCount={data?.prospect_count || 0}
+              onReportSaved={handleReportSaved}
+              onOpenPromptBuilder={() => setShowPromptBuilder(true)}
+              onOpenFullReport={report ? () => setShowReportModal(true) : undefined}
+            />
+          )}
+
+          {/* Ontology Summary (only meaningful when the state has prospects) */}
+          {hasData && (
+            <div className="border-t border-gray-100">
+              <OntologySummary stateCode={stateId} ontologyDensity={ontologyDensity} />
+            </div>
           )}
         </div>
 

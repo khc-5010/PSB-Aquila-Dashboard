@@ -292,7 +292,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `GET /api/prospects` — List all (with optional filter query params)
 - `GET /api/prospects?id=X` — Get single prospect
 - `POST /api/prospects` — Create new prospect
-- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`)
+- `POST /api/prospects?action=import` — Upsert from Excel. Keys on company name (case-insensitive). Updates research columns but **preserves** user-edited fields (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`). **Batched for the Vercel 10s timeout:** duplicate names within one payload are merged (later non-null values win), existence is checked in ONE query, and the UPDATE/INSERT statements run as chunked `sql.transaction()` HTTP batches instead of per-row round-trips. After the upserts it runs the (set-based) Layer 1 ontology rebuild AND `recalculateAllPriorities` — imported research data scores immediately; response includes `ontology` and `priorities` stats.
 - `PATCH /api/prospects?id=X` — Update prospect fields
 - `GET /api/prospects?action=analytics` — Aggregated analytics data for charts (accepts same filter params as list endpoint)
 - `GET /api/prospects?action=attachments&id=X` — List attachments for a prospect
@@ -309,7 +309,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `OutreachGroupBadge` — Colored badge: Group 1=green, Group 2=blue, Time-Sensitive=amber, Infrastructure=purple, Unassigned=gray
 - `StatusBadge` — Prospect lifecycle badge: Identified=gray, Prioritized=blue, Research Complete=amber, Outreach Ready=green, Converted=purple, Nurture=gray italic
 - `AddCompanyModal` — Form modal for adding a single company (company name required, primary fields + collapsible "More Details" section). POSTs to `/api/prospects`.
-- `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `outreach_group`, `outreach_rank`, `group_notes`, or `last_edited_by` so the server preserves existing user-edited values.
+- `BulkImportModal` — Three-step Excel/CSV import flow: upload → preview (first 15 rows) → confirm. Uses SheetJS (`xlsx`) client-side to parse files with the same EXCEL_TO_DB column mapping as `scripts/seed-prospects.js`. POSTs to `/api/prospects?action=import`. Does not send `outreach_group`, `outreach_rank`, `group_notes`, or `last_edited_by` so the server preserves existing user-edited values. **SYNC**: `cleanValue`/`cleanInt`/`cleanNumeric`/`cleanArray` are duplicated in `scripts/seed-prospects.js` — keep identical (null sentinels: `''`, `N/A`, `nan`, `#N/A`, `-`; ints strip commas before parsing).
 
 ### ProspectTable Sorting
 
@@ -629,7 +629,7 @@ Mark with `// SYNC` comments. Vercel serverless cannot import from `src/`.
 **`SCORE_INPUT_FIELDS`** — fields that trigger recalculation when PATCHed:
 `press_count`, `employees_approx`, `signal_count`, `cwp_contacts`, `psb_connection_notes`, `rjg_cavity_pressure`, `in_house_tooling`, `medical_device_mfg`, `key_certifications`, `ownership_type`, `recent_ma`, `years_in_business`, `category`, `outreach_group`
 
-**API endpoint**: `POST /api/prospects?action=recalculate-all-priorities` — Bulk recalculate all prospects. Returns `{ updated, exempt, total }`.
+**API endpoint**: `POST /api/prospects?action=recalculate-all-priorities` — Bulk recalculate all prospects via the shared `recalculateAllPriorities(sql)` helper (chunked `UPDATE ... FROM (VALUES ...)`, ~2 round-trips — not per-row). Auto-runs after every bulk import. Deliberately does NOT touch `updated_at` (recalc must not reset staleness detection). Returns `{ updated, exempt, total }`.
 
 **PriorityHoverCard** — Inline in `ProspectTable.jsx`. Renders on hover over priority pill. Shows score breakdown (6 horizontal bars), AI readiness with criteria list, and manual override indicator. z-30 (above table, below detail modal z-40). 250ms delay.
 
@@ -693,7 +693,7 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 | Corridor | States |
 |----------|--------|
 | **Great Lakes Auto** | MI, OH, IN, IL, WI |
-| **Northeast Tool** | PA, NY, CT, NJ, MA, NH, VT, ME, RI, DC |
+| **Northeast Tool** | PA, NY, CT, NJ, MA, NH, VT, ME, RI, DC, DE, MD, WV |
 | **Southeast Growth** | NC, GA, FL, TN, SC, VA, AL, MS, KY |
 | **Gulf / Resin Belt** | TX, LA, OK, AR |
 | **Upper Midwest Medical** | MN |
@@ -914,10 +914,10 @@ Interactive SVG choropleth map of the United States. Each state colored by a sel
 - **NationalMap.jsx** — Main container: fetches state-stats + report metadata on mount, manages metric/hover/selection state, composes all sub-components
 - **USMap.jsx** — SVG `<path>` rendering for all 50 states + DC with hover/click handlers and metric-based color fills (including freshness semantic colors)
 - **StateTooltip.jsx** — Floating tooltip near cursor showing state summary; shows freshness info when Research Freshness metric is active
-- **StateDetailPanel.jsx** — Right slide-out panel with summary stats, category breakdown, priority bar, top companies, research report section, and "Coming Soon" placeholders for Prompt Builder and Ontology Summary
+- **StateDetailPanel.jsx** — Right slide-out panel with summary stats, category breakdown, priority bar, top companies, research report section, and ontology summary. The **research report section renders for ALL states including zero-prospect ones** (those are exactly the states the research workflow targets; stats/ontology sections stay prospect-gated)
 - **StateReportSection.jsx** — Condensed report preview in sidebar: freshness badge, metadata, first 1-2 accordion sections as preview, action buttons, and "Open Full Report" button that opens StateReportModal. Exports `getFreshnessInfo` and `parseSections` used by other components.
-- **StateReportModal.jsx** — Near-full-screen modal (max-w-5xl, 90vh) for reading state research reports. Includes all controls: accordion expand/collapse, copy raw markdown, freshness badge, new-prospects indicator, upload new report, run state research. Closeable via X, Escape, or backdrop click. Uses shared `ReportMarkdownRenderer` for company-entry formatting.
-- **UploadStateReportModal.jsx** — Modal for uploading state research reports via paste (textarea) or file upload (drag-and-drop .md/.txt). State selector, research date picker, title field, preview mode. Max 500KB file size.
+- **StateReportModal.jsx** — Near-full-screen modal (max-w-5xl, 90vh, z-[61]) for reading state research reports. Includes all controls: accordion expand/collapse, copy raw markdown, freshness badge, new-prospects indicator, upload new report, run state research. Closeable via X, Escape, or backdrop click — Escape is suppressed while the upload sub-modal is stacked above it. Uses shared `ReportMarkdownRenderer` for company-entry formatting.
+- **UploadStateReportModal.jsx** — Modal for uploading state research reports via paste (textarea) or file upload (drag-and-drop .md/.txt). State selector, research date picker, title field, preview mode. Max 500KB file size. Renders at **z-[70]** — it must stack above StateReportModal's z-[61] wrapper (its second entry point) as well as the sidebar.
 - **MapMetricSelector.jsx** — Array-driven pill buttons for switching color metric (5 metrics including Research Freshness)
 - **MapLegend.jsx** — Color gradient scale for standard metrics; categorical legend (green/yellow/red/gray) for freshness metric
 
@@ -1084,7 +1084,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 
 #### Auto-Trigger Behavior
 Layer 1 ontology auto-rebuilds on data changes — the ontology never silently goes stale:
-- **Bulk import** (`POST ?action=import`): Full `rebuildOntologyLayer1(sql)` after upsert loop. Adds `ontology` field to response.
+- **Bulk import** (`POST ?action=import`): Full `rebuildOntologyLayer1(sql)` after the batched upserts, then `recalculateAllPriorities`. Adds `ontology` and `priorities` fields to response. The full rebuild is **set-based**: it derives all entities/relationships in memory and writes them in a few chunked multi-row statements (the old per-row awaited upserts were 1,000+ sequential round-trips — a Vercel-timeout risk that grew with the dataset).
 - **Single create** (`POST /api/prospects`): Per-prospect `rebuildOntologyForProspect(sql, id)` after insert. Adds `ontology` field to response.
 - **PATCH** (`PATCH ?id=X`): Conditional per-prospect rebuild only when body contains ontology-relevant fields: `key_certifications`, `rjg_cavity_pressure`, `medical_device_mfg`, `ownership_type`, `parent_company`, `category`, `in_house_tooling`, `parent_relationship_kind`, `financial_sponsor`, `former_names`. Editing `outreach_group`, `notes`, etc. does NOT trigger rebuild.
 

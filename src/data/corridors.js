@@ -18,6 +18,7 @@ export const STATE_TO_CORRIDOR = {
   MI: 'Great Lakes Auto', OH: 'Great Lakes Auto', IN: 'Great Lakes Auto', IL: 'Great Lakes Auto', WI: 'Great Lakes Auto',
   PA: 'Northeast Tool', NY: 'Northeast Tool', CT: 'Northeast Tool', NJ: 'Northeast Tool', MA: 'Northeast Tool',
   NH: 'Northeast Tool', VT: 'Northeast Tool', ME: 'Northeast Tool', RI: 'Northeast Tool', DC: 'Northeast Tool',
+  DE: 'Northeast Tool', MD: 'Northeast Tool', WV: 'Northeast Tool',
   NC: 'Southeast Growth', GA: 'Southeast Growth', FL: 'Southeast Growth', TN: 'Southeast Growth', SC: 'Southeast Growth',
   VA: 'Southeast Growth', AL: 'Southeast Growth', MS: 'Southeast Growth', KY: 'Southeast Growth',
   TX: 'Gulf / Resin Belt', LA: 'Gulf / Resin Belt', OK: 'Gulf / Resin Belt', AR: 'Gulf / Resin Belt',

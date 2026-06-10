@@ -171,61 +171,71 @@ async function rebuildOntologyLayer1(sql) {
   // 3. Read all prospects
   const prospects = await sql`SELECT * FROM prospect_companies`
 
-  let entitiesCreated = 0
-  let relationshipsCreated = 0
+  // 4. Derive the full entity + relationship sets IN MEMORY, then write them in
+  //    a handful of chunked bulk statements. The previous implementation issued
+  //    1,000+ sequential awaited round-trips (one upsert/insert per entity and
+  //    edge), which pushed the auto-rebuild after every bulk import toward
+  //    Vercel's 10s function timeout as the prospect database grows — and a
+  //    mid-rebuild timeout leaves the Layer 1 graph wiped/half-built.
+  //    Derivation rules below are unchanged (SYNC with rebuildOntologyForProspect).
 
-  // Helper: normalize entity name
   function normalizeName(raw) {
     return raw.trim().replace(/\s+/g, ' ')
   }
 
-  // Helper: UPSERT entity and return its id
-  async function upsertEntity(typeId, name, attrs = {}, prospectCompanyId = null, source = null, confidence = 'Confirmed') {
-    const normalized = normalizeName(name)
+  // JSON keys: structurally unambiguous even though names contain arbitrary
+  // characters. RETURNING type_id comes back as a number, matching typeMap ids.
+  const entityKey = (typeId, name) => JSON.stringify([typeId, name])
+
+  // key → { typeId, name, attrs, prospectCompanyId, source, confidence }
+  const entityTuples = new Map()
+  function collectEntity(typeId, name, attrs = {}, prospectCompanyId = null, source = null, confidence = 'Confirmed') {
+    if (!typeId || !name) return null
+    const normalized = normalizeName(String(name))
     if (!normalized) return null
-    const result = await sql`
-      INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
-      VALUES (${typeId}, ${normalized}, ${JSON.stringify(attrs)}, ${prospectCompanyId}, ${source}, ${confidence}, 1)
-      ON CONFLICT (type_id, name) DO UPDATE SET
-        updated_at = NOW(),
-        prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
-      RETURNING id
-    `
-    entitiesCreated++
-    return result[0]?.id
+    const key = entityKey(typeId, normalized)
+    const existing = entityTuples.get(key)
+    if (existing) {
+      // Merge duplicates: row-linked Company beats reference-only; Confirmed beats Likely
+      if (existing.prospectCompanyId == null && prospectCompanyId != null) existing.prospectCompanyId = prospectCompanyId
+      if (existing.confidence !== 'Confirmed' && confidence === 'Confirmed') existing.confidence = 'Confirmed'
+      if (Object.keys(existing.attrs).length === 0 && Object.keys(attrs).length > 0) existing.attrs = attrs
+    } else {
+      entityTuples.set(key, { typeId, name: normalized, attrs, prospectCompanyId, source, confidence })
+    }
+    return key
   }
 
-  // Helper: INSERT relationship (skip on conflict)
-  async function insertRelationship(relTypeId, subjectId, objectId, source = null, confidence = 'Confirmed') {
-    if (!relTypeId || !subjectId || !objectId) return
-    await sql`
-      INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
-      VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${source}, ${confidence}, 1)
-      ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
-    `
-    relationshipsCreated++
+  // key → { relTypeId, subjectKey, objectKey, source, confidence }
+  const relTuples = new Map()
+  function collectRelationship(relTypeId, subjectKey, objectKey, source = null, confidence = 'Confirmed') {
+    if (!relTypeId || !subjectKey || !objectKey) return
+    const key = JSON.stringify([relTypeId, subjectKey, objectKey])
+    const existing = relTuples.get(key)
+    if (existing) {
+      if (existing.confidence !== 'Confirmed' && confidence === 'Confirmed') existing.confidence = 'Confirmed'
+      return
+    }
+    relTuples.set(key, { relTypeId, subjectKey, objectKey, source, confidence })
   }
 
-  // 4. Process each prospect
   for (const p of prospects) {
     const source = p.source_report || null
 
-    // Create Company entity
+    // Company entity
     const companyAttrs = {}
     if (p.category) companyAttrs.category = p.category
     if (p.in_house_tooling) companyAttrs.in_house_tooling = p.in_house_tooling
-    const companyId = await upsertEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
-    if (!companyId) continue
+    const companyKey = collectEntity(typeMap['Company'], p.company, companyAttrs, p.id, source)
+    if (!companyKey) continue
 
     // Parse certifications (comma-separated, normalized + deduplicated)
     if (p.key_certifications && p.key_certifications.trim()) {
       const rawCerts = p.key_certifications.split(',').map(c => c.trim()).filter(Boolean)
       const certs = [...new Set(rawCerts.map(normalizeCertName))]
       for (const cert of certs) {
-        const certId = await upsertEntity(typeMap['Certification'], cert, {}, null, source)
-        if (certId) {
-          await insertRelationship(relMap['holds_certification'], companyId, certId, source)
-        }
+        const certKey = collectEntity(typeMap['Certification'], cert, {}, null, source)
+        collectRelationship(relMap['holds_certification'], companyKey, certKey, source)
       }
     }
 
@@ -234,43 +244,33 @@ async function rebuildOntologyLayer1(sql) {
       const rjgVal = p.rjg_cavity_pressure.toLowerCase()
       const entityName = getCavityPressureEntityName(p.rjg_cavity_pressure)
       if (entityName && (rjgVal.includes('yes') || rjgVal.includes('confirmed'))) {
-        const techId = await upsertEntity(typeMap['Technology / Software'], entityName, {}, null, source)
-        if (techId) {
-          await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Confirmed')
-        }
+        const techKey = collectEntity(typeMap['Technology / Software'], entityName, {}, null, source)
+        collectRelationship(relMap['uses_technology'], companyKey, techKey, source, 'Confirmed')
       } else if (rjgVal === 'likely') {
-        const techId = await upsertEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
-        if (techId) {
-          await insertRelationship(relMap['uses_technology'], companyId, techId, source, 'Likely')
-        }
+        const techKey = collectEntity(typeMap['Technology / Software'], 'RJG Cavity Pressure Monitoring', {}, null, source, 'Likely')
+        collectRelationship(relMap['uses_technology'], companyKey, techKey, source, 'Likely')
       }
     }
 
     // Medical device manufacturing → Market Vertical
     if (p.medical_device_mfg?.startsWith('Yes')) {
-      const marketId = await upsertEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
-      if (marketId) {
-        await insertRelationship(relMap['serves_market'], companyId, marketId, source)
-      }
+      const marketKey = collectEntity(typeMap['Market Vertical'], 'Medical Devices', {}, null, source)
+      collectRelationship(relMap['serves_market'], companyKey, marketKey, source)
     }
 
     // Ownership type → Ownership Structure entity
     if (p.ownership_type && p.ownership_type.trim()) {
-      const ownerId = await upsertEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
-      if (ownerId) {
-        await insertRelationship(relMap['has_ownership_structure'], companyId, ownerId, source)
-      }
+      const ownerKey = collectEntity(typeMap['Ownership Structure'], p.ownership_type.trim(), {}, null, source)
+      collectRelationship(relMap['has_ownership_structure'], companyKey, ownerKey, source)
     }
 
     // Parent company + parent_relationship_kind → typed relationship.
     // Phase 3 (Thread 1): rows with parent_relationship_kind = 'absorbed_into' emit
     // absorbed_into; 'subsidiary' or NULL (legacy/unclassified) emit subsidiary_of.
     if (p.parent_company && p.parent_company.trim()) {
-      const parentId = await upsertEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
-      if (parentId) {
-        const relName = p.parent_relationship_kind === 'absorbed_into' ? 'absorbed_into' : 'subsidiary_of'
-        await insertRelationship(relMap[relName], companyId, parentId, source)
-      }
+      const parentKey = collectEntity(typeMap['Company'], p.parent_company.trim(), {}, null, source)
+      const relName = p.parent_relationship_kind === 'absorbed_into' ? 'absorbed_into' : 'subsidiary_of'
+      collectRelationship(relMap[relName], companyKey, parentKey, source)
     }
 
     // Former names → legacy_name_of edges (each former name is a Company entity
@@ -278,25 +278,73 @@ async function rebuildOntologyLayer1(sql) {
     if (Array.isArray(p.former_names)) {
       for (const formerName of p.former_names) {
         if (!formerName || !String(formerName).trim()) continue
-        const formerId = await upsertEntity(typeMap['Company'], String(formerName).trim(), {}, null, source)
-        if (formerId) {
-          await insertRelationship(relMap['legacy_name_of'], formerId, companyId, source)
-        }
+        const formerKey = collectEntity(typeMap['Company'], String(formerName).trim(), {}, null, source)
+        collectRelationship(relMap['legacy_name_of'], formerKey, companyKey, source)
       }
     }
 
     // Financial sponsor → acquired_by edge (company → sponsor).
     if (p.financial_sponsor && p.financial_sponsor.trim()) {
-      const sponsorId = await upsertEntity(typeMap['Company'], p.financial_sponsor.trim(), {}, null, source)
-      if (sponsorId) {
-        await insertRelationship(relMap['acquired_by'], companyId, sponsorId, source)
-      }
+      const sponsorKey = collectEntity(typeMap['Company'], p.financial_sponsor.trim(), {}, null, source)
+      collectRelationship(relMap['acquired_by'], companyKey, sponsorKey, source)
     }
+  }
+
+  // 5. Bulk-upsert entities (chunked multi-row VALUES) and resolve ids.
+  //    Tuples are pre-deduped by (type_id, name), so a single statement never
+  //    hits "ON CONFLICT cannot affect row a second time".
+  const entityList = [...entityTuples.values()]
+  const keyToId = new Map()
+  const ENTITY_CHUNK = 400
+  for (let i = 0; i < entityList.length; i += ENTITY_CHUNK) {
+    const chunk = entityList.slice(i, i + ENTITY_CHUNK)
+    const params = []
+    const valuesSql = chunk.map(t => {
+      params.push(t.typeId, t.name, JSON.stringify(t.attrs), t.prospectCompanyId, t.source, t.confidence)
+      const b = params.length
+      return `($${b - 5}::int, $${b - 4}::text, $${b - 3}::jsonb, $${b - 2}::int, $${b - 1}::text, $${b}::text, 1)`
+    }).join(', ')
+    const rows = await sql.query(
+      `INSERT INTO ontology_entities (type_id, name, attributes, prospect_company_id, source, confidence, layer)
+       VALUES ${valuesSql}
+       ON CONFLICT (type_id, name) DO UPDATE SET
+         updated_at = NOW(),
+         prospect_company_id = COALESCE(ontology_entities.prospect_company_id, EXCLUDED.prospect_company_id)
+       RETURNING id, type_id, name`,
+      params
+    )
+    for (const r of rows) keyToId.set(entityKey(r.type_id, r.name), r.id)
+  }
+
+  // 6. Bulk-insert relationships, resolved through the returned entity ids
+  const relList = [...relTuples.values()]
+  let relationshipsCreated = 0
+  const REL_CHUNK = 600
+  for (let i = 0; i < relList.length; i += REL_CHUNK) {
+    const chunk = relList.slice(i, i + REL_CHUNK)
+    const params = []
+    const rowsSql = []
+    for (const t of chunk) {
+      const subjectId = keyToId.get(t.subjectKey)
+      const objectId = keyToId.get(t.objectKey)
+      if (!subjectId || !objectId) continue
+      params.push(t.relTypeId, subjectId, objectId, t.source, t.confidence)
+      const b = params.length
+      rowsSql.push(`($${b - 4}::int, $${b - 3}::int, $${b - 2}::int, $${b - 1}::text, $${b}::text, 1)`)
+    }
+    if (rowsSql.length === 0) continue
+    await sql.query(
+      `INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
+       VALUES ${rowsSql.join(', ')}
+       ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING`,
+      params
+    )
+    relationshipsCreated += rowsSql.length
   }
 
   const duration = Date.now() - startTime
   return {
-    entities_created: entitiesCreated,
+    entities_created: entityList.length,
     relationships_created: relationshipsCreated,
     prospects_processed: prospects.length,
     duration_ms: duration,
@@ -608,6 +656,56 @@ function calculateAiReadiness(p) {
 
   const readiness = criteria >= 3 ? 'green' : criteria >= 1 ? 'yellow' : 'red'
   return { readiness, criteria, met }
+}
+
+// Recalculate priority_score / ai_readiness for EVERY prospect in a few
+// chunked bulk UPDATEs. The old per-row loop issued ~180 sequential
+// round-trips — the same Vercel 10s-timeout exposure as the import loop it
+// usually follows. Manual-override semantics preserved: `priority` text only
+// changes when priority_manual IS NULL; exempt rows get score NULL +
+// readiness 'exempt' and keep their priority text. updated_at is deliberately
+// NOT touched (recalc must not reset staleness detection).
+async function recalculateAllPriorities(sql) {
+  const all = await sql`SELECT * FROM prospect_companies`
+  let updated = 0
+  let exempt = 0
+  const rows = all.map(p => {
+    if (isPriorityExempt(p)) {
+      exempt++
+      return { id: p.id, score: null, readiness: 'exempt', tier: null, isExempt: true }
+    }
+    updated++
+    const scoreResult = calculatePriorityScore(p)
+    const readinessResult = calculateAiReadiness(p)
+    const score = scoreResult?.score ?? null
+    const readiness = readinessResult?.readiness ?? null
+    return { id: p.id, score, readiness, tier: getTierFromScore(score), isExempt: false }
+  })
+
+  const CHUNK = 300
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK)
+    const params = []
+    const valuesSql = chunk.map(r => {
+      params.push(r.id, r.score, r.readiness, r.tier, r.isExempt)
+      const b = params.length
+      return `($${b - 4}::int, $${b - 3}::int, $${b - 2}::text, $${b - 1}::text, $${b}::boolean)`
+    }).join(', ')
+    await sql.query(
+      `UPDATE prospect_companies pc SET
+         priority_score = v.score,
+         ai_readiness = v.readiness,
+         priority = CASE
+           WHEN v.is_exempt OR pc.priority_manual IS NOT NULL OR v.tier IS NULL THEN pc.priority
+           ELSE v.tier
+         END
+       FROM (VALUES ${valuesSql}) AS v(id, score, readiness, tier, is_exempt)
+       WHERE pc.id = v.id`,
+      params
+    )
+  }
+
+  return { updated, exempt, total: all.length }
 }
 
 // Parse a DATE-only string (YYYY-MM-DD or ISO timestamp) safely in local timezone.
@@ -2296,7 +2394,7 @@ export default async function handler(req, res) {
         // Corridor-to-states mapping for filtering
         const CORRIDOR_TO_STATES = {
           'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
-          'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
+          'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD','WV'],
           'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
           'Gulf / Resin Belt': ['TX','LA','OK','AR'],
           'Upper Midwest Medical': ['MN'],
@@ -2404,7 +2502,7 @@ export default async function handler(req, res) {
                CASE
                  WHEN country IS NOT NULL AND country != 'US' THEN 'International'
                  WHEN state IN ('MI','OH','IN','IL','WI') THEN 'Great Lakes Auto'
-                 WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC') THEN 'Northeast Tool'
+                 WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD','WV') THEN 'Northeast Tool'
                  WHEN state IN ('NC','GA','FL','TN','SC','VA','AL','MS','KY') THEN 'Southeast Growth'
                  WHEN state IN ('TX','LA','OK','AR') THEN 'Gulf / Resin Belt'
                  WHEN state = 'MN' THEN 'Upper Midwest Medical'
@@ -2586,7 +2684,7 @@ export default async function handler(req, res) {
       // Corridor-to-states mapping for list filtering
       const CORRIDOR_TO_STATES_LIST = {
         'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
-        'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
+        'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD','WV'],
         'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
         'Gulf / Resin Belt': ['TX','LA','OK','AR'],
         'Upper Midwest Medical': ['MN'],
@@ -2766,30 +2864,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // ─── Recalculate all priority scores ───
+    // ─── Recalculate all priority scores (batched — see helper) ───
     if (action === 'recalculate-all-priorities') {
       try {
-        const all = await sql`SELECT * FROM prospect_companies`
-        let updated = 0, exempt = 0
-        for (const p of all) {
-          if (isPriorityExempt(p)) {
-            await sql`UPDATE prospect_companies SET priority_score = NULL, ai_readiness = 'exempt' WHERE id = ${p.id}`
-            exempt++
-            continue
-          }
-          const scoreResult = calculatePriorityScore(p)
-          const readinessResult = calculateAiReadiness(p)
-          const score = scoreResult?.score ?? null
-          const readiness = readinessResult?.readiness ?? null
-          const tier = getTierFromScore(score)
-          if (p.priority_manual) {
-            await sql`UPDATE prospect_companies SET priority_score = ${score}, ai_readiness = ${readiness} WHERE id = ${p.id}`
-          } else {
-            await sql`UPDATE prospect_companies SET priority_score = ${score}, ai_readiness = ${readiness}, priority = ${tier} WHERE id = ${p.id}`
-          }
-          updated++
-        }
-        return res.status(200).json({ updated, exempt, total: all.length })
+        const result = await recalculateAllPriorities(sql)
+        return res.status(200).json(result)
       } catch (error) {
         console.error('Error recalculating priorities:', error)
         return res.status(500).json({ error: error.message })
@@ -3292,25 +3371,45 @@ export default async function handler(req, res) {
         let upserted = 0
         let skipped = 0
 
+        // 1. Merge duplicate company names within the payload (later rows'
+        //    non-null values win — same net result as the old INSERT-then-
+        //    COALESCE-UPDATE sequence, required now that existence is checked
+        //    once up front instead of per row).
+        const mergedRows = new Map() // normalized name → { row, count }
         for (const p of prospects) {
           if (!p.company?.trim()) {
             skipped++
             continue
           }
+          const norm = p.company.trim().toLowerCase()
+          const entry = mergedRows.get(norm)
+          if (entry) {
+            entry.count++
+            for (const [k, v] of Object.entries(p)) {
+              if (v !== null && v !== undefined && v !== '') entry.row[k] = v
+            }
+          } else {
+            mergedRows.set(norm, { row: { ...p }, count: 1 })
+          }
+        }
 
+        // 2. Single round-trip existence check. The old per-row SELECT was
+        //    half of the 360+ sequential queries that pushed large imports
+        //    toward Vercel's 10s timeout.
+        const existingRows = await sql`SELECT id, LOWER(TRIM(company)) AS norm FROM prospect_companies`
+        const existingByNorm = new Map(existingRows.map(r => [r.norm, r.id]))
+
+        // 3. Build all UPDATE/INSERT statements unawaited (neon queries are
+        //    lazy) and execute them as chunked HTTP batch transactions — one
+        //    round-trip per chunk instead of one per row.
+        const statements = []
+        for (const { row: p, count } of mergedRows.values()) {
           const company = p.company.trim()
+          const existingId = existingByNorm.get(company.toLowerCase())
 
-          // Check if company already exists (case-insensitive)
-          const existing = await sql`
-            SELECT id, outreach_group, outreach_rank, group_notes, last_edited_by
-            FROM prospect_companies
-            WHERE LOWER(TRIM(company)) = LOWER(${company})
-            LIMIT 1
-          `
-
-          if (existing.length > 0) {
+          if (existingId) {
             // Update research columns only — PRESERVE user-edited fields
-            await sql`
+            statements.push(sql`
               UPDATE prospect_companies SET
                 also_known_as = COALESCE(${p.also_known_as || null}, also_known_as),
                 website = COALESCE(${p.website || null}, website),
@@ -3347,10 +3446,10 @@ export default async function handler(req, res) {
                 legacy_data_potential = COALESCE(${p.legacy_data_potential || null}, legacy_data_potential),
                 notes = COALESCE(${p.notes || null}, notes),
                 updated_at = NOW()
-              WHERE id = ${existing[0].id}
-            `
+              WHERE id = ${existingId}
+            `)
           } else {
-            await sql`
+            statements.push(sql`
               INSERT INTO prospect_companies (
                 company, also_known_as, website, category, in_house_tooling,
                 city, state, country, geography_tier, source_report, priority,
@@ -3372,13 +3471,27 @@ export default async function handler(req, res) {
                 'Unassigned', ${null}, ${req.body.added_by || null},
                 ${p.parent_relationship_kind || null}, ${p.financial_sponsor || null}, ${(Array.isArray(p.former_names) && p.former_names.length > 0) ? p.former_names : null}
               )
-            `
+            `)
           }
 
-          upserted++
+          upserted += count
         }
 
-        // Rebuild ontology to reflect imported data
+        // 4. Execute in chunks. sql.transaction() pipelines a chunk over one
+        //    HTTP request (and makes it atomic); fall back to sequential
+        //    execution only if the driver doesn't expose it.
+        const BATCH_SIZE = 50
+        for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+          const chunk = statements.slice(i, i + BATCH_SIZE)
+          if (typeof sql.transaction === 'function') {
+            await sql.transaction(chunk)
+          } else {
+            for (const stmt of chunk) await stmt
+          }
+        }
+
+        // Rebuild ontology to reflect imported data (set-based — a handful of
+        // bulk statements, see rebuildOntologyLayer1)
         let ontologyResult = null
         try {
           ontologyResult = await rebuildOntologyLayer1(sql)
@@ -3387,11 +3500,23 @@ export default async function handler(req, res) {
           // Non-fatal — import succeeded, ontology just needs manual rebuild
         }
 
+        // Recalculate priority scores so imported research data scores
+        // immediately (previously stale until each row was PATCHed or a
+        // manual recalculate-all run)
+        let priorityResult = null
+        try {
+          priorityResult = await recalculateAllPriorities(sql)
+        } catch (err) {
+          console.error('Post-import priority recalc failed:', err)
+          // Non-fatal — run POST ?action=recalculate-all-priorities manually
+        }
+
         return res.status(200).json({
           message: `Import complete: ${upserted} upserted, ${skipped} skipped`,
           upserted,
           skipped,
           ontology: ontologyResult || { error: 'Rebuild failed — run manual rebuild' },
+          priorities: priorityResult || { error: 'Recalc failed — run recalculate-all-priorities' },
         })
       } catch (error) {
         console.error('Error importing prospects:', error)
