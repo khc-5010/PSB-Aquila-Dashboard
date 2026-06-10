@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
 
 // Certification normalization: map variant names to canonical form
 const CERT_NORMALIZATION = {
@@ -141,9 +142,18 @@ async function rebuildOntologyLayer1(sql) {
     throw new Error('Ontology entity types not seeded. Run the SQL migration first.')
   }
 
-  // 2. Clear all Layer 1 data (relationships first due to FK cascade)
+  // 2. Clear Layer 1 data. Relationships first; then only entities that no
+  // remaining (i.e. Layer 2) relationship still references — deleting a
+  // layer-1 entity that a Layer 2 edge points at would CASCADE-delete that
+  // Layer 2 relationship and silently destroy manually-extracted data.
+  // Surviving entities are reused by the upserts below (ON CONFLICT type_id,name).
   await sql`DELETE FROM ontology_relationships WHERE layer = 1`
-  await sql`DELETE FROM ontology_entities WHERE layer = 1`
+  await sql`
+    DELETE FROM ontology_entities
+    WHERE layer = 1
+      AND id NOT IN (SELECT subject_entity_id FROM ontology_relationships)
+      AND id NOT IN (SELECT object_entity_id FROM ontology_relationships)
+  `
 
   // 3. Read all prospects
   const prospects = await sql`SELECT * FROM prospect_companies`
@@ -507,9 +517,9 @@ function calculatePriorityScore(p) {
   const ownership = (p.ownership_type || '').toLowerCase()
   const recentMa = (p.recent_ma || '').toLowerCase()
   const yearsInBiz = p.years_in_business ?? 0
-  if (ownership.includes('private equity') && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
+  if (isPeOwnership(ownership) && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
     breakdown.urgency = 15
-  } else if (ownership.includes('private equity')) {
+  } else if (isPeOwnership(ownership)) {
     breakdown.urgency = 10
   } else if (ownership.includes('family') && yearsInBiz >= 30) {
     breakdown.urgency = 8
@@ -567,6 +577,16 @@ function getTierFromScore(score) {
   return 'LOW'
 }
 
+// PE ownership detection. Accepts any case; matches the dropdown preset
+// 'PE-Backed' as well as legacy free-text like 'Private Equity (Sponsor)'.
+// Word-boundary regex so 'Cooperative' (contains "pe") does not match.
+// SYNC: Keep in sync with isPeOwnership() in src/utils/priorityScore.js
+function isPeOwnership(ownershipValue) {
+  if (!ownershipValue) return false
+  const o = String(ownershipValue).toLowerCase()
+  return o.includes('private equity') || /\bpe\b/.test(o)
+}
+
 function calculateAiReadiness(p) {
   if (isPriorityExempt(p)) return { readiness: 'exempt', criteria: 0, met: [] }
 
@@ -584,6 +604,16 @@ function calculateAiReadiness(p) {
 
   const readiness = criteria >= 3 ? 'green' : criteria >= 1 ? 'yellow' : 'red'
   return { readiness, criteria, met }
+}
+
+// Escape user/database-sourced text before interpolating into email HTML.
+function escapeHtml(val) {
+  return String(val ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 // Parse a DATE-only string (YYYY-MM-DD or ISO timestamp) safely in local timezone.
@@ -648,13 +678,20 @@ export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
   const { action, id } = req.query
 
+  // Auth gate: every action requires a valid session, except the cron-invoked
+  // daily digest which authenticates with CRON_SECRET inside its own branch.
+  if (action !== 'daily-digest') {
+    const authedUser = await requireAuth(req, res, sql)
+    if (!authedUser) return
+  }
+
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
 
     // ── Daily Digest (cron-secured) ─────────────────────
     if (action === 'daily-digest') {
       const authHeader = req.headers.authorization
-      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
         return res.status(401).json({ error: 'Unauthorized' })
       }
 
@@ -686,8 +723,9 @@ export default async function handler(req, res) {
           .sort((a, b) => a.urgency.priority - b.urgency.priority)
 
         // 4. Identify PE window prospects
+        // SYNC: PE detection — isPeOwnership matches 'PE-Backed' and legacy 'Private Equity' strings
         const peWindowProspects = prospects.filter(p =>
-          p.ownership_type?.includes('PE') && p.recent_ma
+          isPeOwnership(p.ownership_type) && p.recent_ma
         )
 
         // 5. Send personalized digest to each user
@@ -742,9 +780,9 @@ export default async function handler(req, res) {
               <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
                 ${section.items.slice(0, 15).map(item => `
                   <tr style="border-bottom: 1px solid #E5E7EB;">
-                    <td style="padding: 8px 4px; font-weight: 600; color: #111827;">${item.company}</td>
-                    <td style="padding: 8px 4px; color: #6B7280;">${item.city ? item.city + ', ' : ''}${item.state || ''}</td>
-                    <td style="padding: 8px 4px; color: ${section.color}; font-size: 12px; font-weight: 600;">${item.urgency.label}</td>
+                    <td style="padding: 8px 4px; font-weight: 600; color: #111827;">${escapeHtml(item.company)}</td>
+                    <td style="padding: 8px 4px; color: #6B7280;">${item.city ? escapeHtml(item.city) + ', ' : ''}${escapeHtml(item.state || '')}</td>
+                    <td style="padding: 8px 4px; color: ${section.color}; font-size: 12px; font-weight: 600;">${escapeHtml(item.urgency.label)}</td>
                   </tr>
                 `).join('')}
                 ${section.items.length > 15 ? `
@@ -1477,7 +1515,7 @@ export default async function handler(req, res) {
               depth: maxDepth,
               nodeCount: filteredEntityMap.size,
               linkCount: filteredLinks.length,
-              stateFilter: stateUpper,
+              stateFilter: state.toUpperCase(),
             },
           })
         }
@@ -1503,7 +1541,7 @@ export default async function handler(req, res) {
     // ─── Ontology: Knowledge Graph — query by criteria ───
     if (action === 'ontology-query') {
       try {
-        const { certifications, technologies, markets, ownership, equipment, state: queryState } = req.query
+        const { certifications, technologies, markets, ownership, equipment, quality_methods, state: queryState } = req.query
 
         // Parse comma-separated criteria
         const criteria = {}
@@ -1512,10 +1550,11 @@ export default async function handler(req, res) {
         if (markets) criteria['Market Vertical'] = markets.split(',').map(s => s.trim())
         if (ownership) criteria['Ownership Structure'] = ownership.split(',').map(s => s.trim())
         if (equipment) criteria['Equipment Brand'] = equipment.split(',').map(s => s.trim())
+        if (quality_methods) criteria['Quality Method'] = quality_methods.split(',').map(s => s.trim())
 
         const categoryCount = Object.keys(criteria).length
         if (categoryCount === 0) {
-          return res.status(400).json({ error: 'At least one filter criterion is required (certifications, technologies, markets, ownership, equipment)' })
+          return res.status(400).json({ error: 'At least one filter criterion is required (certifications, technologies, markets, ownership, equipment, quality_methods)' })
         }
 
         // Flatten all requested entity names
@@ -1528,6 +1567,7 @@ export default async function handler(req, res) {
           WITH company_edges AS (
             SELECT
               ce.prospect_company_id,
+              ce.id AS company_entity_id,
               et.name AS entity_type,
               oe.name AS entity_name
             FROM ontology_relationships r
@@ -1541,6 +1581,7 @@ export default async function handler(req, res) {
           company_matches AS (
             SELECT
               prospect_company_id,
+              MIN(company_entity_id) AS entity_id,
               COUNT(DISTINCT entity_name) AS match_count,
               COUNT(DISTINCT entity_type) AS categories_matched,
               ARRAY_AGG(DISTINCT entity_name) AS matched_edges
@@ -1550,6 +1591,7 @@ export default async function handler(req, res) {
           )
           SELECT
             cm.prospect_company_id,
+            cm.entity_id,
             cm.match_count,
             cm.categories_matched,
             cm.matched_edges,
@@ -1578,6 +1620,7 @@ export default async function handler(req, res) {
           const matchScore = m.match_count / totalCriteria
           return {
             id: m.prospect_company_id,
+            entityId: m.entity_id != null ? Number(m.entity_id) : null,
             company: m.company,
             state: m.state,
             city: m.city,
@@ -1637,6 +1680,7 @@ export default async function handler(req, res) {
           other_companies AS (
             SELECT
               ce.prospect_company_id,
+              MIN(ce.id) AS entity_id,
               COUNT(DISTINCT te.object_entity_id) AS shared_count,
               ARRAY_AGG(DISTINCT te.entity_name) AS shared_entities
             FROM ontology_relationships r
@@ -1649,6 +1693,7 @@ export default async function handler(req, res) {
           )
           SELECT
             oc.prospect_company_id AS id,
+            oc.entity_id,
             pc.company,
             pc.state,
             pc.city,
@@ -1669,6 +1714,7 @@ export default async function handler(req, res) {
           target: { id: Number(target.id), company: target.company },
           similar: similar.map(s => ({
             id: s.id,
+            entityId: s.entity_id != null ? Number(s.entity_id) : null,
             company: s.company,
             state: s.state,
             city: s.city,
@@ -2259,8 +2305,8 @@ export default async function handler(req, res) {
         // Corridor-to-states mapping for filtering
         const CORRIDOR_TO_STATES = {
           'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
-          'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
-          'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
+          'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD'],
+          'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY','WV'],
           'Gulf / Resin Belt': ['TX','LA','OK','AR'],
           'Upper Midwest Medical': ['MN'],
           'West Coast': ['CA','OR','WA'],
@@ -2367,13 +2413,13 @@ export default async function handler(req, res) {
                CASE
                  WHEN country IS NOT NULL AND country != 'US' THEN 'International'
                  WHEN state IN ('MI','OH','IN','IL','WI') THEN 'Great Lakes Auto'
-                 WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC') THEN 'Northeast Tool'
-                 WHEN state IN ('NC','GA','FL','TN','SC','VA','AL','MS','KY') THEN 'Southeast Growth'
+                 WHEN state IN ('PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD') THEN 'Northeast Tool'
+                 WHEN state IN ('NC','GA','FL','TN','SC','VA','AL','MS','KY','WV') THEN 'Southeast Growth'
                  WHEN state IN ('TX','LA','OK','AR') THEN 'Gulf / Resin Belt'
                  WHEN state = 'MN' THEN 'Upper Midwest Medical'
                  WHEN state IN ('CA','OR','WA') THEN 'West Coast'
                  WHEN state IN ('AK','HI') THEN 'Non-Contiguous'
-                 WHEN state IS NOT NULL AND state != '' THEN 'Mountain / Central'
+                 WHEN state IN ('CO','AZ','UT','NV','NM','ID','MT','WY','ND','SD','NE','KS','IA','MO') THEN 'Mountain / Central'
                  ELSE 'Unknown'
                END as corridor,
                COUNT(*)::int AS count
@@ -2549,8 +2595,8 @@ export default async function handler(req, res) {
       // Corridor-to-states mapping for list filtering
       const CORRIDOR_TO_STATES_LIST = {
         'Great Lakes Auto': ['MI','OH','IN','IL','WI'],
-        'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC'],
-        'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY'],
+        'Northeast Tool': ['PA','NY','CT','NJ','MA','NH','VT','ME','RI','DC','DE','MD'],
+        'Southeast Growth': ['NC','GA','FL','TN','SC','VA','AL','MS','KY','WV'],
         'Gulf / Resin Belt': ['TX','LA','OK','AR'],
         'Upper Midwest Medical': ['MN'],
         'West Coast': ['CA','OR','WA'],
@@ -2864,9 +2910,11 @@ export default async function handler(req, res) {
             INSERT INTO ontology_relationships (type_id, subject_entity_id, object_entity_id, source, confidence, layer)
             VALUES (${relTypeId}, ${subjectId}, ${objectId}, ${prospect.source_report}, ${r.confidence || 'Confirmed'}, 2)
             ON CONFLICT (type_id, subject_entity_id, object_entity_id) DO NOTHING
+            RETURNING id
           `
-          // neon returns affected rows info via result
-          if (result.count > 0) {
+          // RETURNING yields a row only when the insert actually happened
+          // (neon's default mode returns a plain rows array with no .count).
+          if (result.length > 0) {
             relationshipsCreated++
           } else {
             relationshipsSkipped++
@@ -3480,11 +3528,22 @@ export default async function handler(req, res) {
       }
     }
 
-    if (!id) {
-      return res.status(400).json({ error: 'id query param is required for PATCH' })
+    if (!id || Number.isNaN(Number.parseInt(id, 10))) {
+      return res.status(400).json({ error: 'A numeric id query param is required for PATCH' })
     }
 
-    const body = req.body
+    // req.body parsing is lazy on Vercel — a malformed JSON body throws on
+    // first access, so read it defensively instead of crashing the function.
+    let body
+    try {
+      body = req.body || {}
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON body' })
+    }
+    if (typeof body !== 'object' || Array.isArray(body)) {
+      return res.status(400).json({ error: 'Request body must be a JSON object' })
+    }
+
     const allowedFields = [
       'company', 'also_known_as', 'website', 'category', 'in_house_tooling',
       'city', 'state', 'country', 'geography_tier', 'source_report', 'priority',
@@ -3570,12 +3629,24 @@ export default async function handler(req, res) {
         } else if (current && isPriorityExempt(current)) {
           await sql`UPDATE prospect_companies SET priority_score = NULL, ai_readiness = 'exempt' WHERE id = ${id}`
         }
-        // Re-fetch to return accurate data
-        const [fresh] = await sql`SELECT * FROM prospect_companies WHERE id = ${id}`
+        // Re-fetch to return accurate data (include conversion_count so the
+        // client row replacement doesn't drop the purple conversion badge —
+        // the list GET always includes this subquery)
+        const [fresh] = await sql`
+          SELECT p.*,
+            (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+          FROM prospect_companies p WHERE p.id = ${id}
+        `
         return res.status(200).json(fresh)
       }
 
-      return res.status(200).json(result[0])
+      // Include conversion_count for the same reason as above
+      const [withCount] = await sql`
+        SELECT p.*,
+          (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = p.id) as conversion_count
+        FROM prospect_companies p WHERE p.id = ${id}
+      `
+      return res.status(200).json(withCount || result[0])
     } catch (error) {
       console.error('Error updating prospect:', error)
       return res.status(500).json({ error: error.message })

@@ -13,9 +13,38 @@ import crypto from 'crypto'
  * PATCH /api/auth?action=update-user&id=X — admin: edit user
  * PATCH /api/auth?action=update-preferences — update own digest notification preferences
  * POST /api/auth?action=reset-pin&id=X   — admin: generate new PIN
+ * POST /api/auth?action=change-pin   — change own PIN
  * GET  /api/auth?action=list-users   — admin: get all users
- * POST /api/auth?action=setup        — one-time: create tables + admin user
+ * GET  /api/auth?action=team-members — any user: active member names + colors
+ *
+ * Initial setup is handled by scripts/setup-admin.js (the old unauthenticated
+ * ?action=setup endpoint was removed — it leaked the admin's identity).
  */
+
+// Brute-force protection: a 6-digit PIN is only 1M combinations, so failed
+// logins are throttled per-email with a temporary lockout.
+const MAX_FAILED_ATTEMPTS = 5
+const LOCKOUT_MINUTES = 15
+
+// Hash compared on unknown-email logins so the response time doesn't reveal
+// whether an email is registered. Computed once per cold start.
+const dummyHashPromise = bcrypt.hash('not-a-real-pin', 10)
+
+// CREATE TABLE IF NOT EXISTS once per cold start (logins are infrequent).
+// Canonical DDL also lives in scripts/create-login-attempts.sql.
+let attemptsTableReady = false
+async function ensureAttemptsTable(sql) {
+  if (attemptsTableReady) return
+  await sql`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      email TEXT PRIMARY KEY,
+      failed_count INTEGER NOT NULL DEFAULT 0,
+      last_failed_at TIMESTAMPTZ,
+      locked_until TIMESTAMPTZ
+    )
+  `
+  attemptsTableReady = true
+}
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
   const { action, id } = req.query
@@ -42,9 +71,9 @@ export default async function handler(req, res) {
     return { user }
   }
 
-  // ─── Helper: generate 6-digit PIN ─────────────────────
+  // ─── Helper: generate 6-digit PIN (CSPRNG) ────────────
   function generatePin() {
-    return String(Math.floor(100000 + Math.random() * 900000))
+    return String(crypto.randomInt(100000, 1000000))
   }
 
   // ─── POST ──────────────────────────────────────────────
@@ -57,24 +86,48 @@ export default async function handler(req, res) {
         if (!email || !pin) {
           return res.status(400).json({ error: 'Email and PIN are required' })
         }
+        const normalizedEmail = email.toLowerCase().trim()
+
+        await ensureAttemptsTable(sql)
+
+        // Lockout check before any credential work
+        const [attempt] = await sql`
+          SELECT failed_count, locked_until FROM login_attempts WHERE email = ${normalizedEmail}
+        `
+        if (attempt?.locked_until && new Date(attempt.locked_until) > new Date()) {
+          return res.status(429).json({ error: 'Too many failed attempts. Try again in a few minutes.' })
+        }
 
         const users = await sql`
           SELECT id, name, email, pin_hash, color, role, is_active, digest_enabled, digest_preferences
-          FROM users WHERE email = ${email.toLowerCase().trim()}
+          FROM users WHERE email = ${normalizedEmail}
         `
-        if (users.length === 0) {
-          return res.status(401).json({ error: 'Invalid email or PIN' })
-        }
-
         const user = users[0]
-        if (!user.is_active) {
-          return res.status(401).json({ error: 'Account is deactivated. Contact your admin.' })
-        }
 
-        const pinValid = await bcrypt.compare(String(pin), user.pin_hash)
-        if (!pinValid) {
+        // Always run a bcrypt compare — even for unknown emails — so response
+        // timing doesn't reveal which emails are registered. Deactivated
+        // accounts get the same generic error for the same reason.
+        const hashToCheck = user?.pin_hash || (await dummyHashPromise)
+        const pinValid = await bcrypt.compare(String(pin), hashToCheck)
+
+        if (!user || !user.is_active || !pinValid) {
+          await sql`
+            INSERT INTO login_attempts (email, failed_count, last_failed_at, locked_until)
+            VALUES (${normalizedEmail}, 1, NOW(), NULL)
+            ON CONFLICT (email) DO UPDATE SET
+              failed_count = login_attempts.failed_count + 1,
+              last_failed_at = NOW(),
+              locked_until = CASE
+                WHEN login_attempts.failed_count + 1 >= ${MAX_FAILED_ATTEMPTS}
+                THEN NOW() + make_interval(mins => ${LOCKOUT_MINUTES})
+                ELSE NULL
+              END
+          `
           return res.status(401).json({ error: 'Invalid email or PIN' })
         }
+
+        // Success — clear the failure counter
+        await sql`DELETE FROM login_attempts WHERE email = ${normalizedEmail}`
 
         // Create session
         const sessionId = crypto.randomUUID()
@@ -277,6 +330,20 @@ export default async function handler(req, res) {
         // so we handle each field explicitly
         const userId = parseInt(id)
 
+        // Guard: never demote or deactivate the last active admin — that would
+        // leave the app with no admin and no in-app recovery path.
+        const demoting = values.role !== undefined && values.role !== 'admin'
+        const deactivating = values.is_active === false
+        if (demoting || deactivating) {
+          const [target] = await sql`SELECT role, is_active FROM users WHERE id = ${userId}`
+          if (target?.role === 'admin' && target.is_active) {
+            const [{ count }] = await sql`SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin' AND is_active = true`
+            if (count <= 1) {
+              return res.status(400).json({ error: 'Cannot demote or deactivate the only active admin' })
+            }
+          }
+        }
+
         if (values.name !== undefined) await sql`UPDATE users SET name = ${values.name} WHERE id = ${userId}`
         if (values.email !== undefined) await sql`UPDATE users SET email = ${values.email} WHERE id = ${userId}`
         if (values.color !== undefined) await sql`UPDATE users SET color = ${values.color} WHERE id = ${userId}`
@@ -324,62 +391,6 @@ export default async function handler(req, res) {
         console.error('Update preferences error:', err)
         return res.status(500).json({ error: 'Failed to update preferences' })
       }
-    }
-  }
-
-  // ─── One-time setup (POST ?action=setup) ────────────
-  if (req.method === 'POST' && action === 'setup') {
-    try {
-      // Create tables
-      await sql`
-        CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          name TEXT NOT NULL,
-          email TEXT UNIQUE NOT NULL,
-          pin_hash TEXT NOT NULL,
-          color TEXT NOT NULL DEFAULT '#6B7280',
-          role TEXT NOT NULL DEFAULT 'member',
-          is_active BOOLEAN NOT NULL DEFAULT true,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          last_login_at TIMESTAMPTZ
-        )
-      `
-      await sql`
-        CREATE TABLE IF NOT EXISTS sessions (
-          id TEXT PRIMARY KEY,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          created_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `
-      await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`
-      await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
-
-      // Check if admin already exists
-      const existing = await sql`SELECT id, name, email FROM users WHERE role = 'admin' LIMIT 1`
-      if (existing.length > 0) {
-        return res.status(200).json({
-          message: 'Tables exist. Admin already created.',
-          admin: { name: existing[0].name, email: existing[0].email },
-        })
-      }
-
-      // Create Kyle as initial admin
-      const pin = String(Math.floor(100000 + Math.random() * 900000))
-      const pinHash = await bcrypt.hash(pin, 10)
-      await sql`
-        INSERT INTO users (name, email, pin_hash, color, role)
-        VALUES ('Kyle', 'kyle@aquila-ai.com', ${pinHash}, '#7C3AED', 'admin')
-      `
-
-      return res.status(201).json({
-        message: 'Auth tables created and admin account ready.',
-        admin: { name: 'Kyle', email: 'kyle@aquila-ai.com' },
-        pin,
-        warning: 'Save this PIN now — it cannot be retrieved again. Change the email in the admin panel after login.',
-      })
-    } catch (err) {
-      console.error('Setup error:', err)
-      return res.status(500).json({ error: 'Setup failed: ' + err.message })
     }
   }
 

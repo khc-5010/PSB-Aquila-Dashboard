@@ -1,20 +1,13 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
 
 const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
 
-  // Ensure source_prospect_id column exists (idempotent)
-  try {
-    await sql`
-      ALTER TABLE opportunities
-      ADD COLUMN IF NOT EXISTS source_prospect_id INTEGER REFERENCES prospect_companies(id)
-    `
-  } catch (e) {
-    // Column may already exist or table structure differs — non-fatal
-    console.log('source_prospect_id migration note:', e.message)
-  }
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
 
   // GET - Fetch all opportunities
   if (req.method === 'GET') {
@@ -46,7 +39,7 @@ export default async function handler(req, res) {
         company_name, description, project_type, stage = 'channel_routing',
         owner, est_value, source, psb_relationship, next_action,
         source_prospect_id,
-      } = req.body
+      } = req.body || {}
 
       if (!company_name?.trim()) {
         return res.status(400).json({ error: 'company_name is required' })

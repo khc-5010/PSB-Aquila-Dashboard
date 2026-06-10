@@ -1,15 +1,24 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
+
+const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
 
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
+
   // POST - Create new stage transition
   if (req.method === 'POST') {
     try {
-      const { opportunity_id, from_stage, to_stage, transitioned_by } = req.body
+      const { opportunity_id, from_stage, to_stage, transitioned_by } = req.body || {}
 
       if (!opportunity_id || !to_stage) {
         return res.status(400).json({ error: 'opportunity_id and to_stage are required' })
+      }
+      if (!VALID_STAGES.includes(to_stage) || (from_stage && !VALID_STAGES.includes(from_stage))) {
+        return res.status(400).json({ error: `Stages must be one of: ${VALID_STAGES.join(', ')}` })
       }
 
       const result = await sql`

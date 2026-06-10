@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../_lib/requireAuth.js'
 
 /**
  * Consolidated opportunity-by-ID API.
@@ -7,6 +8,9 @@ import { neon } from '@neondatabase/serverless'
  * GET  /api/opportunities/[id]?action=alerts             — get matching alerts
  * POST /api/opportunities/[id]?action=dismiss&ruleId=X   — dismiss an alert
  */
+
+const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
+const VALID_OUTCOMES = ['won', 'lost', 'abandoned']
 
 // Map project_type values to display-style values used in communication_rules
 const PROJECT_TYPE_MAP = {
@@ -27,6 +31,9 @@ const PROJECT_TYPE_MAP = {
 export default async function handler(req, res) {
   const { id, action, ruleId } = req.query
   const sql = neon(process.env.DATABASE_URL)
+
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
 
   if (!id) {
     return res.status(400).json({ error: 'Opportunity ID is required' })
@@ -130,7 +137,17 @@ export default async function handler(req, res) {
 
   // ─── PATCH ─────────────────────────────────────────────
   if (req.method === 'PATCH') {
-    const body = req.body
+    const body = req.body || {}
+
+    // Validate enum-like fields. The Kanban drag handler resolves drop targets
+    // client-side, but the server must still refuse a non-stage value — a bad
+    // stage makes the opportunity invisible on the board (filtered by stage keys).
+    if (body.stage !== undefined && !VALID_STAGES.includes(body.stage)) {
+      return res.status(400).json({ error: `Invalid stage: ${body.stage}. Valid: ${VALID_STAGES.join(', ')}` })
+    }
+    if (body.outcome !== undefined && body.outcome !== null && !VALID_OUTCOMES.includes(body.outcome)) {
+      return res.status(400).json({ error: `Invalid outcome: ${body.outcome}. Valid: ${VALID_OUTCOMES.join(', ')} or null` })
+    }
 
     const fieldMap = {
       company_name: 'company_name',
@@ -172,12 +189,7 @@ export default async function handler(req, res) {
     `
 
     try {
-      console.log('Query:', queryText)
-      console.log('Values:', values)
-
       const result = await sql.query(queryText, values)
-
-      console.log('Result:', JSON.stringify(result))
 
       if (!result || result.length === 0) {
         return res.status(404).json({ error: 'Opportunity not found' })

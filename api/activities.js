@@ -1,7 +1,11 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
 
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
+
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
 
   // GET: Fetch activities for an opportunity
   if (req.method === 'GET') {
@@ -30,7 +34,7 @@ export default async function handler(req, res) {
 
   // POST: Create a new activity
   if (req.method === 'POST') {
-    const { opportunity_id, description, created_by } = req.body
+    const { opportunity_id, description, created_by } = req.body || {}
 
     if (!opportunity_id || !description) {
       res.status(400).json({ error: 'opportunity_id and description are required' })

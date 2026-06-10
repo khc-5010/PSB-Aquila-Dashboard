@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -6,6 +7,9 @@ export default async function handler(req, res) {
   }
 
   const sql = neon(process.env.DATABASE_URL)
+
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
 
   try {
     // Run all queries in parallel for performance

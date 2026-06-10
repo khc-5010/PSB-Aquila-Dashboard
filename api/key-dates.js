@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from './_lib/requireAuth.js'
 
 /**
  * Consolidated key-dates API.
@@ -8,20 +9,44 @@ import { neon } from '@neondatabase/serverless'
  * GET /api/key-dates?opportunityId=X&all=true     — all dates for opportunity (no limit)
  */
 
+// Parse a DATE value (YYYY-MM-DD string or Date) into a local-midnight Date,
+// avoiding the new Date('YYYY-MM-DD') UTC-midnight pitfall.
+function parseDateOnly(val) {
+  if (!val) return null
+  const str = val instanceof Date ? val.toISOString() : String(val)
+  const [y, m, d] = str.split('T')[0].split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+function formatDateOnly(date) {
+  if (!date) return null
+  const p = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`
+}
+
 function processDate(d, today) {
   let targetDate, endDate
 
   if (d.fixed_date) {
-    targetDate = new Date(d.fixed_date)
+    targetDate = parseDateOnly(d.fixed_date)
   } else if (d.recurring_month && d.recurring_day) {
     targetDate = new Date(today.getFullYear(), d.recurring_month - 1, d.recurring_day)
+    // Both dates are local midnight, so this rolls to next year only once the
+    // date has actually passed — NOT on the deadline day itself.
     if (targetDate < today) {
       targetDate = new Date(today.getFullYear() + 1, d.recurring_month - 1, d.recurring_day)
     }
   }
 
+  // Rows with no usable date (or recurring_end without a base date) used to
+  // crash or produce NaN math — surface them inert instead.
+  if (!targetDate) {
+    return { ...d, calculated_date: null, calculated_end_date: null, days_until: NaN, urgency: 'none', is_active: false }
+  }
+
   if (d.end_date) {
-    endDate = new Date(d.end_date)
+    endDate = parseDateOnly(d.end_date)
   } else if (d.recurring_end_month && d.recurring_end_day) {
     endDate = new Date(targetDate.getFullYear(), d.recurring_end_month - 1, d.recurring_end_day)
     if (endDate < targetDate) {
@@ -29,15 +54,16 @@ function processDate(d, today) {
     }
   }
 
-  const daysUntil = Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24))
+  const daysUntil = Math.round((targetDate - today) / (1000 * 60 * 60 * 24))
   const isActive = endDate ? (today >= targetDate && today <= endDate) : false
 
   let urgency = 'none'
   if (isActive) {
     urgency = 'active'
-  } else if (daysUntil <= 0) {
+  } else if (daysUntil < 0) {
     urgency = 'past'
-  } else if (daysUntil <= d.warn_days_red) {
+  } else if (daysUntil === 0 || daysUntil <= d.warn_days_red) {
+    // Due TODAY is the most urgent state — never 'past' (which banners hide)
     urgency = 'red'
   } else if (daysUntil <= d.warn_days_yellow) {
     urgency = 'yellow'
@@ -47,8 +73,8 @@ function processDate(d, today) {
 
   return {
     ...d,
-    calculated_date: targetDate?.toISOString().split('T')[0] || null,
-    calculated_end_date: endDate?.toISOString().split('T')[0] || null,
+    calculated_date: formatDateOnly(targetDate),
+    calculated_end_date: formatDateOnly(endDate),
     days_until: daysUntil,
     urgency,
     is_active: isActive,
@@ -61,7 +87,12 @@ export default async function handler(req, res) {
   }
 
   const sql = neon(process.env.DATABASE_URL)
-  const today = new Date()
+
+  const user = await requireAuth(req, res, sql)
+  if (!user) return
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const { opportunityId, all } = req.query
 
   // ─── Dates for a specific opportunity ──────────────────
