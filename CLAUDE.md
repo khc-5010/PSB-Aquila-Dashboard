@@ -213,6 +213,11 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `id`, `name`, `description`, `deadline_date`
   - `applies_to` (project_type array) - Which project types this applies to
 
+- **`prospect_status_transitions`** - Append-only prospect status history (QA audit E7), mirroring `stage_transitions`
+  - `id` (SERIAL, PK), `prospect_id` (FK → prospect_companies.id, ON DELETE CASCADE), `from_status` (nullable), `to_status`, `transitioned_at` (TIMESTAMPTZ, default NOW()), `transitioned_by`
+  - Written best-effort from the prospect PATCH handler and the research-brief status auto-advance via `logStatusChange()` — logging failures never fail the write they accompany
+  - **Self-ensuring:** created lazily by `ensureProspectSchemaAdditions()` in `api/prospects.js` (once per warm instance — guarded, unlike the unguarded ALTER antipattern in `api/opportunities.js`). Mirrored in `scripts/create-status-transitions.sql` for reproducibility. History accrues from deploy; earlier status changes were never recorded.
+
 ### Auth Tables
 
 - **`users`** - Dashboard user accounts (4 users)
@@ -240,7 +245,8 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - Planning: `engagement_type`, `suggested_next_step`, `legacy_data_potential`, `notes`
   - Dashboard-managed (editable): `outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`
   - Provenance: `added_by` — set on INSERT only (never overwritten on update/upsert), sourced from authenticated user's name
-  - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture
+  - Status: `prospect_status` — Identified, Prioritized, Research Complete, Outreach Ready, Converted, Nurture (changes are logged to `prospect_status_transitions`)
+  - PE window: `ma_date` (DATE, nullable, self-ensured column — QA audit E4) — structured acquisition date. `getPEWindowInfo(ma_date)` computes the 6–18mo post-acquisition window (phases: upcoming/early/optimal/closing/closed). **SYNC pair:** `src/utils/peWindow.js` ↔ `api/prospects.js` — keep identical. Drives the ProspectDetail countdown badge, PE clock-icon tooltips in the table, the Call Sheet PE boost (only while the window is open/approaching), and digest PE Window Watch ranking (rows with only free-text `recent_ma` keep legacy behavior). Deliberately does NOT affect `priority_score`.
   - Follow-up: `follow_up_date` (DATE, nullable) — user-set follow-up date for CRM tracking
   - Scoring: `priority_score` (INTEGER, nullable) — calculated 0-100 score; `ai_readiness` (TEXT, nullable) — 'green'/'yellow'/'red'/'exempt'; `priority_manual` (TEXT, nullable) — manual override value
   - Timestamps: `created_at`, `updated_at`
@@ -301,6 +307,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `POST /api/prospects?action=update-attachment` — Update attachment content in place (no status auto-advancement). Body: `{ attachment_id, content, updated_by }`
 - `DELETE /api/prospects?action=delete-attachment&attachmentId=X` — Delete attachment
 - `GET /api/prospects?action=data-audit` — Data quality audit: runs 16 diagnostic rules and returns counts, severity, examples, state signal health, and ontology health
+- `GET /api/prospects?action=trends` — Monthly counts for the last 12 months (prospects added, conversions, research briefs, status transitions). Global — ignores filter params by design. Rendered by `charts/TrendsPanel.jsx` at the bottom of the Charts sub-view (self-fetching).
 - `GET /api/prospects?action=export-json&id=X` — Full single-company export: the live company + its 1-hop corporate links (typed parent/children + former-name rows) + each record's attachments, activity log, and tasks, assembled into one JSON payload (see "Company JSON Export" below)
 
 ### Frontend Components

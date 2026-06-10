@@ -4,6 +4,7 @@ import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, Cli
 
 import { getParentCategory } from '../../utils/categoryGroups'
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPEOwnership } from '../../utils/priorityScore'
+import { getPEWindowInfo } from '../../utils/peWindow'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
@@ -65,6 +66,26 @@ function formatLocation(p) {
   const parts = [p.city, p.state].filter(Boolean)
   if (!isUS && p.country) parts.push(p.country)
   return parts.join(', ')
+}
+
+// PE urgency clock for the Ownership column. With a structured ma_date the
+// tooltip carries the computed 6-18mo window countdown (E4); otherwise the
+// legacy recent_ma-truthiness behavior is unchanged.
+function PEClockIcon({ p }) {
+  const win = getPEWindowInfo(p.ma_date)
+  if (win) {
+    const urgent = win.phase === 'optimal' || win.phase === 'closing'
+    return (
+      <Clock
+        className={`w-3.5 h-3.5 flex-shrink-0 ${urgent ? 'text-red-500' : 'text-amber-500'}`}
+        title={`PE-backed — ${win.label}`}
+      />
+    )
+  }
+  if (p.recent_ma) {
+    return <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
+  }
+  return <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
 }
 
 const STATE_TO_CORRIDOR = {
@@ -353,7 +374,7 @@ function exportToCSV(data, filename) {
     'revenue_known', 'revenue_est_m', 'press_count',
     'site_count', 'acquisition_count',
     'signal_count', 'top_signal', 'rjg_cavity_pressure', 'medical_device_mfg',
-    'key_certifications', 'ownership_type', 'recent_ma',
+    'key_certifications', 'ownership_type', 'recent_ma', 'ma_date',
     'parent_company', 'parent_relationship_kind', 'financial_sponsor', 'decision_location',
     'cwp_contacts', 'psb_connection_notes',
     'engagement_type', 'suggested_next_step', 'follow_up_date', 'legacy_data_potential', 'notes',
@@ -1082,10 +1103,8 @@ function ProspectTable() {
       <td className="px-3 py-2.5">
         <span className="text-xs text-gray-600 flex items-center gap-1">
           <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
-          {isPEOwnership(p.ownership_type) && p.recent_ma ? (
-            <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-          ) : isPEOwnership(p.ownership_type) ? (
-            <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
+          {isPEOwnership(p.ownership_type) ? (
+            <PEClockIcon p={p} />
           ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
           ) : p.ownership_type === 'ESOP' ? (
@@ -1279,10 +1298,8 @@ function ProspectTable() {
         <td className="px-3 py-2.5">
           <span className="text-xs text-gray-600 flex items-center gap-1">
             <span className="truncate max-w-[100px]" title={parentP.ownership_type || ''}>{displayValue(parentP.ownership_type)}</span>
-            {isPEOwnership(parentP.ownership_type) && parentP.recent_ma ? (
-              <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-            ) : isPEOwnership(parentP.ownership_type) ? (
-              <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
+            {isPEOwnership(parentP.ownership_type) ? (
+              <PEClockIcon p={parentP} />
             ) : (parentP.ownership_type === 'Family/Founder-Owned' || parentP.ownership_type === 'Family-Owned' || parentP.ownership_type?.includes('Family')) && (parentP.years_in_business ?? 0) >= 30 ? (
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${parentP.years_in_business}+ years — potential succession/transition window`} />
             ) : parentP.ownership_type === 'ESOP' ? (
