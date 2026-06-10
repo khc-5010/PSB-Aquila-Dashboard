@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { authFetch } from '../context/AuthContext'
+import { parseLocalDate } from './prospects/tasks/taskUtils'
 
 function DeadlineBanner() {
   const [deadlines, setDeadlines] = useState([])
@@ -27,8 +28,11 @@ function DeadlineBanner() {
     return null
   }
 
+  // parseLocalDate, not new Date('YYYY-MM-DD') — UTC parse shifts the date a
+  // day earlier in US timezones (Aug 15 deadline rendered as Aug 14)
   const formatDate = (dateStr) => {
-    const date = new Date(dateStr)
+    const date = parseLocalDate(dateStr)
+    if (!date) return ''
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
@@ -106,7 +110,9 @@ function DeadlineBanner() {
                   ? ' — Currently active'
                   : deadline.days_until > 0
                     ? ` — ${deadline.days_until} days remaining`
-                    : ' — Past'
+                    : deadline.days_until === 0
+                      ? ' — Due TODAY'
+                      : ' — Past'
                 }
               </span>
             </div>

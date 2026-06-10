@@ -353,6 +353,7 @@ function App() {
             opportunity={selectedOpportunity}
             onClose={handleCloseDetail}
             onUpdate={handleOpportunityUpdate}
+            users={users}
           />
 
           {metricsModal === 'value' && (
@@ -374,6 +375,7 @@ function App() {
               opportunities={opportunities}
               onClose={() => setMetricsModal(null)}
               onSelectOpportunity={handleMetricsSelect}
+              users={users}
             />
           )}
         </>

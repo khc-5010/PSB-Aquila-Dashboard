@@ -133,6 +133,47 @@ function Field({ label, value, className = '' }) {
   )
 }
 
+// Always-visible number input that commits on blur/Enter instead of per
+// keystroke — typing "15" must not send PATCH(1) then PATCH(15) (no ordering
+// guarantee), bump updated_at (resetting staleness detection), or churn
+// last_edited_by on every digit. Escape reverts the draft.
+function CommitNumberInput({ value, onCommit, min, placeholder, className }) {
+  const [draft, setDraft] = useState(value != null ? String(value) : '')
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!editing) setDraft(value != null ? String(value) : '')
+  }, [value, editing])
+
+  const commit = () => {
+    setEditing(false)
+    const parsed = draft === '' ? null : parseInt(draft, 10)
+    const next = parsed === null || isNaN(parsed) ? null : parsed
+    const current = value == null || value === '' ? null : Number(value)
+    if (next !== current) onCommit(next)
+  }
+
+  return (
+    <input
+      type="number"
+      min={min}
+      value={draft}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(value != null ? String(value) : '')
+          setEditing(false)
+        }
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  )
+}
+
 function EditableField({ label, value, onSave, multiline = false }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value || '')
@@ -603,14 +644,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Rank</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           min="1"
-                          value={p.outreach_rank ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'outreach_rank', val)
-                          }}
+                          value={p.outreach_rank}
+                          onCommit={(val) => onUpdate(p.id, 'outreach_rank', val)}
                           placeholder="Set rank..."
                           className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                         />
@@ -1001,14 +1038,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           min="0"
-                          value={p.site_count ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'site_count', val)
-                          }}
+                          value={p.site_count}
+                          onCommit={(val) => onUpdate(p.id, 'site_count', val)}
                           placeholder="—"
                           className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                         />
@@ -1017,14 +1050,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisitions</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <CommitNumberInput
                           min="0"
-                          value={p.acquisition_count ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'acquisition_count', val)
-                          }}
+                          value={p.acquisition_count}
+                          onCommit={(val) => onUpdate(p.id, 'acquisition_count', val)}
                           placeholder="—"
                           className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                         />

@@ -44,10 +44,16 @@ const EXCEL_TO_DB = {
 // Fields that the server preserves via COALESCE — don't send in import payload
 const PRESERVED_FIELDS = ['outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by']
 
+// SYNC: cleanValue/cleanInt/cleanNumeric/cleanArray are duplicated in
+// scripts/seed-prospects.js — keep the two copies identical (they drifted
+// once: different null-sentinel lists and a comma-blind parseInt that turned
+// "1,250" into 1 on the seed side). Sentinels are the union of both paths:
+// '', 'N/A', 'nan'/'NaN' (pandas exports), '#N/A' (Excel error), '-'.
 function cleanValue(val) {
   if (val === null || val === undefined) return null
   const s = String(val).trim()
-  if (s === '' || s === 'N/A' || s === 'n/a' || s === '-') return null
+  if (s === '') return null
+  if (['n/a', 'nan', '#n/a', '-'].includes(s.toLowerCase())) return null
   return s
 }
 

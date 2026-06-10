@@ -102,8 +102,11 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
 
   const canSave = selectedState && content.trim()
 
+  // z-[70]: must stack above StateReportModal's z-[61] wrapper — this modal is
+  // reachable both from the sidebar (z-40) and from inside the full-screen
+  // report modal, where z-[60] left it fully occluded and unclickable.
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">

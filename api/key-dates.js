@@ -9,11 +9,28 @@ import { requireAuth } from '../lib/requireAuth.js'
  * GET /api/key-dates?opportunityId=X&all=true     — all dates for opportunity (no limit)
  */
 
+// Parse a DATE-only value (YYYY-MM-DD or ISO timestamp) at midnight, ignoring
+// any time component. SYNC: same pattern as parseLocalDate in api/prospects.js /
+// ProspectTable.jsx / taskUtils.js. Never use `new Date('YYYY-MM-DD')` — it
+// parses as UTC midnight, which shifts the date in US timezones.
+function parseDateOnly(val) {
+  if (!val) return null
+  const str = typeof val === 'string' ? val : val instanceof Date ? val.toISOString() : String(val)
+  const [y, m, d] = str.split('T')[0].split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+// `today` must be start-of-day (midnight). Both bugs this function had lived
+// in the time component: recurring dates rolled to NEXT year at 00:01 on the
+// due day ("365 days remaining" on Aug 15), and daysUntil hit 0 → 'past' on
+// the due day itself, which DeadlineBanner filters out — hiding the deadline
+// on the day it matters most.
 function processDate(d, today) {
   let targetDate, endDate
 
   if (d.fixed_date) {
-    targetDate = new Date(d.fixed_date)
+    targetDate = parseDateOnly(d.fixed_date)
   } else if (d.recurring_month && d.recurring_day) {
     targetDate = new Date(today.getFullYear(), d.recurring_month - 1, d.recurring_day)
     if (targetDate < today) {
@@ -22,7 +39,7 @@ function processDate(d, today) {
   }
 
   if (d.end_date) {
-    endDate = new Date(d.end_date)
+    endDate = parseDateOnly(d.end_date)
   } else if (d.recurring_end_month && d.recurring_end_day) {
     endDate = new Date(targetDate.getFullYear(), d.recurring_end_month - 1, d.recurring_end_day)
     if (endDate < targetDate) {
@@ -30,13 +47,14 @@ function processDate(d, today) {
     }
   }
 
-  const daysUntil = Math.ceil((targetDate - today) / (1000 * 60 * 60 * 24))
+  // Both midnights → exact integer; Math.round guards DST drift
+  const daysUntil = Math.round((targetDate - today) / (1000 * 60 * 60 * 24))
   const isActive = endDate ? (today >= targetDate && today <= endDate) : false
 
   let urgency = 'none'
   if (isActive) {
     urgency = 'active'
-  } else if (daysUntil <= 0) {
+  } else if (daysUntil < 0) {
     urgency = 'past'
   } else if (daysUntil <= d.warn_days_red) {
     urgency = 'red'
@@ -65,7 +83,9 @@ export default async function handler(req, res) {
   if (!authUser) return
 
   const sql = neon(process.env.DATABASE_URL)
-  const today = new Date()
+  // Start-of-day, not now() — processDate compares date-only values
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const { opportunityId, all } = req.query
 
   // ─── Dates for a specific opportunity ──────────────────
