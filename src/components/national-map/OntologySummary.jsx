@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import InfoTooltip from './InfoTooltip'
+import { authFetch } from '../../context/AuthContext'
 
 function OntologySummary({ stateCode, ontologyDensity }) {
   const [data, setData] = useState(null)
@@ -9,7 +10,7 @@ function OntologySummary({ stateCode, ontologyDensity }) {
     if (!stateCode) return
     setLoading(true)
     setData(null)
-    fetch(`/api/prospects?action=ontology-state-summary&state=${stateCode}`)
+    authFetch(`/api/prospects?action=ontology-state-summary&state=${stateCode}`)
       .then(res => res.ok ? res.json() : null)
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))

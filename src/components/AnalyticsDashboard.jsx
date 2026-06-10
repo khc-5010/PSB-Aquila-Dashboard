@@ -10,6 +10,7 @@ import ActivityHeatmap from './analytics/ActivityHeatmap'
 import WinRateChart from './analytics/WinRateChart'
 import DeadlineCalendar from './analytics/DeadlineCalendar'
 import CycleTimeTrends from './analytics/CycleTimeTrends'
+import { authFetch } from '../context/AuthContext'
 
 function AnalyticsDashboard() {
   const [dateRange, setDateRange] = useState('90')
@@ -21,7 +22,7 @@ function AnalyticsDashboard() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/analytics')
+      const response = await authFetch('/api/analytics')
       if (!response.ok) throw new Error('Failed to fetch analytics')
       const data = await response.json()
       setAnalyticsData(data)

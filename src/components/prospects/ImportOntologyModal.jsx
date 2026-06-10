@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import InfoTooltip from '../national-map/InfoTooltip'
+import { authFetch } from '../../context/AuthContext'
 
 const VALID_ENTITY_TYPES = [
   'Technology / Software', 'Equipment Brand', 'Quality Method', 'Material',
@@ -101,7 +102,7 @@ export default function ImportOntologyModal({ prospect, onClose, onImported }) {
     setError(null)
 
     try {
-      const res = await fetch('/api/prospects?action=import-ontology-extraction', {
+      const res = await authFetch('/api/prospects?action=import-ontology-extraction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

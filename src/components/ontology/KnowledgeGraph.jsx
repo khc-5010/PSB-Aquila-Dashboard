@@ -3,6 +3,7 @@ import InfoTooltip from '../national-map/InfoTooltip'
 import QueryPanel from './QueryPanel'
 import GraphExplorer from './GraphExplorer'
 import { ENTITY_COLORS } from './ForceGraph'
+import { authFetch } from '../../context/AuthContext'
 
 const VIEW_MODES = [
   { key: 'split', label: 'Query + Graph' },
@@ -15,7 +16,11 @@ export default function KnowledgeGraph() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [viewMode, setViewMode] = useState('query')
-  const [highlightNodeIds, setHighlightNodeIds] = useState(null)
+  // Prospect-company ids matched by the last query — GraphExplorer maps these
+  // onto graph node ids (super-nodes via memberProspectIds, company nodes via
+  // prospectId). Node id formats differ between overview ("{type}-{name}") and
+  // neighborhood (numeric entity id), so raw company ids are the stable key.
+  const [highlightCompanyIds, setHighlightCompanyIds] = useState(null)
   const [stateFilter, setStateFilter] = useState(null)
   const [initialCompanyId, setInitialCompanyId] = useState(null)
 
@@ -41,7 +46,7 @@ export default function KnowledgeGraph() {
     try {
       const params = new URLSearchParams({ action: 'ontology-graph' })
       if (state) params.set('state', state)
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setGraphData(data)
@@ -58,15 +63,15 @@ export default function KnowledgeGraph() {
 
   const handleStateFilter = useCallback((state) => {
     setStateFilter(state)
-    setHighlightNodeIds(null)
+    setHighlightCompanyIds(null)
   }, [])
 
   const handleQueryResults = useCallback((companyIds) => {
     if (!companyIds || companyIds.length === 0) {
-      setHighlightNodeIds(null)
+      setHighlightCompanyIds(null)
       return
     }
-    setHighlightNodeIds(new Set(companyIds.map(id => `company-${id}`)))
+    setHighlightCompanyIds(new Set(companyIds.map(Number)))
   }, [])
 
   // Large super-node click: switch to split view so QueryPanel is visible
@@ -161,7 +166,7 @@ export default function KnowledgeGraph() {
           <div className={viewMode === 'query' ? 'hidden' : ''}>
             <GraphExplorer
               graphData={graphData}
-              highlightNodeIds={highlightNodeIds}
+              highlightCompanyIds={highlightCompanyIds}
               loading={loading}
               initialCompanyId={initialCompanyId}
               onLargeNodeClick={handleLargeNodeClick}

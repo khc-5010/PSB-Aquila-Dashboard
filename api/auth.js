@@ -2,6 +2,15 @@ import { neon } from '@neondatabase/serverless'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
+// Decoy hash compared against when a login email doesn't exist, so unknown
+// emails take the same bcrypt time as real ones (no timing side-channel).
+// Lazily computed once per warm instance.
+let dummyHash = null
+function getDummyHash() {
+  if (!dummyHash) dummyHash = bcrypt.hashSync('decoy-000000', 10)
+  return dummyHash
+}
+
 /**
  * Consolidated auth API — single serverless function.
  *
@@ -42,39 +51,87 @@ export default async function handler(req, res) {
     return { user }
   }
 
-  // ─── Helper: generate 6-digit PIN ─────────────────────
+  // ─── Helper: generate 6-digit PIN (CSPRNG, not Math.random) ──
   function generatePin() {
-    return String(Math.floor(100000 + Math.random() * 900000))
+    return String(crypto.randomInt(100000, 1000000))
   }
 
   // ─── POST ──────────────────────────────────────────────
   if (req.method === 'POST') {
 
     // ── Login ────────────────────────────────────────────
+    // Hardened: per-email lockout (5 failures → 15 min), dummy bcrypt compare
+    // on unknown emails (no timing side-channel), and a generic error for
+    // deactivated accounts (no account-state probing). A 6-digit PIN is a
+    // 1,000,000-key space — without lockout it is brute-forceable.
     if (action === 'login') {
       try {
         const { email, pin } = req.body || {}
         if (!email || !pin) {
           return res.status(400).json({ error: 'Email and PIN are required' })
         }
+        const normalizedEmail = email.toLowerCase().trim()
+
+        // Lazy-create the attempts table (cheap at login frequency; avoids a
+        // manual migration step — there is no local dev/SQL access workflow).
+        await sql`
+          CREATE TABLE IF NOT EXISTS login_attempts (
+            email TEXT PRIMARY KEY,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            locked_until TIMESTAMPTZ,
+            last_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `
+
+        // Reject while locked out
+        const attempts = await sql`
+          SELECT failed_count, locked_until FROM login_attempts
+          WHERE email = ${normalizedEmail}
+        `
+        if (attempts[0]?.locked_until && new Date(attempts[0].locked_until) > new Date()) {
+          return res.status(429).json({ error: 'Too many failed attempts. Try again in 15 minutes.' })
+        }
+
+        // Record a failure and lock after MAX_FAILED consecutive misses
+        const MAX_FAILED = 5
+        async function recordFailure() {
+          await sql`
+            INSERT INTO login_attempts (email, failed_count, last_attempt_at, locked_until)
+            VALUES (${normalizedEmail}, 1, NOW(), NULL)
+            ON CONFLICT (email) DO UPDATE SET
+              failed_count = login_attempts.failed_count + 1,
+              last_attempt_at = NOW(),
+              locked_until = CASE
+                WHEN login_attempts.failed_count + 1 >= ${MAX_FAILED} THEN NOW() + INTERVAL '15 minutes'
+                ELSE NULL
+              END
+          `
+        }
 
         const users = await sql`
           SELECT id, name, email, pin_hash, color, role, is_active, digest_enabled, digest_preferences
-          FROM users WHERE email = ${email.toLowerCase().trim()}
+          FROM users WHERE email = ${normalizedEmail}
         `
         if (users.length === 0) {
+          // Burn the same bcrypt time as a real compare so response timing
+          // doesn't reveal which emails exist.
+          await bcrypt.compare(String(pin), getDummyHash())
+          await recordFailure()
           return res.status(401).json({ error: 'Invalid email or PIN' })
         }
 
         const user = users[0]
-        if (!user.is_active) {
-          return res.status(401).json({ error: 'Account is deactivated. Contact your admin.' })
-        }
-
         const pinValid = await bcrypt.compare(String(pin), user.pin_hash)
-        if (!pinValid) {
+
+        // Generic error for both bad PIN and deactivated account — a distinct
+        // "deactivated" message confirms the email and account state.
+        if (!pinValid || !user.is_active) {
+          await recordFailure()
           return res.status(401).json({ error: 'Invalid email or PIN' })
         }
+
+        // Success — clear the failure counter
+        await sql`DELETE FROM login_attempts WHERE email = ${normalizedEmail}`
 
         // Create session
         const sessionId = crypto.randomUUID()
@@ -354,21 +411,26 @@ export default async function handler(req, res) {
       await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`
       await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`
 
-      // Check if admin already exists
-      const existing = await sql`SELECT id, name, email FROM users WHERE role = 'admin' LIMIT 1`
+      // Check if an ACTIVE admin already exists. Checking is_active means a
+      // deactivated sole admin can be recovered via setup, and the identity of
+      // the existing admin is never echoed to anonymous callers.
+      const existing = await sql`SELECT id FROM users WHERE role = 'admin' AND is_active = true LIMIT 1`
       if (existing.length > 0) {
-        return res.status(200).json({
-          message: 'Tables exist. Admin already created.',
-          admin: { name: existing[0].name, email: existing[0].email },
-        })
+        return res.status(200).json({ message: 'Setup already complete.' })
       }
 
       // Create Kyle as initial admin
-      const pin = String(Math.floor(100000 + Math.random() * 900000))
+      const pin = String(crypto.randomInt(100000, 1000000))
       const pinHash = await bcrypt.hash(pin, 10)
+      // Upsert so the recovery path (existing-but-deactivated admin row)
+      // reactivates the account instead of failing the unique email constraint.
       await sql`
         INSERT INTO users (name, email, pin_hash, color, role)
         VALUES ('Kyle', 'kyle@aquila-ai.com', ${pinHash}, '#7C3AED', 'admin')
+        ON CONFLICT (email) DO UPDATE SET
+          pin_hash = EXCLUDED.pin_hash,
+          role = 'admin',
+          is_active = true
       `
 
       return res.status(201).json({

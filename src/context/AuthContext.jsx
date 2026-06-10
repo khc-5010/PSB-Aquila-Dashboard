@@ -39,7 +39,9 @@ export function AuthProvider({ children }) {
         setLoading(false)
       })
       .catch(() => {
-        localStorage.removeItem(TOKEN_KEY)
+        // Network error / server blip — keep the token so a refresh after the
+        // connection recovers validates normally. Only an explicit invalid
+        // response (above) removes it.
         setLoading(false)
       })
   }, [])

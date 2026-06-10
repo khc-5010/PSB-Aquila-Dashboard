@@ -85,8 +85,11 @@ function DroppableColumn({ stage, opportunities, children }) {
         </div>
       </div>
 
-      {/* Cards container with sortable context */}
+      {/* Cards container with sortable context. The explicit id makes
+          over.data.current.sortable.containerId resolve to the stage key in
+          App.jsx's drag handler (without it dnd-kit auto-generates "Sortable-N"). */}
       <SortableContext
+        id={stage.key}
         items={opportunities.map(o => o.id)}
         strategy={verticalListSortingStrategy}
       >

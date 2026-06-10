@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { PROJECT_TYPES } from '../../constants/pipeline'
 
 function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
@@ -17,14 +17,13 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
     notes: '',
   })
 
-  // Fetch users for owner dropdown
+  // Fetch users for owner dropdown. team-members works for any authenticated
+  // user (list-users is admin-only and left this dropdown empty for everyone
+  // else). Returns active members' { name, color }.
   useEffect(() => {
-    fetch('/api/auth?action=list-users')
+    authFetch('/api/auth?action=team-members')
       .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        const active = (Array.isArray(data) ? data : []).filter(u => u.is_active)
-        setUsers(active)
-      })
+      .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [])
 
@@ -48,7 +47,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
 
     try {
       // 1. Create opportunity
-      const oppRes = await fetch('/api/opportunities', {
+      const oppRes = await authFetch('/api/opportunities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -71,7 +70,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
 
       // 2. Update prospect status to Converted (only if not already)
       if (prospect.prospect_status !== 'Converted') {
-        await fetch(`/api/prospects?id=${prospect.id}`, {
+        await authFetch(`/api/prospects?id=${prospect.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -83,7 +82,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
 
       // 3. Log initial stage transition
       const opp = await oppRes.json()
-      await fetch('/api/stage-transitions', {
+      await authFetch('/api/stage-transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +161,7 @@ function ConvertToOpportunityModal({ prospect, onClose, onSuccess }) {
               >
                 <option value="">Select owner...</option>
                 {users.map(u => (
-                  <option key={u.id} value={u.name}>{u.name}</option>
+                  <option key={u.name} value={u.name}>{u.name}</option>
                 ))}
               </select>
             </div>

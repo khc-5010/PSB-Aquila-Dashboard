@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../lib/requireAuth.js'
 
 /**
  * Consolidated key-dates API.
@@ -59,6 +60,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  const authUser = await requireAuth(req, res)
+  if (!authUser) return
 
   const sql = neon(process.env.DATABASE_URL)
   const today = new Date()

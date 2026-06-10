@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
 import { getProjectTypeLabel } from '../constants/options'
+import { useAuth, authFetch } from '../context/AuthContext'
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -39,6 +40,7 @@ const alertStyles = {
 }
 
 function OpportunityDetail({ opportunity, onClose, onUpdate }) {
+  const { user } = useAuth()
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
 
@@ -52,7 +54,6 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Log Activity modal state
   const [showLogModal, setShowLogModal] = useState(false)
   const [activityText, setActivityText] = useState('')
-  const [createdBy, setCreatedBy] = useState('Kyle')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
@@ -77,7 +78,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     if (!opportunity?.id) return
     setLoadingActivities(true)
     try {
-      const res = await fetch(`/api/activities?opportunity_id=${opportunity.id}`)
+      const res = await authFetch(`/api/activities?opportunity_id=${opportunity.id}`)
       const data = res.ok ? await res.json() : []
       setActivities(Array.isArray(data) ? data : [])
     } catch {
@@ -97,7 +98,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     if (!opportunity?.id) return
     setAlertsLoading(true)
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}?action=alerts`)
+      const res = await authFetch(`/api/opportunities/${opportunity.id}?action=alerts`)
       const data = res.ok ? await res.json() : { alerts: [] }
       setAlerts(data.alerts || [])
     } catch (err) {
@@ -121,7 +122,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       const url = fetchAll
         ? `/api/key-dates?opportunityId=${opportunity.id}&all=true`
         : `/api/key-dates?opportunityId=${opportunity.id}`
-      const res = await fetch(url)
+      const res = await authFetch(url)
       const data = res.ok ? await res.json() : { dates: [], hasMore: false, totalCount: 0 }
       setKeyDates(data.dates || [])
       setHasMoreDates(data.hasMore || false)
@@ -145,10 +146,10 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Handle dismiss alert
   const handleDismissAlert = async (ruleId) => {
     try {
-      await fetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
+      await authFetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dismissed_by: 'kyle' }) // TODO: get from auth context
+        body: JSON.stringify({ dismissed_by: user?.name || 'unknown' })
       })
       // Remove from local state immediately for instant feedback
       setAlerts(prev => prev.filter(a => a.id !== ruleId))
@@ -257,13 +258,13 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     setSubmitError('')
 
     try {
-      const res = await fetch('/api/activities', {
+      const res = await authFetch('/api/activities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           opportunity_id: opportunity.id,
           description: activityText.trim(),
-          created_by: createdBy,
+          created_by: user?.name || 'Unknown',
         }),
       })
 
@@ -303,7 +304,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     setIsEditingNextAction(false)
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ next_action: trimmedValue || null }),
@@ -352,7 +353,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     }
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -365,14 +366,14 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       if (!res.ok) throw new Error('Failed to update outcome')
 
       // Log the stage transition
-      await fetch('/api/stage-transitions', {
+      await authFetch('/api/stage-transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           opportunity_id: opportunity.id,
           from_stage: opportunity.stage,
           to_stage: 'complete',
-          transitioned_by: 'user',
+          transitioned_by: user?.name || 'user',
         }),
       })
     } catch (error) {
@@ -921,23 +922,12 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                   />
                 </div>
 
-                {/* Created By */}
-                <div>
-                  <label htmlFor="created-by" className="block text-sm font-medium text-gray-700 mb-1">
-                    Created by
-                  </label>
-                  <select
-                    id="created-by"
-                    value={createdBy}
-                    onChange={(e) => setCreatedBy(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    disabled={isSubmitting}
-                  >
-                    <option value="Kyle">Kyle</option>
-                    <option value="Duane">Duane</option>
-                    <option value="Steve">Steve</option>
-                  </select>
-                </div>
+                {/* Created By — attributed to the authenticated user (the old
+                    hardcoded Kyle/Duane/Steve dropdown predated auth and
+                    excluded Brett) */}
+                <p className="text-xs text-gray-500">
+                  Logging as <span className="font-medium text-gray-700">{user?.name || 'Unknown'}</span>
+                </p>
 
                 {/* Error Message */}
                 {submitError && (

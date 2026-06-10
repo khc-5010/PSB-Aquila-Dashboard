@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { authFetch } from '../context/AuthContext'
 
 function DeadlineBanner() {
   const [deadlines, setDeadlines] = useState([])
@@ -7,7 +8,7 @@ function DeadlineBanner() {
   const [showEvents, setShowEvents] = useState(false)
 
   useEffect(() => {
-    fetch('/api/key-dates')
+    authFetch('/api/key-dates')
       .then(res => res.json())
       .then(data => {
         // Only show deadlines that are yellow, red, or active urgency

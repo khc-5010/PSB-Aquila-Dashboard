@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
-import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPEOwnership } from '../../utils/priorityScore'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
@@ -575,7 +575,7 @@ function ProspectTable() {
 
   // Fetch prospects
   useEffect(() => {
-    fetch('/api/prospects')
+    authFetch('/api/prospects')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -601,7 +601,7 @@ function ProspectTable() {
           action: 'tasks', format: 'count', assignee: 'me',
           current_user: user.name, status: 'open',
         })
-        const badgeRes = await fetch(`/api/prospects?${badgeParams.toString()}`)
+        const badgeRes = await authFetch(`/api/prospects?${badgeParams.toString()}`)
         if (badgeRes.ok) {
           const { count } = await badgeRes.json()
           setTaskBadgeCount(count || 0)
@@ -609,7 +609,7 @@ function ProspectTable() {
       }
 
       // 2) Per-prospect open task counts (drives the Tasks column).
-      const listRes = await fetch('/api/prospects?action=tasks&assignee=all&status=open')
+      const listRes = await authFetch('/api/prospects?action=tasks&assignee=all&status=open')
       if (listRes.ok) {
         const tasks = await listRes.json()
         const map = new Map()
@@ -647,7 +647,7 @@ function ProspectTable() {
     }
 
     try {
-      const res = await fetch(`/api/prospects?id=${id}`, {
+      const res = await authFetch(`/api/prospects?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value, last_edited_by: editedBy }),
@@ -659,13 +659,13 @@ function ProspectTable() {
     } catch (err) {
       console.error('Update failed:', err)
       // Revert — refetch
-      fetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
+      authFetch('/api/prospects').then(r => r.json()).then(setProspects).catch(() => {})
     }
   }, [selectedProspect, user])
 
   const refreshProspects = useCallback(() => {
     setLoading(true)
-    fetch('/api/prospects')
+    authFetch('/api/prospects')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -1080,9 +1080,9 @@ function ProspectTable() {
       <td className="px-3 py-2.5">
         <span className="text-xs text-gray-600 flex items-center gap-1">
           <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
-          {p.ownership_type?.includes('PE') && p.recent_ma ? (
+          {isPEOwnership(p.ownership_type) && p.recent_ma ? (
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-          ) : p.ownership_type?.includes('PE') ? (
+          ) : isPEOwnership(p.ownership_type) ? (
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
           ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
@@ -1277,9 +1277,9 @@ function ProspectTable() {
         <td className="px-3 py-2.5">
           <span className="text-xs text-gray-600 flex items-center gap-1">
             <span className="truncate max-w-[100px]" title={parentP.ownership_type || ''}>{displayValue(parentP.ownership_type)}</span>
-            {parentP.ownership_type?.includes('PE') && parentP.recent_ma ? (
+            {isPEOwnership(parentP.ownership_type) && parentP.recent_ma ? (
               <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-            ) : parentP.ownership_type?.includes('PE') ? (
+            ) : isPEOwnership(parentP.ownership_type) ? (
               <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
             ) : (parentP.ownership_type === 'Family/Founder-Owned' || parentP.ownership_type === 'Family-Owned' || parentP.ownership_type?.includes('Family')) && (parentP.years_in_business ?? 0) >= 30 ? (
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${parentP.years_in_business}+ years — potential succession/transition window`} />

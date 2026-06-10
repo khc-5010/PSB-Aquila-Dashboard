@@ -1,4 +1,7 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../../lib/requireAuth.js'
+
+const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
 /**
  * Consolidated opportunity-by-ID API.
@@ -25,6 +28,9 @@ const PROJECT_TYPE_MAP = {
 }
 
 export default async function handler(req, res) {
+  const authUser = await requireAuth(req, res)
+  if (!authUser) return
+
   const { id, action, ruleId } = req.query
   const sql = neon(process.env.DATABASE_URL)
 
@@ -132,6 +138,13 @@ export default async function handler(req, res) {
   if (req.method === 'PATCH') {
     const body = req.body
 
+    // Guard against corrupt stage writes (e.g. a drag-and-drop dropping a card
+    // UUID into `stage` — see App.jsx handleDragEnd). POST already validates;
+    // PATCH must too or the card vanishes from every Kanban column.
+    if (body.stage !== undefined && !VALID_STAGES.includes(body.stage)) {
+      return res.status(400).json({ error: `Invalid stage: ${body.stage}. Valid: ${VALID_STAGES.join(', ')}` })
+    }
+
     const fieldMap = {
       company_name: 'company_name',
       description: 'description',
@@ -172,12 +185,7 @@ export default async function handler(req, res) {
     `
 
     try {
-      console.log('Query:', queryText)
-      console.log('Values:', values)
-
       const result = await sql.query(queryText, values)
-
-      console.log('Result:', JSON.stringify(result))
 
       if (!result || result.length === 0) {
         return res.status(404).json({ error: 'Opportunity not found' })

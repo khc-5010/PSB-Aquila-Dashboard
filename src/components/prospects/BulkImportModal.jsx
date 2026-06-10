@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 
 const EXCEL_TO_DB = {
   'company': 'company',
@@ -181,7 +181,7 @@ function BulkImportModal({ onClose, onSuccess }) {
     setError(null)
 
     try {
-      const res = await fetch('/api/prospects?action=import', {
+      const res = await authFetch('/api/prospects?action=import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospects: parsed, added_by: user?.name || 'Unknown' }),
