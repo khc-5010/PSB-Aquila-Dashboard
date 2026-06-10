@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import InfoTooltip from '../national-map/InfoTooltip'
 import QueryPanel from './QueryPanel'
 import GraphExplorer from './GraphExplorer'
-import { ENTITY_COLORS } from './ForceGraph'
-import { authFetch } from "../../context/AuthContext"
+import { authFetch } from '../../context/AuthContext'
 
 const VIEW_MODES = [
   { key: 'split', label: 'Query + Graph' },
@@ -31,8 +30,10 @@ export default function KnowledgeGraph() {
     const companyId = params.get('company')
     if (companyId) {
       setInitialCompanyId(Number(companyId))
-      // Clean up hash params after reading
-      window.location.hash = 'knowledge-graph'
+      // Clean up hash params after reading — replaceState so Back doesn't
+      // return to the consumed ?company= URL (project convention for
+      // selection-style changes)
+      window.history.replaceState(null, '', '#knowledge-graph')
     }
   }, [])
 
@@ -62,13 +63,25 @@ export default function KnowledgeGraph() {
     setHighlightNodeIds(null)
   }, [])
 
-  const handleQueryResults = useCallback((companyIds) => {
-    if (!companyIds || companyIds.length === 0) {
+  // Receives matched company ENTITY ids from QueryPanel. The overview graph
+  // has no Company nodes — only super-nodes with memberIds[] (entity ids) —
+  // so highlight the super-nodes containing a match. The raw numeric ids are
+  // included too so matches light up directly inside expanded neighborhoods
+  // (whose node ids are numeric entity ids).
+  const handleQueryResults = useCallback((entityIds) => {
+    const matched = new Set((entityIds || []).filter(id => id != null).map(Number))
+    if (matched.size === 0) {
       setHighlightNodeIds(null)
       return
     }
-    setHighlightNodeIds(new Set(companyIds.map(id => `company-${id}`)))
-  }, [])
+    const ids = new Set(matched)
+    for (const node of graphData?.nodes || []) {
+      if (node.isSuper && Array.isArray(node.memberIds) && node.memberIds.some(m => matched.has(Number(m)))) {
+        ids.add(node.id)
+      }
+    }
+    setHighlightNodeIds(ids)
+  }, [graphData])
 
   // Large super-node click: switch to split view so QueryPanel is visible
   const handleLargeNodeClick = useCallback((entityType, label) => {

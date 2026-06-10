@@ -18,6 +18,7 @@ const getOwnerColor = (owner) => {
     Kyle: 'bg-purple-100 text-purple-700 border-purple-200',
     Duane: 'bg-cyan-100 text-cyan-700 border-cyan-200',
     Steve: 'bg-amber-100 text-amber-700 border-amber-200',
+    Brett: 'bg-green-100 text-green-700 border-green-200',
   }
   return colors[owner] || 'bg-gray-100 text-gray-700 border-gray-200'
 }

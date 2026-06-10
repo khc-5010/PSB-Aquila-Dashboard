@@ -3,7 +3,7 @@ import { useAuth, authFetch } from '../../context/AuthContext'
 import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
-import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPeOwnership } from '../../utils/priorityScore'
 import ProspectFilters from './ProspectFilters'
 import ProspectDetail from './ProspectDetail'
 import ProspectAnalytics from './ProspectAnalytics'
@@ -730,7 +730,9 @@ function ProspectTable() {
     if (filters.preset === 'needs_review') {
       if (!p.needs_review) return false
     }
-    if (filters.group.length > 0 && !filters.group.includes(p.outreach_group)) return false
+    // NULL outreach_group (e.g. bulk-imported rows) counts as 'Unassigned' —
+    // the analytics chart labels those rows Unassigned, so the filter must too
+    if (filters.group.length > 0 && !filters.group.includes(p.outreach_group || 'Unassigned')) return false
     if (filters.category.length > 0 && !filters.category.includes(getParentCategory(p.category))) return false
     if (filters.priority.length > 0 && !filters.priority.includes(p.priority)) return false
     if (filters.geo.length > 0) {
@@ -1029,7 +1031,7 @@ function ProspectTable() {
             )}
           </div>
           {(p.conversion_count ?? 0) > 0 && (
-            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunity${p.conversion_count > 1 ? 'ies' : ''}`}>
+            <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700" title={`${p.conversion_count} active opportunit${p.conversion_count > 1 ? 'ies' : 'y'}`}>
               {p.conversion_count}
             </span>
           )}
@@ -1058,8 +1060,8 @@ function ProspectTable() {
       </td>
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.signal_count)}</span></td>
       <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-700">{displayValue(p.press_count)}</span></td>
-      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.site_count || '\u2014'}</span></td>
-      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{p.acquisition_count || '\u2014'}</span></td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{displayValue(p.site_count)}</span></td>
+      <td className="px-3 py-2.5 text-center"><span className="text-sm text-gray-600">{displayValue(p.acquisition_count)}</span></td>
       <td className="px-3 py-2.5 text-center">
         <CavityPressureCell value={p.rjg_cavity_pressure} />
       </td>
@@ -1081,9 +1083,9 @@ function ProspectTable() {
       <td className="px-3 py-2.5">
         <span className="text-xs text-gray-600 flex items-center gap-1">
           <span className="truncate max-w-[100px]" title={p.ownership_type || ''}>{displayValue(p.ownership_type)}</span>
-          {p.ownership_type?.includes('PE') && p.recent_ma ? (
+          {isPeOwnership(p.ownership_type) && p.recent_ma ? (
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-red-500" title="PE-backed with recent M&A — highest urgency engagement window (6-18 months)" />
-          ) : p.ownership_type?.includes('PE') ? (
+          ) : isPeOwnership(p.ownership_type) ? (
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-amber-500" title="PE-backed — optimization mandate, 3-5 year hold period" />
           ) : (p.ownership_type === 'Family/Founder-Owned' || p.ownership_type === 'Family-Owned' || p.ownership_type?.includes('Family')) && (p.years_in_business ?? 0) >= 30 ? (
             <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 text-orange-400" title={`Family-owned, ${p.years_in_business}+ years — potential succession/transition window`} />
@@ -1246,7 +1248,7 @@ function ProspectTable() {
           </span>
         </td>
         <td className="px-3 py-2.5">
-          <span className="text-xs text-gray-600">{parentP.city && parentP.state ? `${parentP.city}, ${parentP.state}` : displayValue(parentP.city || parentP.state)}</span>
+          <span className="text-xs text-gray-600">{formatLocation(parentP) || displayValue(null)}</span>
         </td>
         <td className="px-3 py-2.5">
           {parentP.priority ? (

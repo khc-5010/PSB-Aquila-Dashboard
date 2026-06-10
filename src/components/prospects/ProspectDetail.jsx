@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, X, Flag, FileJson } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 
@@ -137,8 +137,9 @@ function EditableField({ label, value, onSave, multiline = false }) {
   const [draft, setDraft] = useState(value || '')
 
   useEffect(() => {
-    setDraft(value || '')
-  }, [value])
+    // Don't clobber an in-progress edit when a background refetch updates the row
+    if (!editing) setDraft(value || '')
+  }, [value, editing])
 
   const handleSave = () => {
     setEditing(false)
@@ -193,6 +194,39 @@ function EditableField({ label, value, onSave, multiline = false }) {
   )
 }
 
+// Number input that saves on blur (or Enter) instead of on every keystroke —
+// per-keystroke PATCHes raced each other (typing "15" sent 1 then 15 with no
+// ordering guarantee) and each one reset updated_at, defeating staleness detection.
+function DeferredNumberInput({ value, onSave, placeholder = '—', min }) {
+  const [draft, setDraft] = useState(value ?? '')
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '')
+  }, [value, editing])
+
+  const commit = () => {
+    setEditing(false)
+    const parsed = draft === '' ? null : parseInt(draft, 10)
+    const next = parsed === null || Number.isNaN(parsed) ? null : parsed
+    if (next !== (value ?? null)) onSave(next)
+  }
+
+  return (
+    <input
+      type="number"
+      min={min}
+      value={draft}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
+      placeholder={placeholder}
+      className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+    />
+  )
+}
+
 function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavList, onNavigate, onTasksChanged }) {
   const { user } = useAuth()
   const [showPromptModal, setShowPromptModal] = useState(false)
@@ -219,21 +253,34 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   // <FdaEnrichment> below, which forces that section to remount fresh per company
   // (it holds its FDA results in local state, so without a remount it stays stuck
   // on the first company it loaded).
+  // Tracks which prospect is currently displayed so slow responses for a
+  // PREVIOUS prospect can be discarded (same stale-response class of bug as
+  // the FDA section fix — without this, rapid prev/next can render company
+  // A's attachments/log under company B).
+  const activeProspectIdRef = useRef(prospect?.id)
+
   const [loadedProspectId, setLoadedProspectId] = useState(prospect?.id)
   if (prospect?.id !== loadedProspectId) {
     setLoadedProspectId(prospect?.id)
+    activeProspectIdRef.current = prospect?.id
     setAttachments([])
     setActivityLog([])
     setActivityLoading(true)
+    // Drafts are per-company — a note typed for company A must not survive
+    // navigation and get posted to company B.
+    setNewEntry('')
+    setFlagNote('')
+    setShowFlagInput(false)
   }
 
   const fetchAttachments = useCallback(async () => {
     if (!prospect?.id) return
+    const fetchedFor = prospect.id
     try {
-      const res = await authFetch(`/api/prospects?action=attachments&id=${prospect.id}`)
+      const res = await authFetch(`/api/prospects?action=attachments&id=${fetchedFor}`)
       if (res.ok) {
         const data = await res.json()
-        setAttachments(data)
+        if (activeProspectIdRef.current === fetchedFor) setAttachments(data)
       }
     } catch (err) {
       console.error('Error fetching attachments:', err)
@@ -242,17 +289,18 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
 
   const fetchActivityLog = useCallback(async () => {
     if (!prospect?.id) return
+    const fetchedFor = prospect.id
     setActivityLoading(true)
     try {
-      const res = await authFetch(`/api/prospects?action=get-activity-log&id=${prospect.id}`)
+      const res = await authFetch(`/api/prospects?action=get-activity-log&id=${fetchedFor}`)
       if (res.ok) {
         const data = await res.json()
-        setActivityLog(data)
+        if (activeProspectIdRef.current === fetchedFor) setActivityLog(data)
       }
     } catch (err) {
       console.error('Error fetching activity log:', err)
     } finally {
-      setActivityLoading(false)
+      if (activeProspectIdRef.current === fetchedFor) setActivityLoading(false)
     }
   }, [prospect?.id])
 
@@ -594,16 +642,11 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Outreach Rank</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <DeferredNumberInput
                           min="1"
-                          value={p.outreach_rank ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'outreach_rank', val)
-                          }}
+                          value={p.outreach_rank}
+                          onSave={(val) => onUpdate(p.id, 'outreach_rank', val)}
                           placeholder="Set rank..."
-                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
                         />
                       </dd>
                     </div>
@@ -992,32 +1035,20 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Sites</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <DeferredNumberInput
                           min="0"
-                          value={p.site_count ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'site_count', val)
-                          }}
-                          placeholder="—"
-                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          value={p.site_count}
+                          onSave={(val) => onUpdate(p.id, 'site_count', val)}
                         />
                       </dd>
                     </div>
                     <div>
                       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Acquisitions</dt>
                       <dd className="mt-0.5">
-                        <input
-                          type="number"
+                        <DeferredNumberInput
                           min="0"
-                          value={p.acquisition_count ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? null : parseInt(e.target.value, 10)
-                            onUpdate(p.id, 'acquisition_count', val)
-                          }}
-                          placeholder="—"
-                          className="w-24 text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                          value={p.acquisition_count}
+                          onSave={(val) => onUpdate(p.id, 'acquisition_count', val)}
                         />
                       </dd>
                     </div>

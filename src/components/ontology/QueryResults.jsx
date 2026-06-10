@@ -81,9 +81,14 @@ export default function QueryResults({ results, similarData, onFindSimilar, onBa
 }
 
 function CompanyCard({ company, onFindSimilar, isSimilar }) {
-  const matchScore = company.matchScore || company.match_score
-  const similarity = company.similarity || company.shared_count
+  // matchCount/totalCriteria are what the API returns ("3/4 criteria");
+  // matchScore is a 0-1 fraction kept only as a fallback for safety.
+  const matchCount = company.matchCount ?? company.matchScore
+  const totalCriteria = company.totalCriteria
+  // sharedEdges is the integer count of shared ontology edges
+  const sharedCount = company.sharedEdges ?? company.shared_count
   const hookLine = buildHookLine(company)
+  const tagList = company.matchedEdges?.length > 0 ? company.matchedEdges : company.sharedEntities
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 hover:border-gray-300 transition-colors">
@@ -99,29 +104,29 @@ function CompanyCard({ company, onFindSimilar, isSimilar }) {
             </span>
           )}
         </div>
-        {matchScore != null && !isSimilar && (
+        {matchCount != null && !isSimilar && (
           <span className="shrink-0 bg-[#041E42] text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-            {matchScore}/{company.maxScore || '?'}
+            {matchCount}{totalCriteria ? `/${totalCriteria}` : ''}
           </span>
         )}
-        {isSimilar && similarity != null && (
+        {isSimilar && sharedCount != null && (
           <span className="shrink-0 bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-            {similarity} shared
+            {sharedCount} shared
           </span>
         )}
       </div>
       {hookLine && (
         <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">{hookLine}</p>
       )}
-      {company.matchedEdges && company.matchedEdges.length > 0 && (
+      {tagList && tagList.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
-          {company.matchedEdges.slice(0, 6).map((edge, i) => (
+          {tagList.slice(0, 6).map((edge, i) => (
             <span key={i} className="bg-blue-50 text-blue-700 text-[10px] px-1.5 py-0.5 rounded">
               {edge.label || edge.object_name || edge}
             </span>
           ))}
-          {company.matchedEdges.length > 6 && (
-            <span className="text-[10px] text-gray-400">+{company.matchedEdges.length - 6}</span>
+          {tagList.length > 6 && (
+            <span className="text-[10px] text-gray-400">+{tagList.length - 6}</span>
           )}
         </div>
       )}

@@ -73,10 +73,11 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
       const data = await res.json()
       setResults(data)
 
-      // Pass matched company IDs to parent for graph highlighting
+      // Pass matched company ENTITY ids to parent for graph highlighting
+      // (super-node memberIds are entity ids, not prospect ids)
       if (data.results) {
-        const companyIds = data.results.map(r => r.prospect_id || r.id)
-        onQueryResults(companyIds)
+        const entityIds = data.results.map(r => r.entityId).filter(id => id != null)
+        onQueryResults(entityIds)
       }
     } catch (err) {
       setQueryError(err.message)
@@ -98,9 +99,11 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
       const data = await res.json()
       setSimilarData({ ...data, sourceCompany: companyName })
 
-      // Highlight similar companies on graph
+      // Highlight similar companies on graph (entity ids; include the source
+      // company's entity id when it's in the current query results)
       if (data.similar) {
-        const ids = [prospectId, ...data.similar.map(s => s.prospect_id || s.id)]
+        const sourceEntityId = results?.results?.find(r => r.id === prospectId)?.entityId
+        const ids = [sourceEntityId, ...data.similar.map(s => s.entityId)].filter(id => id != null)
         onQueryResults(ids)
       }
     } catch (err) {
@@ -108,13 +111,13 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
     } finally {
       setQueryLoading(false)
     }
-  }, [apiBase, onQueryResults])
+  }, [apiBase, onQueryResults, results])
 
   const handleBackFromSimilar = () => {
     setSimilarData(null)
     if (results?.results) {
-      const companyIds = results.results.map(r => r.prospect_id || r.id)
-      onQueryResults(companyIds)
+      const entityIds = results.results.map(r => r.entityId).filter(id => id != null)
+      onQueryResults(entityIds)
     }
   }
 

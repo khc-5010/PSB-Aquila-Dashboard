@@ -82,10 +82,12 @@ export default function StateReportModal({ report, stateCode, stateName, current
   const [copied, setCopied] = useState(false)
   const [allExpanded, setAllExpanded] = useState(null)
 
-  // Close on Escape key
+  // Close on Escape key — but not while the upload sub-modal is stacked above
+  // (Escape would unmount both and discard pasted report content; sub-modal
+  // closes first per the project's modal-stacking convention)
   const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
+    if (e.key === 'Escape' && !showUpload) onClose()
+  }, [onClose, showUpload])
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyDown)

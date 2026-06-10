@@ -17,7 +17,13 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
   const [title, setTitle] = useState(
     stateName ? `Alliance Prospect Report — ${stateName}` : ''
   )
-  const [researchDate, setResearchDate] = useState(new Date().toISOString().split('T')[0])
+  // Local-timezone date parts — toISOString() is the UTC date, which is
+  // tomorrow for evening US users and produced "Fresh (-1d)" badges
+  const [researchDate, setResearchDate] = useState(() => {
+    const now = new Date()
+    const p = (n) => String(n).padStart(2, '0')
+    return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+  })
   const [content, setContent] = useState('')
   const [inputMode, setInputMode] = useState('paste') // 'paste' | 'upload'
   const [preview, setPreview] = useState(false)
@@ -30,7 +36,10 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
     setSelectedState(abbr)
     const name = STATE_ABBR_TO_NAME[abbr]
     if (name) {
-      setTitle(`Alliance Prospect Report — ${name}`)
+      // Only refresh auto-generated titles — never overwrite a user-typed one
+      setTitle(prev => (!prev || prev.startsWith('Alliance Prospect Report — '))
+        ? `Alliance Prospect Report — ${name}`
+        : prev)
     }
   }
 
@@ -103,7 +112,7 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
   const canSave = selectedState && content.trim()
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">

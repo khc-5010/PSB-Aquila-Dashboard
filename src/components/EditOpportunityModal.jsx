@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { PROJECT_TYPES, STAGES, OWNERS } from '../constants/options'
-import { authFetch } from "../context/AuthContext"
+import { useAuth, authFetch } from '../context/AuthContext'
 
 function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     company_name: '',
     description: '',
@@ -50,7 +51,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       const payload = {
         company_name: formData.company_name.trim(),
         description: formData.description.trim() || null,
-        project_type: formData.project_type,
+        project_type: formData.project_type || null,
         stage: formData.stage,
         owner: formData.owner || null,
         est_value: formData.est_value ? parseFloat(formData.est_value) : null,
@@ -81,13 +82,33 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       }
 
       const responseText = await res.text()
-      console.log('API success response:', responseText)
 
       if (!responseText) {
         throw new Error('Empty response from server')
       }
 
       const updatedOpp = JSON.parse(responseText)
+
+      // Stage changed via the Edit modal — record it so funnel/velocity
+      // analytics see the move (previously only drag-and-drop logged it).
+      if (formData.stage !== opportunity.stage) {
+        try {
+          const logRes = await authFetch('/api/stage-transitions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              opportunity_id: opportunity.id,
+              from_stage: opportunity.stage,
+              to_stage: formData.stage,
+              transitioned_by: user?.name || 'Unknown',
+            }),
+          })
+          if (!logRes.ok) console.error('Stage transition log failed:', logRes.status)
+        } catch (logErr) {
+          console.error('Stage transition log failed:', logErr)
+        }
+      }
+
       onUpdate(updatedOpp)
       onClose()
     } catch (err) {
@@ -166,6 +187,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     disabled={isSubmitting}
                   >
+                    <option value="">TBD / Not set</option>
                     {PROJECT_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}

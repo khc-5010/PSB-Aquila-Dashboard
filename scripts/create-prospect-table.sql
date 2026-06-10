@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS prospect_companies (
   in_house_tooling TEXT,      -- Yes, No, N/A
   city TEXT,
   state TEXT,
-  geography_tier TEXT,        -- Tier 1, Tier 2, Infrastructure
+  country TEXT DEFAULT 'US',  -- ISO-3166 alpha-2; US rows use 2-letter state codes
+  geography_tier TEXT,        -- Tier 1, Tier 2, Infrastructure (deprecated for analytics)
   source_report TEXT,
   priority TEXT,              -- HIGH PRIORITY, QUALIFIED, WATCH, STRATEGIC PARTNER
 

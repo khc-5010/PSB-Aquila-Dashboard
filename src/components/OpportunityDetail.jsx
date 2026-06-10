@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
-import { getProjectTypeLabel } from '../constants/options'
-import { authFetch } from "../context/AuthContext"
+import { getProjectTypeLabel, OWNERS } from '../constants/options'
+import { useAuth, authFetch } from '../context/AuthContext'
 
 // Engagement level styling for dynamic alerts
 const alertStyles = {
@@ -40,6 +40,7 @@ const alertStyles = {
 }
 
 function OpportunityDetail({ opportunity, onClose, onUpdate }) {
+  const { user } = useAuth()
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
 
@@ -53,7 +54,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
   // Log Activity modal state
   const [showLogModal, setShowLogModal] = useState(false)
   const [activityText, setActivityText] = useState('')
-  const [createdBy, setCreatedBy] = useState('Kyle')
+  const [createdBy, setCreatedBy] = useState(user?.name || 'Kyle')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
@@ -149,7 +150,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       await authFetch(`/api/opportunities/${opportunity.id}?action=dismiss&ruleId=${ruleId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dismissed_by: 'kyle' }) // TODO: get from auth context
+        body: JSON.stringify({ dismissed_by: user?.name || 'Unknown' })
       })
       // Remove from local state immediately for instant feedback
       setAlerts(prev => prev.filter(a => a.id !== ruleId))
@@ -177,7 +178,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     }).format(num)
   }
 
-  // Format date
+  // Format date (full timestamps — activity dates etc.)
   const formatDate = (dateString) => {
     if (!dateString) return ''
     const date = new Date(dateString)
@@ -186,6 +187,16 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       day: 'numeric',
       year: 'numeric',
     })
+  }
+
+  // Format a DATE-only string (YYYY-MM-DD). new Date(str) would parse it as
+  // UTC midnight and render the previous day in US timezones — the Aug 15
+  // Senior Design deadline displayed as Aug 14.
+  const formatDateOnly = (dateString, opts = { month: 'short', day: 'numeric', year: 'numeric' }) => {
+    if (!dateString) return ''
+    const [y, m, d] = String(dateString).split('T')[0].split('-').map(Number)
+    if (!y || !m || !d) return ''
+    return new Date(y, m - 1, d).toLocaleDateString('en-US', opts)
   }
 
   // Get icon SVG based on engagement level
@@ -234,6 +245,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
     Kyle: 'bg-[#7C3AED] text-white',
     Duane: 'bg-[#0891B2] text-white',
     Steve: 'bg-[#D97706] text-white',
+    Brett: 'bg-[#16A34A] text-white',
   }
   const getOwnerColorClass = (name) => ownerColors[name] || 'bg-indigo-100 text-indigo-700'
 
@@ -364,24 +376,32 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
       })
 
       if (!res.ok) throw new Error('Failed to update outcome')
-
-      // Log the stage transition
-      await authFetch('/api/stage-transitions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          opportunity_id: opportunity.id,
-          from_stage: opportunity.stage,
-          to_stage: 'complete',
-          transitioned_by: 'user',
-        }),
-      })
     } catch (error) {
       console.error('Failed to mark outcome:', error)
       // Revert on failure
       if (onUpdate) {
         onUpdate(previousState)
       }
+      setIsMarkingOutcome(false)
+      return
+    }
+
+    // Log the stage transition — outside the try above so a failed log never
+    // reverts an outcome that already committed.
+    try {
+      const logRes = await authFetch('/api/stage-transitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_id: opportunity.id,
+          from_stage: opportunity.stage,
+          to_stage: 'complete',
+          transitioned_by: user?.name || 'Unknown',
+        }),
+      })
+      if (!logRes.ok) console.error('Stage transition log failed:', logRes.status)
+    } catch (error) {
+      console.error('Stage transition log failed:', error)
     } finally {
       setIsMarkingOutcome(false)
     }
@@ -721,16 +741,9 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className={`font-medium ${color.text}`}>
-                                  {new Date(date.calculated_date).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
+                                  {formatDateOnly(date.calculated_date)}
                                   {date.calculated_end_date && (
-                                    <> - {new Date(date.calculated_end_date).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}</>
+                                    <> - {formatDateOnly(date.calculated_end_date, { month: 'short', day: 'numeric' })}</>
                                   )}
                                 </span>
                                 {isDeadline && (
@@ -934,9 +947,9 @@ function OpportunityDetail({ opportunity, onClose, onUpdate }) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     disabled={isSubmitting}
                   >
-                    <option value="Kyle">Kyle</option>
-                    <option value="Duane">Duane</option>
-                    <option value="Steve">Steve</option>
+                    {OWNERS.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
                   </select>
                 </div>
 

@@ -49,6 +49,8 @@ const EXCEL_TO_DB = {
   'Key Certifications': 'key_certifications',
   'Ownership Type': 'ownership_type',
   'Recent M&A': 'recent_ma',
+  'Parent Company': 'parent_company',
+  'Decision Location': 'decision_location',
   'CWP Contacts': 'cwp_contacts',
   'PSB Connection Notes': 'psb_connection_notes',
   'Engagement Type': 'engagement_type',
@@ -97,7 +99,9 @@ function cleanValue(val) {
   if (typeof val === 'number' && isNaN(val)) return null
   if (typeof val === 'string') {
     const trimmed = val.trim()
-    if (trimmed === '' || trimmed.toLowerCase() === 'nan' || trimmed === '#N/A') return null
+    // Null sentinels — keep aligned with BulkImportModal.jsx cleanValue
+    const lower = trimmed.toLowerCase()
+    if (trimmed === '' || lower === 'nan' || trimmed === '#N/A' || lower === 'n/a' || trimmed === '-') return null
     return trimmed
   }
   return val
@@ -105,7 +109,9 @@ function cleanValue(val) {
 
 function cleanInt(val) {
   if (val === undefined || val === null) return null
-  const num = typeof val === 'string' ? parseInt(val, 10) : Math.round(val)
+  // Strip thousands separators — parseInt('1,250') returns 1, silently
+  // corrupting employee/press counts (BulkImportModal already does this)
+  const num = typeof val === 'string' ? parseInt(val.replace(/,/g, ''), 10) : Math.round(val)
   return isNaN(num) ? null : num
 }
 
@@ -140,7 +146,8 @@ async function insertProspect(row) {
       city, state, country, geography_tier, source_report, priority,
       employees_approx, year_founded, years_in_business, revenue_known, revenue_est_m,
       press_count, signal_count, top_signal, rjg_cavity_pressure, medical_device_mfg,
-      key_certifications, ownership_type, recent_ma, cwp_contacts, psb_connection_notes,
+      key_certifications, ownership_type, recent_ma, parent_company, decision_location,
+      cwp_contacts, psb_connection_notes,
       engagement_type, suggested_next_step, legacy_data_potential, notes,
       outreach_group, outreach_rank,
       parent_relationship_kind, financial_sponsor, former_names
@@ -149,7 +156,8 @@ async function insertProspect(row) {
       ${row.city}, ${row.state}, ${row.country || 'US'}, ${row.geography_tier}, ${row.source_report}, ${row.priority},
       ${row.employees_approx}, ${row.year_founded}, ${row.years_in_business}, ${row.revenue_known}, ${row.revenue_est_m},
       ${row.press_count}, ${row.signal_count}, ${row.top_signal}, ${row.rjg_cavity_pressure}, ${row.medical_device_mfg},
-      ${row.key_certifications}, ${row.ownership_type}, ${row.recent_ma}, ${row.cwp_contacts}, ${row.psb_connection_notes},
+      ${row.key_certifications}, ${row.ownership_type}, ${row.recent_ma}, ${row.parent_company || null}, ${row.decision_location || null},
+      ${row.cwp_contacts}, ${row.psb_connection_notes},
       ${row.engagement_type}, ${row.suggested_next_step}, ${row.legacy_data_potential}, ${row.notes},
       ${outreach_group}, ${outreach_rank},
       ${row.parent_relationship_kind || null}, ${row.financial_sponsor || null}, ${(Array.isArray(row.former_names) && row.former_names.length > 0) ? row.former_names : null}

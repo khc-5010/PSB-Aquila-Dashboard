@@ -84,15 +84,39 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           {!hasData ? (
-            <div className="p-8 text-center">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                </svg>
+            <>
+              <div className="p-8 text-center">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-1">No prospects in {stateName}</h3>
+                <p className="text-sm text-gray-500">This state hasn't been covered in research sweeps yet.</p>
               </div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">No prospects in {stateName}</h3>
-              <p className="text-sm text-gray-500">This state hasn't been covered in research sweeps yet.</p>
-            </div>
+              {/* Research entry points must remain available for UNCOVERED
+                  states — they're exactly the ones to run research on, and an
+                  existing report for a now-empty state must stay reachable */}
+              {reportLoading ? (
+                <div className="px-5 py-4 border-t border-gray-100">
+                  <div className="flex items-center justify-center py-6">
+                    <div className="w-5 h-5 border-2 border-gray-300 border-t-[#041E42] rounded-full animate-spin" />
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t border-gray-100">
+                  <StateReportSection
+                    stateCode={stateId}
+                    stateName={stateName}
+                    report={report}
+                    currentProspectCount={0}
+                    onReportSaved={handleReportSaved}
+                    onOpenPromptBuilder={() => setShowPromptBuilder(true)}
+                    onOpenFullReport={report ? () => setShowReportModal(true) : undefined}
+                  />
+                </div>
+              )}
+            </>
           ) : (
             <>
               {/* Summary Stats */}

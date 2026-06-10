@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
 import { useAuth, authFetch } from '../../../context/AuthContext'
 import TaskRow from './TaskRow'
@@ -14,19 +14,25 @@ export default function TasksSection({ prospectId, onTasksChanged }) {
   const [adding, setAdding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
+  // Discard responses that arrive after the user has navigated to a different
+  // prospect (prev/next) — otherwise company A's tasks can render under company B.
+  const activeIdRef = useRef(prospectId)
+  useEffect(() => { activeIdRef.current = prospectId }, [prospectId])
+
   const fetchTasks = useCallback(async () => {
     if (!prospectId) return
+    const fetchedFor = prospectId
     setLoading(true)
     setError(null)
     try {
-      const res = await authFetch(`/api/prospects?action=tasks&prospect_id=${prospectId}&status=all`)
+      const res = await authFetch(`/api/prospects?action=tasks&prospect_id=${fetchedFor}&status=all`)
       if (!res.ok) throw new Error('Failed to load tasks')
       const data = await res.json()
-      setTasks(Array.isArray(data) ? data : [])
+      if (activeIdRef.current === fetchedFor) setTasks(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message)
+      if (activeIdRef.current === fetchedFor) setError(err.message)
     } finally {
-      setLoading(false)
+      if (activeIdRef.current === fetchedFor) setLoading(false)
     }
   }, [prospectId])
 

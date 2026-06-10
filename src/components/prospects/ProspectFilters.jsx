@@ -6,7 +6,7 @@ const LEGEND_KEY = 'prospect-table-legend-dismissed'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const PRIORITY_OPTIONS = ['HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'LOW', 'STRATEGIC PARTNER']
-const GEO_OPTIONS = ['Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central', 'International']
+const GEO_OPTIONS = ['Great Lakes Auto', 'Northeast Tool', 'Southeast Growth', 'Gulf / Resin Belt', 'Upper Midwest Medical', 'West Coast', 'Mountain / Central', 'Non-Contiguous', 'International', 'Unknown']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 const CATEGORY_OPTIONS = PARENT_CATEGORY_OPTIONS.filter(o => o !== 'All')
 
@@ -99,7 +99,14 @@ function MultiSelectFilter({ label, options, selected, onChange }) {
 }
 
 function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, actionItemCount = 0, onOpenTasks }) {
-  const [searchText, setSearchText] = useState('')
+  const [searchText, setSearchText] = useState(filters.search || '')
+
+  // Keep the input in sync when filters.search changes from outside this
+  // component (chart clicks reset it; this component remounts when returning
+  // from the Tasks sub-view) — otherwise the box and the active filter desync.
+  useEffect(() => {
+    setSearchText(filters.search || '')
+  }, [filters.search])
   const [showLegend, setShowLegend] = useState(() => {
     try { return localStorage.getItem(LEGEND_KEY) !== 'true' } catch { return true }
   })
