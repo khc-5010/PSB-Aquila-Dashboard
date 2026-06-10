@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, X, Flag, FileJson } from 'lucide-react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 
-import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
+import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPEOwnership } from '../../utils/priorityScore'
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
 import ResearchPromptModal from './ResearchPromptModal'
@@ -32,8 +32,9 @@ const US_STATES = [
 const IN_HOUSE_TOOLING_OPTIONS = ['Yes', 'No', 'N/A']
 
 // Controlled values for the Ownership Type dropdown. Must preserve the strings
-// that downstream indicator logic keys off of: `.includes('PE')`,
-// `.includes('Family')`, `=== 'ESOP'` (see ProspectTable urgency icons).
+// that downstream indicator logic keys off of: isPEOwnership() (priorityScore.js,
+// matches 'PE'/'PE-Backed'/'Private Equity'), `.includes('Family')`, `=== 'ESOP'`
+// (see ProspectTable urgency icons and the Ownership Urgency score dimension).
 const OWNERSHIP_TYPES = [
   'Public',
   'Private',
@@ -86,9 +87,9 @@ function buildHookLine(p) {
 
   if ((p.years_in_business ?? 0) >= 30) hooks.push(`${p.years_in_business}-year legacy`)
 
-  if (p.ownership_type?.includes('PE') && p.recent_ma) {
+  if (isPEOwnership(p.ownership_type) && p.recent_ma) {
     hooks.push('PE-backed, recent M&A')
-  } else if (p.ownership_type?.includes('PE')) {
+  } else if (isPEOwnership(p.ownership_type)) {
     hooks.push('PE-backed')
   }
 
@@ -227,13 +228,20 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     setActivityLoading(true)
   }
 
+  // Stale-response guard: mirrors the currently displayed prospect id so a
+  // slow response for a *previous* company can't land after navigation and
+  // overwrite the new company's data (same race the FDA remount fix closed).
+  const currentProspectIdRef = useRef(prospect?.id)
+  currentProspectIdRef.current = prospect?.id
+
   const fetchAttachments = useCallback(async () => {
-    if (!prospect?.id) return
+    const fetchedForId = prospect?.id
+    if (!fetchedForId) return
     try {
-      const res = await fetch(`/api/prospects?action=attachments&id=${prospect.id}`)
+      const res = await authFetch(`/api/prospects?action=attachments&id=${fetchedForId}`)
       if (res.ok) {
         const data = await res.json()
-        setAttachments(data)
+        if (currentProspectIdRef.current === fetchedForId) setAttachments(data)
       }
     } catch (err) {
       console.error('Error fetching attachments:', err)
@@ -241,18 +249,19 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   }, [prospect?.id])
 
   const fetchActivityLog = useCallback(async () => {
-    if (!prospect?.id) return
+    const fetchedForId = prospect?.id
+    if (!fetchedForId) return
     setActivityLoading(true)
     try {
-      const res = await fetch(`/api/prospects?action=get-activity-log&id=${prospect.id}`)
+      const res = await authFetch(`/api/prospects?action=get-activity-log&id=${fetchedForId}`)
       if (res.ok) {
         const data = await res.json()
-        setActivityLog(data)
+        if (currentProspectIdRef.current === fetchedForId) setActivityLog(data)
       }
     } catch (err) {
       console.error('Error fetching activity log:', err)
     } finally {
-      setActivityLoading(false)
+      if (currentProspectIdRef.current === fetchedForId) setActivityLoading(false)
     }
   }, [prospect?.id])
 
@@ -315,7 +324,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     setNewEntry('')
 
     try {
-      const res = await fetch('/api/prospects?action=add-activity', {
+      const res = await authFetch('/api/prospects?action=add-activity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: p.id, entry_text: entryText, created_by: authorName }),
@@ -338,7 +347,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     if (!flagNote.trim()) return
     const authorName = user?.name || 'Unknown'
     try {
-      const res = await fetch('/api/prospects?action=flag-for-review', {
+      const res = await authFetch('/api/prospects?action=flag-for-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: p.id, review_note: flagNote.trim(), flagged_by: authorName }),
@@ -356,7 +365,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   async function handleResolveReview() {
     const authorName = user?.name || 'Unknown'
     try {
-      const res = await fetch('/api/prospects?action=resolve-review', {
+      const res = await authFetch('/api/prospects?action=resolve-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prospect_id: p.id, resolved_by: authorName }),

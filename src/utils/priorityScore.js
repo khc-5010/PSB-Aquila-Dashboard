@@ -3,6 +3,16 @@
 
 const EXEMPT_CATEGORIES = ['Knowledge Sector', 'Hot Runner Systems', 'Catalog/Standards', 'Strategic Partner']
 
+// Private-equity ownership matcher.
+// SYNC: identical copy in api/prospects.js (isPEOwnership) — keep aligned.
+// Matches the dropdown value ('PE-Backed'), bare 'PE', and legacy free-text
+// values ('Private Equity', 'Acquired by PE firm ...'). Word-boundary regex so
+// 'Cooperative' / 'ESOP' / 'Public' don't false-positive.
+function isPEOwnership(value) {
+  if (!value) return false
+  return /\bpe\b|private equity/i.test(value)
+}
+
 const SCORE_INPUT_FIELDS = [
   'press_count', 'employees_approx', 'signal_count', 'cwp_contacts',
   'psb_connection_notes', 'rjg_cavity_pressure', 'in_house_tooling',
@@ -50,9 +60,10 @@ function calculatePriorityScore(p) {
   const ownership = (p.ownership_type || '').toLowerCase()
   const recentMa = (p.recent_ma || '').toLowerCase()
   const yearsInBiz = p.years_in_business ?? 0
-  if (ownership.includes('private equity') && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
+  const isPE = isPEOwnership(ownership)
+  if (isPE && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
     breakdown.urgency = 15
-  } else if (ownership.includes('private equity')) {
+  } else if (isPE) {
     breakdown.urgency = 10
   } else if (ownership.includes('family') && yearsInBiz >= 30) {
     breakdown.urgency = 8
@@ -129,4 +140,4 @@ function calculateAiReadiness(p) {
   return { readiness, criteria, met }
 }
 
-export { calculatePriorityScore, getTierFromScore, calculateAiReadiness, isExempt, SCORE_INPUT_FIELDS, EXEMPT_CATEGORIES }
+export { calculatePriorityScore, getTierFromScore, calculateAiReadiness, isExempt, isPEOwnership, SCORE_INPUT_FIELDS, EXEMPT_CATEGORIES }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ArrowLeft, Search, X, AlertTriangle } from 'lucide-react'
 import ForceGraph, { ENTITY_COLORS } from './ForceGraph'
+import { authFetch } from '../../context/AuthContext'
 
 const TYPE_FILTERS = [
   { key: 'all', label: 'All' },
@@ -14,7 +15,7 @@ const TYPE_FILTERS = [
 
 const SPARSE_THRESHOLD = 5
 
-export default function GraphExplorer({ graphData, highlightNodeIds, loading, initialCompanyId, onLargeNodeClick, stateFilter }) {
+export default function GraphExplorer({ graphData, highlightCompanyIds, loading, initialCompanyId, onLargeNodeClick, stateFilter }) {
   const [expandedEntity, setExpandedEntity] = useState(null)
   const [neighborhoodData, setNeighborhoodData] = useState(null)
   const [neighborLoading, setNeighborLoading] = useState(false)
@@ -41,7 +42,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
           entity_id: initialCompanyId,
         })
         if (stateFilter) params.set('state', stateFilter)
-        const res = await fetch(`${apiBase}/api/prospects?${params}`)
+        const res = await authFetch(`${apiBase}/api/prospects?${params}`)
         if (!res.ok) return
         const data = await res.json()
         const rootNode = data.nodes?.find(n => n.id === initialCompanyId)
@@ -95,7 +96,7 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
         entity_id: node.entityId || node.id,
       })
       if (stateFilter) params.set('state', stateFilter)
-      const res = await fetch(`${apiBase}/api/prospects?${params}`)
+      const res = await authFetch(`${apiBase}/api/prospects?${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setNeighborhoodData(data)
@@ -160,8 +161,27 @@ export default function GraphExplorer({ graphData, highlightNodeIds, loading, in
     }
   }
 
-  // Apply search highlight
-  let effectiveHighlight = highlightNodeIds
+  // Map query-result company ids onto the ids of the nodes actually displayed.
+  // Node id formats differ per view — overview super-nodes are "{type}-{name}"
+  // (highlighted when any member company was a query hit, via memberProspectIds),
+  // neighborhood nodes are numeric entity ids (matched on their prospectId).
+  // If nothing visible matches, leave highlight off rather than dim the whole graph.
+  let effectiveHighlight = null
+  if (highlightCompanyIds && highlightCompanyIds.size > 0) {
+    const matchIds = new Set()
+    displayNodes.forEach(n => {
+      if (n.isSuper) {
+        if (Array.isArray(n.memberProspectIds) && n.memberProspectIds.some(pid => highlightCompanyIds.has(Number(pid)))) {
+          matchIds.add(n.id)
+        }
+      } else if (n.prospectId != null && highlightCompanyIds.has(Number(n.prospectId))) {
+        matchIds.add(n.id)
+      }
+    })
+    if (matchIds.size > 0) effectiveHighlight = matchIds
+  }
+
+  // Apply search highlight (takes priority over query highlight)
   if (searchText.trim()) {
     const lower = searchText.toLowerCase()
     const matchIds = new Set()

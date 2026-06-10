@@ -7,7 +7,7 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { useAuth } from './context/AuthContext'
+import { useAuth, authFetch } from './context/AuthContext'
 import LoginScreen from './components/auth/LoginScreen'
 import OpportunityCard from './components/pipeline/OpportunityCard'
 import DroppableColumn from './components/pipeline/DroppableColumn'
@@ -68,18 +68,24 @@ function App() {
     ? opportunities.find(o => o.id === activeId)
     : null
 
-  // Fetch users for owner display
+  // Fetch users for owner display. team-members (any authenticated user)
+  // returns active members' { name, color } — list-users is admin-only and
+  // silently 401'd for everyone else, leaving every avatar gray.
   useEffect(() => {
-    fetch('/api/auth?action=list-users')
+    if (!user) {
+      setUsers([])
+      return
+    }
+    authFetch('/api/auth?action=team-members')
       .then(r => r.ok ? r.json() : [])
-      .then(data => setUsers(Array.isArray(data) ? data.filter(u => u.is_active) : []))
+      .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(() => {})
-  }, [])
+  }, [user])
 
   // Fetch opportunities
   const fetchOpportunities = useCallback(() => {
     setLoading(true)
-    fetch('/api/opportunities')
+    authFetch('/api/opportunities')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
@@ -95,9 +101,11 @@ function App() {
       })
   }, [])
 
+  // Data APIs require a session now — fetch after login, not on mount
   useEffect(() => {
+    if (!user) return
     fetchOpportunities()
-  }, [fetchOpportunities])
+  }, [user, fetchOpportunities])
 
   // Group opportunities by stage using PIPELINE_STAGES keys
   const opportunitiesByStage = PIPELINE_STAGES.reduce((acc, stage) => {
@@ -130,6 +138,21 @@ function App() {
     setActiveId(event.active.id)
   }
 
+  // Resolve a drop target to a pipeline stage key. `over.id` is only a stage
+  // key when dropping on empty column space — dropping on/near another card
+  // makes it that card's opportunity UUID, which must never be written into
+  // `stage` (the card would vanish from every column until a manual DB fix).
+  const STAGE_KEYS = PIPELINE_STAGES.map(s => s.key)
+  const resolveDropStage = (over) => {
+    if (STAGE_KEYS.includes(over.id)) return over.id
+    // Card target: its SortableContext container is the column (id={stage.key})
+    const containerId = over.data?.current?.sortable?.containerId
+    if (STAGE_KEYS.includes(containerId)) return containerId
+    // Fallback: the stage of the card being hovered
+    const overOpp = opportunities.find(o => o.id === over.id)
+    return overOpp?.stage ?? null
+  }
+
   const handleDragEnd = async (event) => {
     const { active, over } = event
     setActiveId(null)
@@ -137,7 +160,8 @@ function App() {
     if (!over) return
 
     const opportunityId = active.id
-    const newStage = over.id
+    const newStage = resolveDropStage(over)
+    if (!newStage) return
 
     const opportunity = opportunities.find(o => o.id === opportunityId)
     if (!opportunity || opportunity.stage === newStage) return
@@ -150,7 +174,7 @@ function App() {
     )
 
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage }),
@@ -159,7 +183,7 @@ function App() {
       if (!res.ok) throw new Error('Failed to update')
 
       // Log the stage transition
-      await fetch('/api/stage-transitions', {
+      await authFetch('/api/stage-transitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -191,14 +215,14 @@ function App() {
 
     try {
       // Delete the opportunity
-      const res = await fetch(`/api/opportunities?id=${opportunity.id}`, {
+      const res = await authFetch(`/api/opportunities?id=${opportunity.id}`, {
         method: 'DELETE',
       })
       if (!res.ok) throw new Error('Failed to delete opportunity')
 
       // If it came from a prospect, set status to Nurture
       if (opportunity.source_prospect_id) {
-        await fetch(`/api/prospects?id=${opportunity.source_prospect_id}`, {
+        await authFetch(`/api/prospects?id=${opportunity.source_prospect_id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

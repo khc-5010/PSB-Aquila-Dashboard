@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 
 const CATEGORY_OPTIONS = ['', 'Mold Maker + Converter', 'Converter', 'Mold Maker', 'Hot Runner Systems', 'Knowledge Sector', 'Catalog/Standards', 'Strategic Partner']
 const PRIORITY_OPTIONS = ['', 'HIGH PRIORITY', 'QUALIFIED', 'WATCH', 'STRATEGIC PARTNER']
@@ -56,7 +56,7 @@ function AddCompanyModal({ onClose, onSuccess }) {
     }
 
     try {
-      const res = await fetch('/api/prospects', {
+      const res = await authFetch('/api/prospects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

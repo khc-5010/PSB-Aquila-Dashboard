@@ -6,6 +6,7 @@ import GeographyMap from './charts/GeographyMap'
 import SignalAnalysis from './charts/SignalAnalysis'
 import ReadinessScorecard from './charts/ReadinessScorecard'
 import OwnershipProfile from './charts/OwnershipProfile'
+import { authFetch } from '../../context/AuthContext'
 
 function ProspectAnalytics({ filters, onFilterChange }) {
   const [data, setData] = useState(null)
@@ -24,7 +25,7 @@ function ProspectAnalytics({ filters, onFilterChange }) {
     if (filters.priority && filters.priority.length > 0) params.set('priority', filters.priority.join(','))
     if (filters.preset === 'medical') params.set('medical_device_mfg', 'Yes')
 
-    fetch(`/api/prospects?${params}`)
+    authFetch(`/api/prospects?${params}`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()

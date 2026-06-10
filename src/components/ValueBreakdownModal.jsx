@@ -29,12 +29,14 @@ const getStageInfo = (stageId) => {
 }
 
 function ValueBreakdownModal({ opportunities, onClose, onSelectOpportunity }) {
-  // Filter non-complete opportunities and sort by value descending
+  // Filter non-complete opportunities and sort by value descending.
+  // parseFloat: Neon returns NUMERIC columns as strings — naive `+` would
+  // string-concatenate the total.
   const pipelineOpps = opportunities
     .filter(opp => opp.stage !== 'complete')
-    .sort((a, b) => (b.est_value || 0) - (a.est_value || 0))
+    .sort((a, b) => (parseFloat(b.est_value) || 0) - (parseFloat(a.est_value) || 0))
 
-  const totalValue = pipelineOpps.reduce((sum, opp) => sum + (opp.est_value || 0), 0)
+  const totalValue = pipelineOpps.reduce((sum, opp) => sum + (parseFloat(opp.est_value) || 0), 0)
 
   const handleRowClick = (opp) => {
     if (onSelectOpportunity) {

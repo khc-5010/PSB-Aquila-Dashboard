@@ -222,6 +222,10 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - **`sessions`** - Active login sessions (persist until logout)
   - `id` (TEXT, PK — random UUID token), `user_id` (FK), `created_at`
 
+- **`login_attempts`** - Login rate-limiting state (auto-created by the login handler)
+  - `email` (TEXT, PK), `failed_count` (INTEGER), `locked_until` (TIMESTAMPTZ, nullable), `last_attempt_at` (TIMESTAMPTZ)
+  - Row deleted on successful login; lockout = 5 consecutive failures → `locked_until = NOW() + 15 min`
+
 ### Prospect Tables
 
 - **`prospect_companies`** - 179-company prospect database for alliance outreach
@@ -348,7 +352,7 @@ The Company Info section in `ProspectDetail.jsx` is now fully editable (previous
 
 **Downstream-impact fields** — `category`, `in_house_tooling`, `ownership_type`, `recent_ma`, `parent_company` are all in `ONTOLOGY_FIELDS` and/or `SCORE_INPUT_FIELDS`, so edits trigger server-side rebuild/recalc automatically via the existing PATCH handler. No extra client-side handling needed.
 
-**Ownership Type string contract** — downstream indicator logic in `ProspectTable.jsx` keys off `.includes('PE')`, `.includes('Family')`, and `=== 'ESOP'`. The preset values (`'PE-Backed'`, `'Family/Founder-Owned'`, `'ESOP'`) satisfy all three patterns. If adding new values to `OWNERSHIP_TYPES`, preserve these substrings.
+**Ownership Type string contract** — downstream indicator logic keys off `isPEOwnership()` (from `priorityScore.js` — matches `'PE-Backed'`, `'PE'`, `'Private Equity'`), `.includes('Family')`, and `=== 'ESOP'`. The preset values (`'PE-Backed'`, `'Family/Founder-Owned'`, `'ESOP'`) satisfy all three patterns. If adding new values to `OWNERSHIP_TYPES`, preserve these contracts.
 
 **Constants live at the top of `ProspectDetail.jsx`** alongside `GROUP_OPTIONS` and `STATUS_OPTIONS`: `US_STATES`, `IN_HOUSE_TOOLING_OPTIONS`, `OWNERSHIP_TYPES`.
 
@@ -587,10 +591,12 @@ Calculated scoring system replacing the static `priority` TEXT field with a comp
 |-----------|-----|------------------|
 | Scale | 25 | press_count (primary), employees_approx (fallback) |
 | Relationship Warmth | 25 | cwp_contacts + psb_connection_notes bonus |
-| Ownership Urgency | 15 | PE + M&A (15), PE alone (10), family 30yr (8), ESOP (4) |
+| Ownership Urgency | 15 | PE + M&A (15), PE alone (10), family 30yr (8), ESOP (4), corporate/strategic (2) |
 | Strategic Vertical | 15 | Medical+ISO 13485 (15), medical (10), automotive (8), aerospace (6) |
 | Signal Density | 10 | signal_count thresholds |
 | Technology Signals | 10 | RJG confirmed (10), likely (6), in-house tooling (+3) |
+
+**PE detection** — Ownership Urgency, the PE table/hover icons, the hook line, and the digest's PE Window Watch all use the shared `isPEOwnership(value)` predicate (`/\bpe\b|private equity/i`), which matches `'PE-Backed'` (the dropdown value), bare `'PE'`, and legacy `'Private Equity'` free text. **SYNC pair**: `src/utils/priorityScore.js` + `api/prospects.js` — keep both copies identical. (Historical bug: the scorer matched only `'private equity'` while the dropdown wrote `'PE-Backed'`, so every PE company scored 0/15 on Ownership Urgency.)
 
 **Tier mapping** (from `priority_score`):
 - 75-100 → HIGH PRIORITY (red pill)
@@ -773,6 +779,9 @@ Filter state uses **arrays** (not strings). Empty array = no filter (show all).
 - **Sessions persist until explicit logout** — no expiry, no timeout.
 - Session token stored in `localStorage` as `session_token`, sent as `Authorization: Bearer <token>` header.
 - All auth endpoints consolidated in a single `api/auth.js` (Vercel function limit).
+- **Server-side enforcement (ALL data APIs):** every `api/*` handler validates the Bearer token via the shared `requireAuth(req, res)` helper in `lib/requireAuth.js` (root `lib/`, NOT `api/` — files in `api/` deploy as functions and would consume a slot). Exemptions: `api/auth.js` (manages its own tokens), the `daily-digest` action (CRON_SECRET-gated), `api/meeting-minutes.js` (own API key), `api/health.js` (public, returns no detail). **New endpoints must call `requireAuth` — the login screen protects the UI only.**
+- **Client rule:** every `fetch` to `/api/*` goes through `authFetch` (exported from `AuthContext.jsx`, also available outside components — it reads localStorage directly). Plain `fetch` is only for static assets (`/prompts/*.md`) and external APIs (openFDA — never send our session token there).
+- **Login rate limiting:** 5 consecutive failures per email → 15-minute lockout (HTTP 429), tracked in the `login_attempts` table (auto-created by the login handler — no manual migration). Unknown emails burn a dummy bcrypt compare (no timing side-channel); deactivated accounts get the same generic "Invalid email or PIN". PINs are generated with `crypto.randomInt`.
 
 ### Key Components
 - `src/context/AuthContext.jsx` — `AuthProvider` wraps the app in `main.jsx`. Exposes `useAuth()` hook providing `{ user, login, logout, loading, authFetch }`.
@@ -781,21 +790,27 @@ Filter state uses **arrays** (not strings). Empty array = no filter (show all).
 - `Header.jsx` — Shows logged-in user avatar, team member avatars, admin gear icon (admin only), logout button.
 
 ### Auth API Routes (`api/auth.js`)
-- `POST ?action=login` — Validate email + PIN, create session
+- `POST ?action=login` — Validate email + PIN, create session (rate-limited, see Architecture)
 - `POST ?action=logout` — Delete session
 - `GET ?action=validate` — Validate session token
 - `GET ?action=me` — Get current user profile
 - `POST ?action=create-user` — Admin: add new user (returns one-time PIN)
 - `PATCH ?action=update-user&id=X` — Admin: edit user
+- `PATCH ?action=update-preferences` — Authenticated: update own digest preferences
 - `POST ?action=reset-pin&id=X` — Admin: generate new PIN
-- `GET ?action=list-users` — Admin: get all users
+- `POST ?action=change-pin` — Authenticated: change own PIN (requires current PIN)
+- `GET ?action=list-users` — Admin: get all users (AdminPanel only)
+- `GET ?action=team-members` — Any authenticated user: active members' `{ name, color }` only. **Use this (not list-users) for avatars/owner dropdowns** — App.jsx, Header, ConvertToOpportunityModal, task assignee dropdowns all use it.
+- `POST ?action=setup` — One-time bootstrap/recovery: creates auth tables + admin account when no ACTIVE admin exists (upserts, so a deactivated sole admin is recoverable). Returns no identity details when setup is already complete.
 
 ### User Identity Pattern
 - `useAuth()` is the canonical way to get the current user (`{ id, name, email, color, role }`)
 - All hardcoded user arrays have been removed from `Header.jsx`
 - `last_edited_by` on prospect edits now uses the authenticated user's name
 - `added_by` on prospect creation (single add and bulk import) records who added the company — set on INSERT only, never overwritten on update/upsert
-- `transitioned_by` on pipeline stage changes now uses the authenticated user's name
+- `transitioned_by` on pipeline stage changes and `dismissed_by` on alert dismissals use the authenticated user's name (OpportunityDetail included)
+- Pipeline activity logging attributes to the authenticated user — the old hardcoded Kyle/Duane/Steve "Created by" dropdown in OpportunityDetail was removed (it excluded Brett)
+- Known remainder: `OWNERS` in `src/constants/options.js` and OpportunityDetail's `ownerColors` map are still hardcoded (Brett missing) — flagged in QA audit A2.7 for a follow-up bundle
 
 ### Users (4 total)
 - **Kyle** (admin) — Alliance Coordinator, only admin
@@ -879,8 +894,10 @@ CRON_SECRET=             # Vercel Cron secret for securing digest endpoint
 ### API Route Consolidation (Vercel Hobby = 12 function limit)
 - **One file per feature** in `api/`. Do NOT use nested directories for sub-routes.
 - Route internally using HTTP method + `req.query` params (`?id=X`, `?action=import`)
-- Current function count: **10** (target: ≤ 12, Vercel Hobby limit)
+- Current function count: **10** (target: ≤ 12, Vercel Hobby limit). The undocumented 11th (`bulk-upload-reports.js`, a self-labeled "DELETE THIS FILE" leftover) was deleted in the June 2026 QA fix pass.
 - Files: `health.js`, `opportunities.js`, `opportunities/[id].js`, `activities.js`, `analytics.js`, `stage-transitions.js`, `key-dates.js`, `meeting-minutes.js`, `prospects.js`, `auth.js`
+- Shared server helpers live in root `lib/` (e.g. `lib/requireAuth.js`) — NOT in `api/` (every `api/*.js` file deploys as a function) and NOT in `src/` (serverless can't import from it)
+- **Every new data endpoint must validate the session** — `const authUser = await requireAuth(req, res); if (!authUser) return` at the top of the handler (see Authentication System)
 
 ### Icons
 - Use `lucide-react` for all new icons. Import only what you need (tree-shakeable, ~1KB per icon).
@@ -1055,7 +1072,7 @@ SQL migration: `scripts/create-ontology-tables.sql`
 `key_certifications` values are normalized to canonical forms before entity creation in both `rebuildOntologyLayer1` and `rebuildOntologyForProspect`. The `CERT_NORMALIZATION` map (defined near the top of `api/prospects.js`) maps variants like "ISO 9001:2015", "ISO 9001:2008", "ISO 9000" → "ISO 9001". After normalization, duplicates are removed via `[...new Set()]` so a company with both "ISO 9001:2015" and "ISO 9001" creates only one relationship. The `normalizeCertName()` helper does case-insensitive lookup, falling back to the trimmed original if no match. After deploying changes to the normalization map, a full Layer 1 rebuild (`POST ?action=rebuild-ontology-layer1`) is needed to regenerate with normalized certs.
 
 #### API Endpoints (all in `api/prospects.js`)
-- `POST /api/prospects?action=rebuild-ontology-layer1` — Clears all Layer 1 entities/relationships, reads all prospects, regenerates. Idempotent. Returns `{ entities_created, relationships_created, prospects_processed, duration_ms }`.
+- `POST /api/prospects?action=rebuild-ontology-layer1` — Clears Layer 1 relationships and unreferenced Layer 1 entities, reads all prospects, regenerates. Idempotent. **Layer 2 safety:** entities still referenced by any remaining (Layer 2) relationship are preserved and reused via the upsert's ON CONFLICT — a blanket `DELETE FROM ontology_entities WHERE layer = 1` would CASCADE-delete every Layer 2 relationship whose subject is a company (this was QA audit finding A1.3; do not regress it). Returns `{ entities_created, relationships_created, prospects_processed, duration_ms }`.
 - `GET /api/prospects?action=ontology-stats` — Aggregate stats: entity counts by type, relationship counts by type, layer breakdown, last rebuilt timestamp.
 - `GET /api/prospects?action=ontology-state-summary&state=XX` — State-level breakdown: top certifications, technologies, ownership mix, medical/RJG counts.
 - `GET /api/prospects?action=ontology-density-by-state` — Per-state ontology density for National Map metric: entity count, relationship count, prospect count, density (relationships/prospects), layer breakdown. Includes `_totals` key.
@@ -1144,13 +1161,13 @@ Interactive force-directed graph visualization of the ontology. Top-level tab at
 1. Filter options derived from graph super-nodes (no extra API call)
 2. User selects chips (AND across sections, OR within)
 3. "Find Companies" calls `ontology-query` → results in QueryResults
-4. Matched company IDs passed to GraphExplorer as `highlightNodeIds`
-5. "Find Similar" on result card calls `ontology-similar` → inline sub-view
+4. Matched prospect-company ids flow to GraphExplorer as `highlightCompanyIds` (a Set of numbers). GraphExplorer maps them onto node ids per view: overview super-nodes highlight when any `memberProspectIds` entry matches (served by `ontology-graph`); neighborhood company nodes match on their `prospectId`. Node id formats differ per view (`{type}-{name}` vs numeric entity id), so raw company ids are the stable key — never build node-id strings in KnowledgeGraph.
+5. "Find Similar" on result card calls `ontology-similar` → inline sub-view (highlights the same way)
 
 #### API Endpoints (all in `api/prospects.js`)
-- `GET /api/prospects?action=ontology-graph` — Aggregated super-node view. Each non-Company entity becomes a super-node with `count` (connected companies) and `memberIds[]`. Inter-node links computed by shared company overlap (strength ≥ 0.1). Optional `state` and `type` filters. Response: `{ nodes, links, meta }`.
+- `GET /api/prospects?action=ontology-graph` — Aggregated super-node view. Each non-Company entity becomes a super-node with `count` (connected companies), `memberIds[]` (company entity ids), and `memberProspectIds[]` (prospect-company ids, used for query-result highlighting). Inter-node links computed by shared company overlap (strength ≥ 0.1). Optional `state` and `type` filters. Response: `{ nodes, links, meta }`.
 - `GET /api/prospects?action=ontology-neighborhood` — 1-hop (or 2-hop) neighborhood around a specific entity. Required: `entity_id`. Optional: `depth` (1-2), `state` (2-letter abbreviation — filters Company nodes to that state only, non-Company entities always included). Response: `{ nodes, links, meta }` with `isSuper: false`.
-- `GET /api/prospects?action=ontology-query` — Find companies matching ontology criteria. AND across categories, OR within. Params: `certifications`, `technologies`, `markets`, `ownership`, `equipment`, `state`. Response: `{ results[], meta }` with matchScore.
+- `GET /api/prospects?action=ontology-query` — Find companies matching ontology criteria. AND across categories, OR within. Params: `certifications`, `technologies`, `markets`, `ownership`, `equipment`, `quality_methods`, `state`. Response: `{ results[], meta }` with matchScore.
 - `GET /api/prospects?action=ontology-similar` — Find companies sharing the most ontology edges with a target. Required: `prospect_id`. Optional: `limit` (default 10). Response: `{ target, similar[] }` with similarity scores.
 
 #### Cross-Navigation (Session 3)

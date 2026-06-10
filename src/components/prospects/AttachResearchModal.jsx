@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 
 export default function AttachResearchModal({ prospect, onClose, onSaved, existingAttachment = null }) {
   const { user } = useAuth()
@@ -34,7 +34,7 @@ export default function AttachResearchModal({ prospect, onClose, onSaved, existi
             created_by: user?.name || null,
           }
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

@@ -1,8 +1,12 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../lib/requireAuth.js'
 
 const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
 export default async function handler(req, res) {
+  const authUser = await requireAuth(req, res)
+  if (!authUser) return
+
   const sql = neon(process.env.DATABASE_URL)
 
   // Ensure source_prospect_id column exists (idempotent)

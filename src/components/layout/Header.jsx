@@ -12,18 +12,19 @@ function Header({ activeView, onViewChange }) {
   const [showDigestPrefs, setShowDigestPrefs] = useState(false)
   const [teamUsers, setTeamUsers] = useState([])
 
-  // Fetch active team members for avatar display
+  // Fetch active team members for avatar display. team-members is available to
+  // any authenticated user (list-users is admin-only, which left teammate
+  // avatars hidden for everyone but Kyle). Returns active { name, color }.
   useEffect(() => {
-    if (user?.role === 'admin') {
-      authFetch('/api/auth?action=list-users')
-        .then(res => res.ok ? res.json() : [])
-        .then(data => setTeamUsers(data.filter(u => u.is_active)))
-        .catch(() => {})
-    }
+    if (!user) return
+    authFetch('/api/auth?action=team-members')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setTeamUsers(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [user, authFetch])
 
   // Other active users (not the current user)
-  const otherUsers = teamUsers.filter(u => u.id !== user?.id)
+  const otherUsers = teamUsers.filter(u => u.name !== user?.name)
 
   return (
     <>
@@ -96,7 +97,7 @@ function Header({ activeView, onViewChange }) {
               <div className="flex items-center -space-x-2">
                 {otherUsers.map((u) => (
                   <div
-                    key={u.id}
+                    key={u.name}
                     className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-medium ring-2 ring-white/20"
                     style={{ backgroundColor: u.color }}
                     title={u.name}

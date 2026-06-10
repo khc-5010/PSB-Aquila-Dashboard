@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 import { STATE_ABBR_TO_NAME } from '../../data/us-states'
 
 const STATE_OPTIONS = Object.entries(STATE_ABBR_TO_NAME)
@@ -72,7 +72,7 @@ export default function UploadStateReportModal({ stateCode, stateName, onClose, 
     setError(null)
 
     try {
-      const res = await fetch('/api/prospects?action=save-state-report', {
+      const res = await authFetch('/api/prospects?action=save-state-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

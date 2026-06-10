@@ -1,4 +1,5 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../lib/requireAuth.js'
 
 // Certification normalization: map variant names to canonical form
 const CERT_NORMALIZATION = {
@@ -49,6 +50,16 @@ function getCavityPressureEntityName(rjgVal) {
     return 'RJG Cavity Pressure Monitoring'
   }
   return null
+}
+
+// Private-equity ownership matcher.
+// SYNC: identical copy in src/utils/priorityScore.js (isPEOwnership) — keep aligned.
+// Matches the dropdown value ('PE-Backed'), bare 'PE', and legacy free-text
+// values ('Private Equity', 'Acquired by PE firm ...'). Word-boundary regex so
+// 'Cooperative' / 'ESOP' / 'Public' don't false-positive.
+function isPEOwnership(value) {
+  if (!value) return false
+  return /\bpe\b|private equity/i.test(value)
 }
 
 // ─── Category parent-group rules for filter matching ─────────────────
@@ -141,9 +152,21 @@ async function rebuildOntologyLayer1(sql) {
     throw new Error('Ontology entity types not seeded. Run the SQL migration first.')
   }
 
-  // 2. Clear all Layer 1 data (relationships first due to FK cascade)
+  // 2. Clear Layer 1 data. Relationships first, then only entities that are no
+  //    longer referenced by ANY remaining relationship. Company entities are
+  //    layer 1 but Layer 2 relationships hang off them with ON DELETE CASCADE —
+  //    a blanket `DELETE ... WHERE layer = 1` would cascade away all manually
+  //    extracted Layer 2 edges. The NOT EXISTS guard keeps those entities (the
+  //    upsert below reuses them via ON CONFLICT), so Layer 2 data survives.
   await sql`DELETE FROM ontology_relationships WHERE layer = 1`
-  await sql`DELETE FROM ontology_entities WHERE layer = 1`
+  await sql`
+    DELETE FROM ontology_entities e
+    WHERE e.layer = 1
+      AND NOT EXISTS (
+        SELECT 1 FROM ontology_relationships r
+        WHERE r.subject_entity_id = e.id OR r.object_entity_id = e.id
+      )
+  `
 
   // 3. Read all prospects
   const prospects = await sql`SELECT * FROM prospect_companies`
@@ -507,9 +530,10 @@ function calculatePriorityScore(p) {
   const ownership = (p.ownership_type || '').toLowerCase()
   const recentMa = (p.recent_ma || '').toLowerCase()
   const yearsInBiz = p.years_in_business ?? 0
-  if (ownership.includes('private equity') && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
+  const isPE = isPEOwnership(ownership)
+  if (isPE && (recentMa.includes('acqui') || recentMa.includes('merge'))) {
     breakdown.urgency = 15
-  } else if (ownership.includes('private equity')) {
+  } else if (isPE) {
     breakdown.urgency = 10
   } else if (ownership.includes('family') && yearsInBiz >= 30) {
     breakdown.urgency = 8
@@ -648,6 +672,14 @@ export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
   const { action, id } = req.query
 
+  // Server-side session validation for every action except the daily digest,
+  // which is invoked by Vercel Cron and authenticates with CRON_SECRET inside
+  // its own branch below.
+  if (!(req.method === 'GET' && action === 'daily-digest')) {
+    const authUser = await requireAuth(req, res)
+    if (!authUser) return
+  }
+
   // ─── GET ───────────────────────────────────────────────
   if (req.method === 'GET') {
 
@@ -687,7 +719,7 @@ export default async function handler(req, res) {
 
         // 4. Identify PE window prospects
         const peWindowProspects = prospects.filter(p =>
-          p.ownership_type?.includes('PE') && p.recent_ma
+          isPEOwnership(p.ownership_type) && p.recent_ma
         )
 
         // 5. Send personalized digest to each user
@@ -1228,7 +1260,8 @@ export default async function handler(req, res) {
             e.id AS entity_id,
             e.name AS entity_name,
             COUNT(DISTINCT r.subject_entity_id) AS connection_count,
-            ARRAY_AGG(DISTINCT r.subject_entity_id) AS member_ids
+            ARRAY_AGG(DISTINCT r.subject_entity_id) AS member_ids,
+            ARRAY_AGG(DISTINCT subj.prospect_company_id) FILTER (WHERE subj.prospect_company_id IS NOT NULL) AS member_prospect_ids
           FROM ontology_entities e
           JOIN ontology_entity_types et ON et.id = e.type_id
           JOIN ontology_relationships r ON r.object_entity_id = e.id
@@ -1255,6 +1288,9 @@ export default async function handler(req, res) {
           count: Number(sn.connection_count),
           isSuper: true,
           memberIds: sn.member_ids.map(Number),
+          // Prospect-company ids of member companies — used by GraphExplorer to
+          // map query-result company ids onto super-nodes for highlighting.
+          memberProspectIds: (sn.member_prospect_ids || []).map(Number),
         }))
 
         // Compute inter-super-node links (shared companies)
@@ -1477,7 +1513,7 @@ export default async function handler(req, res) {
               depth: maxDepth,
               nodeCount: filteredEntityMap.size,
               linkCount: filteredLinks.length,
-              stateFilter: stateUpper,
+              stateFilter: state.toUpperCase(),
             },
           })
         }
@@ -1503,7 +1539,7 @@ export default async function handler(req, res) {
     // ─── Ontology: Knowledge Graph — query by criteria ───
     if (action === 'ontology-query') {
       try {
-        const { certifications, technologies, markets, ownership, equipment, state: queryState } = req.query
+        const { certifications, technologies, markets, ownership, equipment, quality_methods, state: queryState } = req.query
 
         // Parse comma-separated criteria
         const criteria = {}
@@ -1512,10 +1548,11 @@ export default async function handler(req, res) {
         if (markets) criteria['Market Vertical'] = markets.split(',').map(s => s.trim())
         if (ownership) criteria['Ownership Structure'] = ownership.split(',').map(s => s.trim())
         if (equipment) criteria['Equipment Brand'] = equipment.split(',').map(s => s.trim())
+        if (quality_methods) criteria['Quality Method'] = quality_methods.split(',').map(s => s.trim())
 
         const categoryCount = Object.keys(criteria).length
         if (categoryCount === 0) {
-          return res.status(400).json({ error: 'At least one filter criterion is required (certifications, technologies, markets, ownership, equipment)' })
+          return res.status(400).json({ error: 'At least one filter criterion is required (certifications, technologies, markets, ownership, equipment, quality_methods)' })
         }
 
         // Flatten all requested entity names

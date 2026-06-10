@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Plus, ChevronDown, ChevronRight } from 'lucide-react'
-import { useAuth } from '../../../context/AuthContext'
+import { useAuth, authFetch } from '../../../context/AuthContext'
 import TaskRow from './TaskRow'
 import TaskInlineEditor from './TaskInlineEditor'
 
@@ -14,19 +14,25 @@ export default function TasksSection({ prospectId, onTasksChanged }) {
   const [adding, setAdding] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
+  // Stale-response guard: a slow response for a previous prospect must not
+  // render under the next one after prev/next navigation.
+  const currentProspectIdRef = useRef(prospectId)
+  currentProspectIdRef.current = prospectId
+
   const fetchTasks = useCallback(async () => {
-    if (!prospectId) return
+    const fetchedForId = prospectId
+    if (!fetchedForId) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/prospects?action=tasks&prospect_id=${prospectId}&status=all`)
+      const res = await authFetch(`/api/prospects?action=tasks&prospect_id=${fetchedForId}&status=all`)
       if (!res.ok) throw new Error('Failed to load tasks')
       const data = await res.json()
-      setTasks(Array.isArray(data) ? data : [])
+      if (currentProspectIdRef.current === fetchedForId) setTasks(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message)
+      if (currentProspectIdRef.current === fetchedForId) setError(err.message)
     } finally {
-      setLoading(false)
+      if (currentProspectIdRef.current === fetchedForId) setLoading(false)
     }
   }, [prospectId])
 
@@ -42,7 +48,7 @@ export default function TasksSection({ prospectId, onTasksChanged }) {
   }
 
   const handleCreate = async (fields) => {
-    const res = await fetch('/api/prospects?action=tasks', {
+    const res = await authFetch('/api/prospects?action=tasks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -64,7 +70,7 @@ export default function TasksSection({ prospectId, onTasksChanged }) {
   }
 
   const handleUpdate = async (taskId, fields) => {
-    const res = await fetch(`/api/prospects?action=tasks&task_id=${taskId}`, {
+    const res = await authFetch(`/api/prospects?action=tasks&task_id=${taskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...fields, updated_by: user?.name || 'Unknown' }),
@@ -79,7 +85,7 @@ export default function TasksSection({ prospectId, onTasksChanged }) {
   }
 
   const handleDelete = async (taskId) => {
-    const res = await fetch(`/api/prospects?action=tasks&task_id=${taskId}&deleted_by=${encodeURIComponent(user?.name || 'Unknown')}`, {
+    const res = await authFetch(`/api/prospects?action=tasks&task_id=${taskId}&deleted_by=${encodeURIComponent(user?.name || 'Unknown')}`, {
       method: 'DELETE',
     })
     if (!res.ok) {

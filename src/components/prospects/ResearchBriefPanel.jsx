@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import InfoTooltip from '../national-map/InfoTooltip'
 import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
+import { authFetch } from '../../context/AuthContext'
 
 const SECTION_HEADERS = [
   'Pain Points & Opportunities',
@@ -89,7 +90,7 @@ export default function ResearchBriefPanel({ attachment, onDelete, onEdit, onExt
     }
 
     try {
-      await fetch(`/api/prospects?action=delete-attachment&attachmentId=${attachment.id}`, {
+      await authFetch(`/api/prospects?action=delete-attachment&attachmentId=${attachment.id}`, {
         method: 'DELETE',
       })
       onDelete()

@@ -1,6 +1,10 @@
 import { neon } from '@neondatabase/serverless'
+import { requireAuth } from '../lib/requireAuth.js'
 
 export default async function handler(req, res) {
+  const authUser = await requireAuth(req, res)
+  if (!authUser) return
+
   const sql = neon(process.env.DATABASE_URL)
 
   // POST - Create new stage transition

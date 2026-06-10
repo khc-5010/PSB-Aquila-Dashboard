@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, RefreshCw, CheckCircle } from 'lucide-react'
 import InfoTooltip from '../national-map/InfoTooltip'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth, authFetch } from '../../context/AuthContext'
 
 async function fetchFda(url) {
   const controller = new AbortController()
@@ -148,7 +148,7 @@ function FdaEnrichment({ prospect, onUpdate, attachments = [], onSnapshotSaved }
     try {
       const existing = attachments.find(a => a.attachment_type === 'fda_snapshot')
       if (existing) {
-        await fetch(`/api/prospects?action=delete-attachment&attachmentId=${existing.id}`, { method: 'DELETE' })
+        await authFetch(`/api/prospects?action=delete-attachment&attachmentId=${existing.id}`, { method: 'DELETE' })
       }
 
       const snapshotContent = JSON.stringify({
@@ -158,7 +158,7 @@ function FdaEnrichment({ prospect, onUpdate, attachments = [], onSnapshotSaved }
         checkedAt: new Date().toISOString(),
       })
 
-      await fetch('/api/prospects?action=attach', {
+      await authFetch('/api/prospects?action=attach', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

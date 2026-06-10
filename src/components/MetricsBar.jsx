@@ -20,10 +20,12 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
   // Total Pipeline: count of non-complete opportunities
   const totalPipeline = opportunities.filter(opp => opp.stage !== 'complete').length
 
-  // Est. Value: sum of est_value for non-complete opportunities
+  // Est. Value: sum of est_value for non-complete opportunities.
+  // parseFloat: Neon returns NUMERIC columns as strings — naive `+` would
+  // string-concatenate ("0" + "50000" = "050000").
   const estValue = opportunities
     .filter(opp => opp.stage !== 'complete')
-    .reduce((sum, opp) => sum + (opp.est_value || 0), 0)
+    .reduce((sum, opp) => sum + (parseFloat(opp.est_value) || 0), 0)
 
   // Need Action: opportunities with next_action set AND in early pipeline stages
   const needAction = opportunities.filter(opp =>
