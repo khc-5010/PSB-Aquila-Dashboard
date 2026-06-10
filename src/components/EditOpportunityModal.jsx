@@ -175,7 +175,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
               </div>
 
               {/* Project Type and Stage */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="project_type" className="block text-sm font-medium text-gray-700 mb-1">
                     Project Type
@@ -218,7 +218,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
               </div>
 
               {/* Owner and Est. Value */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="owner" className="block text-sm font-medium text-gray-700 mb-1">
                     Owner
@@ -259,7 +259,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
               </div>
 
               {/* Source and PSB Relationship */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
                     Source

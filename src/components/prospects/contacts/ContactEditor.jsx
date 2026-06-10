@@ -48,7 +48,7 @@ export default function ContactEditor({ initial = null, onSave, onCancel }) {
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2" onKeyDown={handleKeyDown}>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <input ref={nameRef} type="text" placeholder="Name *" value={form.name} onChange={set('name')} className={inputClass} />
         <input type="text" placeholder="Role / title" value={form.role} onChange={set('role')} className={inputClass} />
         <input type="email" placeholder="Email" value={form.email} onChange={set('email')} className={inputClass} />

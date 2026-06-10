@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, Kanban, Map, Share2, Bell } from 'lucide-react'
+import { Building2, Kanban, Map, Share2, Bell, ClipboardCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
@@ -29,72 +29,88 @@ function Header({ activeView, onViewChange }) {
   return (
     <>
       <header
-        className="h-16 px-6 shadow-md"
+        className="h-16 px-6 max-sm:px-3 shadow-md"
         style={{ background: 'linear-gradient(to right, #041E42, #164E63)' }}
       >
         <div className="h-full flex items-center justify-between">
           {/* Left side - Logo */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 max-sm:gap-2">
             <img
               src="/aquila-logo.png"
               alt="Aquila Industrial Intelligence"
-              className="h-12 rounded-lg"
+              className="h-12 max-sm:h-8 rounded-lg"
             />
 
             {/* Navigation Tabs */}
-            <div className="flex bg-white/10 rounded-lg p-1">
+            <div className="flex bg-white/10 rounded-lg p-1 max-sm:overflow-x-auto">
+              <button
+                onClick={() => onViewChange('today')}
+                aria-label="Today"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
+                  activeView === 'today'
+                    ? 'bg-white text-[#041E42]'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span className="hidden lg:inline">Today</span>
+              </button>
               <button
                 onClick={() => onViewChange('prospects')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                aria-label="Prospects"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
                   activeView === 'prospects'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Building2 className="w-4 h-4" />
-                Prospects
+                <span className="hidden lg:inline">Prospects</span>
               </button>
               <button
                 onClick={() => onViewChange('pipeline')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                aria-label="Pipeline"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
                   activeView === 'pipeline'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Kanban className="w-4 h-4" />
-                Pipeline
+                <span className="hidden lg:inline">Pipeline</span>
               </button>
               <button
                 onClick={() => onViewChange('national-map')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                aria-label="National Map"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
                   activeView === 'national-map'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Map className="w-4 h-4" />
-                National Map
+                <span className="hidden lg:inline">National Map</span>
               </button>
               <button
                 onClick={() => onViewChange('knowledge-graph')}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${
+                aria-label="Knowledge Graph"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
                   activeView === 'knowledge-graph'
                     ? 'bg-white text-[#041E42]'
                     : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Share2 className="w-4 h-4" />
-                Knowledge Graph
+                <span className="hidden lg:inline">Knowledge Graph</span>
               </button>
             </div>
           </div>
 
           {/* Right side - Actions and user */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 max-sm:gap-1.5">
             {/* Other team members (smaller avatars) */}
             {otherUsers.length > 0 && (
-              <div className="flex items-center -space-x-2">
+              <div className="flex items-center -space-x-2 max-sm:hidden">
                 {otherUsers.map((u) => (
                   <div
                     key={u.name}
@@ -148,7 +164,7 @@ function Header({ activeView, onViewChange }) {
             {/* Change PIN */}
             <button
               onClick={() => setShowChangePin(true)}
-              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors max-sm:hidden"
               title="Change PIN"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

@@ -110,7 +110,7 @@ function AddCompanyModal({ onClose, onSuccess }) {
             </div>
 
             {/* Primary fields - 2-column grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Category</label>
                 <select value={form.category} onChange={(e) => handleChange('category', e.target.value)} className={inputClass}>
@@ -180,7 +180,7 @@ function AddCompanyModal({ onClose, onSuccess }) {
 
             {showMore && (
               <div className="space-y-3 border-t border-gray-100 pt-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Also Known As</label>
                     <input type="text" value={form.also_known_as} onChange={(e) => handleChange('also_known_as', e.target.value)} className={inputClass} />

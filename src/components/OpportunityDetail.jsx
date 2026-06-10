@@ -396,7 +396,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
       />
 
       {/* Slide-out Panel */}
-      <div className="fixed right-0 top-0 h-full w-[400px] bg-white shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-out">
+      <div className="fixed right-0 top-0 h-full w-[400px] max-sm:w-full bg-white shadow-xl z-50 flex flex-col transform transition-transform duration-300 ease-out">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-200">
           <div className="flex items-start justify-between gap-4">
