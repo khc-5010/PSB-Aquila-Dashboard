@@ -17,6 +17,7 @@ import ExportJsonModal from './ExportJsonModal'
 import NeighborhoodPanel from '../ontology/NeighborhoodPanel'
 import FdaEnrichment from './FdaEnrichment'
 import TasksSection from './tasks/TasksSection'
+import ContactsSection from './contacts/ContactsSection'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
@@ -1121,6 +1122,12 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                 {/* FDA Intelligence */}
                 <Section title="FDA Intelligence" defaultOpen={false}>
                   <FdaEnrichment key={p.id} prospect={p} onUpdate={onUpdate} attachments={attachments} onSnapshotSaved={handleBriefSaved} />
+                </Section>
+
+                {/* Contacts (QA audit E5) — structured person-level data;
+                    travels with the JSON export (schema 1.1) */}
+                <Section title="Contacts" defaultOpen={true}>
+                  <ContactsSection prospectId={p.id} onActivityChanged={fetchActivityLog} />
                 </Section>
 
                 {/* PSB Relationship */}

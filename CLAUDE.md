@@ -213,6 +213,13 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `id`, `name`, `description`, `deadline_date`
   - `applies_to` (project_type array) - Which project types this applies to
 
+- **`prospect_contacts`** - Structured person-level contacts per prospect (QA audit E5; self-ensured like the other Section E additions, mirrored in `scripts/create-prospect-contacts.sql`)
+  - `id` (SERIAL, PK), `prospect_id` (FK → prospect_companies.id, ON DELETE CASCADE), `name` (NOT NULL), `role`, `email`, `phone`, `notes`, `source`, `last_contacted` (DATE), `created_by`, `created_at`, `updated_at`
+  - CRUD on `api/prospects.js` via `?action=contacts` + HTTP method dispatch (the tasks pattern): `GET ?action=contacts&id=X` (list, name ASC), `POST` (create), `PATCH ?contact_id=X` (update), `DELETE ?contact_id=X&deleted_by=...`
+  - Add/delete emit activity-log entries (`Contact added: ...` / `Contact removed: ...`); edits do NOT log (anti-noise rule, same as tasks). Never touches `suggested_next_step`.
+  - UI: "Contacts" section in ProspectDetail right column (`src/components/prospects/contacts/ContactsSection.jsx` + `ContactEditor.jsx`). `cwp_contacts` (integer count) remains a separate manually-managed field — adding contact rows does NOT auto-sync it.
+  - Export: `export-json` fills `contacts[]` from this table (schema_version 1.1)
+
 - **`prospect_status_transitions`** - Append-only prospect status history (QA audit E7), mirroring `stage_transitions`
   - `id` (SERIAL, PK), `prospect_id` (FK → prospect_companies.id, ON DELETE CASCADE), `from_status` (nullable), `to_status`, `transitioned_at` (TIMESTAMPTZ, default NOW()), `transitioned_by`
   - Written best-effort from the prospect PATCH handler and the research-brief status auto-advance via `logStatusChange()` — logging failures never fail the write they accompany
@@ -308,7 +315,8 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `DELETE /api/prospects?action=delete-attachment&attachmentId=X` — Delete attachment
 - `GET /api/prospects?action=data-audit` — Data quality audit: runs 16 diagnostic rules and returns counts, severity, examples, state signal health, and ontology health
 - `GET /api/prospects?action=trends` — Monthly counts for the last 12 months (prospects added, conversions, research briefs, status transitions). Global — ignores filter params by design. Rendered by `charts/TrendsPanel.jsx` at the bottom of the Charts sub-view (self-fetching).
-- `GET /api/prospects?action=export-json&id=X` — Full single-company export: the live company + its 1-hop corporate links (typed parent/children + former-name rows) + each record's attachments, activity log, and tasks, assembled into one JSON payload (see "Company JSON Export" below)
+- `GET /api/prospects?action=export-json&id=X` — Full single-company export: the live company + its 1-hop corporate links (typed parent/children + former-name rows) + each record's contacts, attachments, activity log, and tasks, assembled into one JSON payload (see "Company JSON Export" below)
+- `GET /api/prospects?action=contacts&id=X` / `POST ?action=contacts` / `PATCH ?action=contacts&contact_id=X` / `DELETE ?action=contacts&contact_id=X&deleted_by=...` — Structured contacts CRUD (see `prospect_contacts` table)
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
@@ -490,22 +498,22 @@ One-click serialization of a single company's **live** record into a JSON payloa
 - **Former-name rows** — each `primary.former_names[]` entry resolved to its own prospect row when one exists → `relationship: 'former_name'`.
 - Dedup prefers the more specific **typed label over `former_name`** (children processed first). `financial_sponsor` (PE) siblings are **excluded** (consistent with the locked grouping rule — they'd drag in large PE portfolios). Cap 25 (`linked_entities_truncated: true` if exceeded).
 
-**Contacts**: there is **no structured contacts table** for prospects, so `contacts: []` is an empty placeholder on every record. Person-level names live as free text in `company.notes` / `company.psb_connection_notes` and inside `research_brief` attachments — all of which are included on both the primary and every linked record, so the names travel with the payload.
+**Contacts**: since schema **1.1** (QA audit E5), `contacts[]` is populated from the `prospect_contacts` table on both the primary and every linked record. Older person-level mentions still live as free text in `company.notes` / `company.psb_connection_notes` and inside `research_brief` attachments — which travel too.
 
-**JSON schema (v1.0):**
+**JSON schema (v1.1):**
 ```jsonc
 {
-  "generated_at": "<ISO-8601>", "schema_version": "1.0",
+  "generated_at": "<ISO-8601>", "schema_version": "1.1",
   "company": { /* all prospect_companies columns (SELECT p.*) + conversion_count */ },
-  "contacts": [],                                   // placeholder — not modeled
+  "contacts": [ { "name", "role", "email", "phone", "notes", "source", "last_contacted", "created_by", "created_at" } ],
   "attachments": [ { "type", "title", "body", "created_at", "created_by" } ],
   "activity_log": [ { "timestamp", "author", "type": "note|task|flag", "entry" } ],
   "tasks": [ { "task", "assignee", "due_date", "status", "created_by", "created_at", "completed_at", "completed_by" } ],
   "linked_entities": [ { "relationship": "parent|subsidiary|absorbed_into|former_name", "link_basis": "parent_company|former_names",
-                         "company": {...}, "contacts": [], "attachments": [...], "activity_log": [...], "tasks": [...] } ]
+                         "company": {...}, "contacts": [...], "attachments": [...], "activity_log": [...], "tasks": [...] } ]
 }
 ```
-- `activity_log[].type` is **derived** from entry-text prefixes (`Task…/✓/✗/↺/⌫ Task`→`task`; `⚑`/`✓ Review`→`flag`; else `note`). There is no `type` column, and status changes are not individually logged (only `updated_at`), so `status_change` never appears.
+- `activity_log[].type` is **derived** from entry-text prefixes (`Task…/✓/✗/↺/⌫ Task`→`task`; `⚑`/`✓ Review`→`flag`; else `note`). There is no `type` column; prospect status changes are logged to `prospect_status_transitions` (not the activity log), so `status_change` never appears here.
 
 **Round-trip with the import path**: re-import via `POST ?action=import` with `{ prospects: [payload.company], added_by }`. The ~35 importable columns round-trip cleanly (`former_names` re-imports as a JS array). Export-only keys (`priority_score`, `ai_readiness`, timestamps, `added_by`, `prospect_status`, `conversion_count`, etc.) and the **partner-managed fields** (`outreach_group`, `outreach_rank`, `group_notes`, `last_edited_by`) are silently ignored by the upsert — no clobber, no error. Sub-entities (`linked_entities`, top-level `attachments`/`activity_log`/`tasks`/`contacts`) are not re-importable (import is flat-company-only) — documented divergence, not a break.
 
