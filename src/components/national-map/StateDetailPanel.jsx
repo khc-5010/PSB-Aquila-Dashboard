@@ -55,7 +55,7 @@ function StateDetailPanel({ stateId, stateName, data, ontologyDensity, onClose, 
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-[480px] max-w-[90vw] bg-white shadow-2xl z-50 flex flex-col">
+      <div className="fixed top-0 right-0 h-full w-[480px] max-w-[90vw] max-sm:w-full max-sm:max-w-full bg-white shadow-2xl z-50 flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 bg-[#041E42] px-5 py-4">
           <div className="flex items-start justify-between">

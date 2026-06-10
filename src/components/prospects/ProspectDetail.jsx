@@ -496,7 +496,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <button
                       onClick={navigatePrev}
                       disabled={!hasPrev}
-                      className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="p-1.5 max-sm:p-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       title="Previous prospect"
                     >
                       <ChevronLeft className="w-5 h-5" />
@@ -507,7 +507,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                     <button
                       onClick={navigateNext}
                       disabled={!hasNext}
-                      className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      className="p-1.5 max-sm:p-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                       title="Next prospect"
                     >
                       <ChevronRight className="w-5 h-5" />
@@ -516,7 +516,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                 )}
                 <button
                   onClick={onClose}
-                  className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                  className="p-1.5 max-sm:p-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>

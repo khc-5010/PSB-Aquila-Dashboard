@@ -41,7 +41,7 @@ function DroppableColumn({ stage, opportunities, children }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-72 rounded-lg p-4 transition-all duration-200 border ${colors.border} ${
+      className={`flex-shrink-0 w-72 max-lg:snap-center rounded-lg p-4 transition-all duration-200 border ${colors.border} ${
         isOver ? 'ring-2 ring-blue-400 shadow-md' : ''
       }`}
       style={{ backgroundColor: isOver ? colors.hoverBg : colors.bg }}
