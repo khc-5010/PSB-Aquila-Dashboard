@@ -448,13 +448,13 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
       />
 
       {/* Modal positioning wrapper */}
-      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 lg:p-10 pointer-events-none">
+      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 sm:p-6 lg:p-10 max-sm:p-0 pointer-events-none">
         <div
-          className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col pointer-events-auto"
+          className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col pointer-events-auto max-sm:rounded-none max-sm:h-full max-sm:max-h-none"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex-shrink-0 bg-[#041E42] px-6 py-4 rounded-t-xl">
+          <div className="flex-shrink-0 bg-[#041E42] px-6 py-4 rounded-t-xl max-sm:rounded-none max-sm:px-4">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">

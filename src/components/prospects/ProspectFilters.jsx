@@ -159,23 +159,23 @@ function ProspectFilters({ filters, onFilterChange, totalCount, filteredCount, a
     filters.priority.length > 0 || filters.geo.length > 0 || filters.status.length > 0 || filters.search || filters.preset
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4 space-y-3">
+    <div className="bg-white border-b border-gray-200 px-6 py-4 space-y-3 max-sm:px-3 max-sm:py-3">
       {/* Top row: Search + Quick presets */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative">
+        <div className="relative max-sm:w-full">
           <input
             type="text"
             placeholder="Search companies..."
             value={searchText}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42] w-64"
+            className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42] w-64 max-sm:w-full"
           />
           <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
 
-        <div className="h-6 w-px bg-gray-300" />
+        <div className="h-6 w-px bg-gray-300 max-sm:hidden" />
 
         {PRESETS.map((preset) => (
           <button

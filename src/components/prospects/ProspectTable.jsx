@@ -15,7 +15,9 @@ import BulkImportModal from './BulkImportModal'
 import DataAuditModal from './DataAuditModal'
 import TasksView from './tasks/TasksView'
 import CallSheet from './CallSheet'
+import ProspectCardList from './ProspectCardList'
 import { getUrgencyClasses } from './tasks/taskUtils'
+import useIsMobile from '../../hooks/useIsMobile'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
 
@@ -584,6 +586,7 @@ function ProspectTable() {
   const [editingRank, setEditingRank] = useState(null)
   const [editingRankValue, setEditingRankValue] = useState('')
   const [subView, setSubView] = useState('table') // 'table' | 'charts' | 'callsheet' | 'tasks'
+  const isMobile = useIsMobile() // Couch Mode: table sub-view renders ProspectCardList below lg
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -1315,14 +1318,14 @@ function ProspectTable() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem-3rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem-3rem)] max-lg:h-[calc(100vh-4rem)]">
       {/* Sub-view toggle + Filters */}
-      <div className="bg-white border-b border-gray-200 px-6 pt-3 pb-0">
-        <div className="flex items-center justify-between mb-0">
-          <div className="flex items-center gap-1">
+      <div className="bg-white border-b border-gray-200 px-6 pt-3 pb-0 max-sm:px-3">
+        <div className="flex items-center justify-between mb-0 max-sm:flex-wrap max-sm:gap-y-2 max-sm:pb-2">
+          <div className="flex items-center gap-1 max-sm:w-full max-sm:overflow-x-auto">
             <button
               onClick={() => setSubView('table')}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors max-sm:px-3 max-sm:flex-shrink-0 ${
                 subView === 'table'
                   ? 'bg-white text-[#041E42] border-gray-200'
                   : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
@@ -1337,7 +1340,7 @@ function ProspectTable() {
             </button>
             <button
               onClick={() => setSubView('charts')}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors max-sm:px-3 max-sm:flex-shrink-0 ${
                 subView === 'charts'
                   ? 'bg-white text-[#041E42] border-gray-200'
                   : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
@@ -1352,7 +1355,7 @@ function ProspectTable() {
             </button>
             <button
               onClick={() => setSubView('callsheet')}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors max-sm:px-3 max-sm:flex-shrink-0 ${
                 subView === 'callsheet'
                   ? 'bg-white text-[#041E42] border-gray-200'
                   : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
@@ -1365,7 +1368,7 @@ function ProspectTable() {
             </button>
             <button
               onClick={() => setSubView('tasks')}
-              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors max-sm:px-3 max-sm:flex-shrink-0 ${
                 subView === 'tasks'
                   ? 'bg-white text-[#041E42] border-gray-200'
                   : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
@@ -1392,11 +1395,11 @@ function ProspectTable() {
               className="px-3 py-1.5 text-xs font-medium bg-[#041E42] text-white rounded-lg hover:bg-[#041E42]/90 flex items-center gap-1.5"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-              Add Company
+              Add<span className="hidden sm:inline"> Company</span>
             </button>
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
+              className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5 max-sm:hidden"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               Import
@@ -1408,7 +1411,7 @@ function ProspectTable() {
               <ClipboardCheck className="w-3.5 h-3.5" />
               Audit
             </button>
-          <div className="relative">
+          <div className="relative max-sm:hidden">
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
               className="px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1.5"
@@ -1477,6 +1480,21 @@ function ProspectTable() {
             taskCounts={taskCounts}
             getUrgency={getProspectUrgency}
             onSelect={setSelectedProspect}
+          />
+        </div>
+      ) : isMobile ? (
+        /* Couch Mode (Phase 1): card list replaces the 1200px table below lg.
+           The desktop <table> branch below renders exactly as before. */
+        <div className="flex-1 overflow-auto bg-gray-50">
+          <ProspectCardList
+            grouped={grouped}
+            hasAnyProspects={prospects.length > 0}
+            onSelect={setSelectedProspect}
+            getUrgency={getProspectUrgency}
+            taskCounts={taskCounts}
+            formatLocation={formatLocation}
+            cwpHeatClass={cwpHeatClass}
+            priorityColors={PRIORITY_COLORS}
           />
         </div>
       ) : (
