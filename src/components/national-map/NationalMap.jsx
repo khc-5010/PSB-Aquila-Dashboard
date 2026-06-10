@@ -244,7 +244,7 @@ function NationalMap() {
   const subtitle = buildDynamicSubtitle(activeMetric, stateData, totals, reportMeta, ontologyDensity)
 
   return (
-    <div className="px-6 py-4 pb-16">
+    <div className="px-6 py-4 pb-16 max-sm:px-3">
       {/* Orientation Card */}
       <OrientationCard />
 

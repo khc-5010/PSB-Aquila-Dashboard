@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import EditOpportunityModal from './EditOpportunityModal'
 import { getProjectTypeLabel } from '../constants/options'
+import { PIPELINE_STAGES } from '../constants/pipeline'
 import { useAuth, authFetch } from '../context/AuthContext'
 import { parseLocalDate } from './prospects/tasks/taskUtils'
 
@@ -66,6 +67,45 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
   // Outcome state
   const [isMarkingOutcome, setIsMarkingOutcome] = useState(false)
   const [showAbandonDropdown, setShowAbandonDropdown] = useState(false)
+
+  // Mobile stage mover (Couch Mode Phase 4) — touch drag is deliberately not
+  // enabled on the board; below lg the Stage cell becomes a select instead.
+  const [isMovingStage, setIsMovingStage] = useState(false)
+  const [stageMoveError, setStageMoveError] = useState(null)
+
+  const handleStageChange = async (newStage) => {
+    if (!newStage || newStage === opportunity.stage || isMovingStage) return
+    setIsMovingStage(true)
+    setStageMoveError(null)
+    const fromStage = opportunity.stage
+    try {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: newStage }),
+      })
+      if (!res.ok) throw new Error('Failed to move stage')
+
+      // Same logging contract as the board's drag handler (App.jsx)
+      await authFetch('/api/stage-transitions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_id: opportunity.id,
+          from_stage: fromStage,
+          to_stage: newStage,
+          transitioned_by: user?.name || 'user',
+        }),
+      })
+
+      onUpdate({ ...opportunity, stage: newStage })
+    } catch (err) {
+      console.error('Stage move failed:', err)
+      setStageMoveError('Could not move stage — try again.')
+    } finally {
+      setIsMovingStage(false)
+    }
+  }
 
   // Key Dates state
   const [keyDates, setKeyDates] = useState([])
@@ -453,9 +493,23 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
               <div>
                 <dt className="text-xs text-gray-500 uppercase tracking-wide">Stage</dt>
                 <dd className="mt-1">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 capitalize">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 capitalize max-lg:hidden">
                     {opportunity.stage || 'Unknown'}
                   </span>
+                  {/* Mobile-only stage mover — desktop keeps the chip + drag */}
+                  <select
+                    value={opportunity.stage || ''}
+                    onChange={(e) => handleStageChange(e.target.value)}
+                    disabled={isMovingStage}
+                    className="lg:hidden w-full text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 disabled:opacity-50"
+                  >
+                    {PIPELINE_STAGES.map(s => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                  {stageMoveError && (
+                    <p className="lg:hidden text-xs text-red-600 mt-1">{stageMoveError}</p>
+                  )}
                 </dd>
               </div>
             </div>

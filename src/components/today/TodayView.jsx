@@ -41,10 +41,12 @@ function TaskRow({ task, onComplete, completing }) {
       <button
         onClick={() => onComplete(task)}
         disabled={completing}
-        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 transition-colors disabled:opacity-50"
+        className="flex-shrink-0 -m-2 w-10 h-10 flex items-center justify-center group disabled:opacity-50"
         title="Mark done"
         aria-label={`Mark done: ${task.description}`}
-      />
+      >
+        <span className="w-5 h-5 rounded-full border-2 border-gray-300 group-hover:border-green-500 group-hover:bg-green-50 transition-colors" />
+      </button>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-gray-800">{task.description}</p>
         <div className="flex items-center gap-2 flex-wrap mt-1">

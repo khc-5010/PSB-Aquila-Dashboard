@@ -314,7 +314,7 @@ function App() {
                 </div>
               )}
 
-              <div className="flex gap-4 overflow-x-auto pb-4">
+              <div className="flex gap-4 overflow-x-auto pb-4 max-lg:snap-x max-lg:snap-mandatory">
                 {PIPELINE_STAGES.map((stage) => {
                   const stageOpportunities = opportunitiesByStage[stage.key] || []
 
