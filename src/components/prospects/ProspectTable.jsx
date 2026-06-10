@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from 'react'
 import { useAuth, authFetch } from '../../context/AuthContext'
-import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag } from 'lucide-react'
+import { Wrench, Star, HelpCircle, Clock, AlertTriangle, Users, ShieldCheck, ClipboardCheck, ChevronRight, ChevronDown, GitMerge, Flag, Phone } from 'lucide-react'
 
 import { getParentCategory } from '../../utils/categoryGroups'
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore, isPEOwnership } from '../../utils/priorityScore'
@@ -13,6 +13,7 @@ import AddCompanyModal from './AddCompanyModal'
 import BulkImportModal from './BulkImportModal'
 import DataAuditModal from './DataAuditModal'
 import TasksView from './tasks/TasksView'
+import CallSheet from './CallSheet'
 import { getUrgencyClasses } from './tasks/taskUtils'
 
 const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure', 'Unassigned']
@@ -561,7 +562,7 @@ function ProspectTable() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
   const [editingRank, setEditingRank] = useState(null)
   const [editingRankValue, setEditingRankValue] = useState('')
-  const [subView, setSubView] = useState('table') // 'table' | 'charts' | 'tasks'
+  const [subView, setSubView] = useState('table') // 'table' | 'charts' | 'callsheet' | 'tasks'
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -1333,6 +1334,19 @@ function ProspectTable() {
               </span>
             </button>
             <button
+              onClick={() => setSubView('callsheet')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
+                subView === 'callsheet'
+                  ? 'bg-white text-[#041E42] border-gray-200'
+                  : 'bg-gray-50 text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <Phone className="w-4 h-4" />
+                Call Sheet
+              </span>
+            </button>
+            <button
               onClick={() => setSubView('tasks')}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-colors ${
                 subView === 'tasks'
@@ -1439,6 +1453,15 @@ function ProspectTable() {
         <div className="flex-1 overflow-auto bg-gray-50">
           <ProspectAnalytics filters={filters} onFilterChange={setFilters} />
         </div>
+      ) : subView === 'callsheet' ? (
+        <div className="flex-1 overflow-auto bg-gray-50">
+          <CallSheet
+            prospects={filtered}
+            taskCounts={taskCounts}
+            getUrgency={getProspectUrgency}
+            onSelect={setSelectedProspect}
+          />
+        </div>
       ) : (
       <>
       {/* Table container */}
@@ -1524,7 +1547,11 @@ function ProspectTable() {
         </table>
       </div>
 
-      {/* Detail Modal */}
+      </>
+      )}
+
+      {/* Detail Modal — rendered outside the table-only branch so selection
+          works from the Call Sheet and deep links open on any sub-view */}
       {selectedProspect && (
         <ProspectDetail
           prospect={selectedProspect}
@@ -1538,8 +1565,6 @@ function ProspectTable() {
           }}
           onTasksChanged={refreshTaskData}
         />
-      )}
-      </>
       )}
 
       {showAddModal && <AddCompanyModal onClose={() => setShowAddModal(false)} onSuccess={refreshProspects} />}

@@ -134,6 +134,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - Prospect status auto-updates to `'Converted'` (one prospect can generate multiple opportunities)
 - `conversion_count` subquery included in prospects GET API response
 - Purple badge on ProspectTable shows count of active opportunities per prospect
+- **Impact / ROI surface (QA audit E1):** MetricsBar has a "From Prospects" metric (pipeline $ on opportunities with `source_prospect_id`, non-complete) that opens `ImpactModal` (`src/components/ImpactModal.jsx`): pipeline sourced $, won $ (`outcome = 'won'`), active count, total converted, by-quarter breakdown (conversions/$ by `created_at`, won $ by `closed_at`), and the clickable opportunity list. Computed entirely client-side from the opportunities App already fetches. EditOpportunityModal logs a `stage_transitions` row on stage changes (best-effort), so funnel analytics no longer lose edit-form moves.
 
 ### No Fit Off-Ramp
 
@@ -573,7 +574,7 @@ Six visual enhancements that surface plastics industry intelligence at a glance.
    - Gray-light: General QMS (ISO 9001) and default
 6. **"Why This Company" Hook Line** — Computed one-liner in detail panel header (white/60 italic). Built from: RJG status → tooling integration → press count/employees → site count (≥10) → acquisition count (≥5) → legacy years → PE/M&A → medical → CWP warmth → top_signal fallback. Max 4 hooks, separated by middle dot (·).
 
-**`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → site count (≥10) → acquisition count (≥5) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback
+**`buildHookLine(p)`** priority order: RJG confirmed → converter+tooling → press count (or 500+ employees) → site count (≥10) → acquisition count (≥5) → 30+ year legacy → PE/M&A → medical device → CWP warmth → top_signal fallback. Lives in `src/utils/buildHookLine.js` (shared by ProspectDetail header and the Call Sheet).
 
 **`CERT_COLORS`** mapping and `getCertColor()` use case-insensitive partial match against certification string.
 
@@ -719,7 +720,14 @@ The analytics chart and filter system uses **Manufacturing Corridors** — indus
 **Knowledge Graph International filter:** `QueryPanel.jsx` state dropdown includes a `🌐 International` option with value `'INTL'`. The `ontology-query`, `ontology-graph`, and `ontology-neighborhood` endpoints all recognize `state=INTL` as a special value meaning "filter to non-US companies."
 
 ### Sub-View Toggle Pattern
-The Prospects tab uses a Table/Charts sub-view toggle within the view (not a separate top-level tab). Charts respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," the charts reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state, affecting both table and chart views.
+The Prospects tab uses a Table / Charts / Call Sheet / Tasks sub-view toggle within the view (not separate top-level tabs). Charts and the Call Sheet respect the same filter state as the table — when Brett filters to "Medical Molders in Northeast Tool," both reflect that filtered dataset. Clicking chart elements (group cards, category bars, corridor segments) updates the shared filter state. The ProspectDetail modal renders OUTSIDE the sub-view branches, so selecting a company works from any sub-view (and `#prospects?id=` deep links open regardless of active sub-view).
+
+### Call Sheet (`src/components/prospects/CallSheet.jsx`)
+Ranked "next calls" queue (QA audit E3). `callScore = priority_score + urgency boost + PE-window boost`:
+- **Urgency boost** from the earliest open task due date (overdue +25, due today +20, due ≤3d +12), falling back to legacy `follow_up_date` / staleness via `getProspectUrgency` (passed in as a prop from ProspectTable — its documented SYNC copy lives there; do not duplicate it)
+- **PE-window boost** +10 when `isPEOwnership` + `recent_ma` (deliberately modest — the priority score already awards up to 15 for PE+M&A)
+- **Excluded:** `prospect_status` IN (Converted, Nurture, Identified) and rows with `priority_score = NULL` (exempt/unscored)
+- Top 5 by default, "Show more" expands by 10. Each card shows ranked reason tags (score, urgency, PE window, CWP count), the shared hook line, last-touched age, and `suggested_next_step`; clicking opens ProspectDetail. Entirely client-side — no new endpoints.
 
 ### Multi-Select Filter State Shape
 Filter state uses **arrays** (not strings). Empty array = no filter (show all).

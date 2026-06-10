@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { ENTITY_COLORS } from './ForceGraph'
 import QueryResults from './QueryResults'
@@ -29,6 +29,30 @@ export default function QueryPanel({ filterOptions, stateFilter, onStateFilter, 
   const [similarData, setSimilarData] = useState(null)
 
   const apiBase = import.meta.env.VITE_API_URL || ''
+
+  // Prune selected chips that no longer exist in the option lists (e.g. after
+  // a state-filter change reshapes the graph) — invisible selections silently
+  // constrained queries toward zero results. Only prunes sections that have
+  // options loaded, so a transient empty state can't wipe selections.
+  useEffect(() => {
+    setSelected(prev => {
+      let changed = false
+      const next = {}
+      for (const [sectionKey, values] of Object.entries(prev)) {
+        if (!values || values.length === 0) continue
+        const options = filterOptions[sectionKey]
+        if (!options || options.length === 0) {
+          next[sectionKey] = values
+          continue
+        }
+        const available = new Set(options.map(o => o.label))
+        const kept = values.filter(v => available.has(v))
+        if (kept.length !== values.length) changed = true
+        if (kept.length > 0) next[sectionKey] = kept
+      }
+      return changed ? next : prev
+    })
+  }, [filterOptions])
 
   const toggleSection = (key) => {
     setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { PROJECT_TYPES, STAGES, OWNERS } from '../constants/options'
-import { authFetch } from '../context/AuthContext'
+import { useAuth, authFetch } from '../context/AuthContext'
 
 function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     company_name: '',
     description: '',
@@ -87,6 +88,28 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       }
 
       const updatedOpp = JSON.parse(responseText)
+
+      // Log the stage transition so funnel/velocity analytics don't silently
+      // lose moves made through the edit form (drag-and-drop and outcome
+      // marking already log; this path didn't). Best-effort — a logging
+      // failure must not block the successful save.
+      if (formData.stage && formData.stage !== opportunity.stage) {
+        try {
+          await authFetch('/api/stage-transitions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              opportunity_id: opportunity.id,
+              from_stage: opportunity.stage,
+              to_stage: formData.stage,
+              transitioned_by: user?.name || 'user',
+            }),
+          })
+        } catch (logErr) {
+          console.error('Stage transition logging failed:', logErr)
+        }
+      }
+
       onUpdate(updatedOpp)
       onClose()
     } catch (err) {

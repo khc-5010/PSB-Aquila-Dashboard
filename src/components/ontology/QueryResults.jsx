@@ -81,9 +81,18 @@ export default function QueryResults({ results, similarData, onFindSimilar, onBa
 }
 
 function CompanyCard({ company, onFindSimilar, isSimilar }) {
-  const matchScore = company.matchScore || company.match_score
-  const similarity = company.similarity || company.shared_count
+  // ontology-query returns matchCount / totalCriteria (+ matchScore as a 0-1
+  // fraction); ontology-similar returns sharedEdges (count), similarity (0-1),
+  // and sharedEntities[]. Earlier code rendered "0.67/?" (maxScore doesn't
+  // exist) and showed the 0-1 similarity fraction as "N shared".
   const hookLine = buildHookLine(company)
+  const matchBadge = !isSimilar && company.matchCount != null
+    ? `${company.matchCount} of ${company.totalCriteria ?? '?'} criteria`
+    : (!isSimilar && company.matchScore != null ? `${Math.round(company.matchScore * 100)}% match` : null)
+  const sharedCount = company.sharedEdges ?? company.shared_count
+  const similarityPct = company.similarity != null ? Math.round(company.similarity * 100) : null
+  // Explanation tags: matchedEdges (query results) or sharedEntities (similar)
+  const tags = (isSimilar ? company.sharedEntities : company.matchedEdges) || []
 
   return (
     <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 hover:border-gray-300 transition-colors">
@@ -99,29 +108,32 @@ function CompanyCard({ company, onFindSimilar, isSimilar }) {
             </span>
           )}
         </div>
-        {matchScore != null && !isSimilar && (
+        {matchBadge && (
           <span className="shrink-0 bg-[#041E42] text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-            {matchScore}/{company.maxScore || '?'}
+            {matchBadge}
           </span>
         )}
-        {isSimilar && similarity != null && (
-          <span className="shrink-0 bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-            {similarity} shared
+        {isSimilar && sharedCount != null && (
+          <span
+            className="shrink-0 bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+            title={similarityPct != null ? `${similarityPct}% of the source company's ontology edges` : undefined}
+          >
+            {sharedCount} shared{similarityPct != null ? ` · ${similarityPct}%` : ''}
           </span>
         )}
       </div>
       {hookLine && (
         <p className="text-[10px] text-gray-500 italic mt-1 line-clamp-2">{hookLine}</p>
       )}
-      {company.matchedEdges && company.matchedEdges.length > 0 && (
+      {tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
-          {company.matchedEdges.slice(0, 6).map((edge, i) => (
+          {tags.slice(0, 6).map((edge, i) => (
             <span key={i} className="bg-blue-50 text-blue-700 text-[10px] px-1.5 py-0.5 rounded">
-              {edge.label || edge.object_name || edge}
+              {typeof edge === 'string' ? edge : (edge.label || edge.object_name)}
             </span>
           ))}
-          {company.matchedEdges.length > 6 && (
-            <span className="text-[10px] text-gray-400">+{company.matchedEdges.length - 6}</span>
+          {tags.length > 6 && (
+            <span className="text-[10px] text-gray-400">+{tags.length - 6}</span>
           )}
         </div>
       )}
@@ -138,13 +150,10 @@ function CompanyCard({ company, onFindSimilar, isSimilar }) {
   )
 }
 
+// Company facts only — the matched/shared entities render as tags below, so
+// repeating them here just duplicated the same labels twice per card.
 function buildHookLine(company) {
   const parts = []
-  if (company.matched_edges || company.matchedEdges) {
-    const edges = company.matched_edges || company.matchedEdges || []
-    const labels = edges.map(e => typeof e === 'string' ? e : (e.label || e.object_name))
-    if (labels.length > 0) return labels.slice(0, 4).join(', ')
-  }
   if (company.category) parts.push(company.category)
   if (company.ownership_type) parts.push(company.ownership_type)
   return parts.join(' · ')
