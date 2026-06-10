@@ -23,7 +23,8 @@ const GROUP_OPTIONS = ['Group 1', 'Group 2', 'Time-Sensitive', 'Infrastructure',
 const STATUS_OPTIONS = ['Identified', 'Prioritized', 'Research Complete', 'Outreach Ready', 'Converted', 'Nurture']
 
 // US state abbreviations (50 + DC) for the State dropdown in Company Info.
-const US_STATES = [
+// Exported for DataGapQueue (Couch Mode Phase 3) — no circular import.
+export const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DC', 'DE', 'FL',
   'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME',
   'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH',
@@ -38,7 +39,8 @@ const IN_HOUSE_TOOLING_OPTIONS = ['Yes', 'No', 'N/A']
 // that downstream indicator logic keys off of: isPEOwnership() (priorityScore.js,
 // matches 'PE'/'PE-Backed'/'Private Equity'), `.includes('Family')`, `=== 'ESOP'`
 // (see ProspectTable urgency icons and the Ownership Urgency score dimension).
-const OWNERSHIP_TYPES = [
+// Exported for DataGapQueue (Couch Mode Phase 3) — no circular import.
+export const OWNERSHIP_TYPES = [
   'Public',
   'Private',
   'PE-Backed',

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { CheckCircle, Flag, AlertTriangle } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 import CallSheet from '../prospects/CallSheet'
+import DataGapQueue from './DataGapQueue'
 import StatusBadge from '../prospects/StatusBadge'
 import { getProspectUrgency } from '../prospects/ProspectTable'
 import { isMyTaskInBadge, getTaskUrgency, getUrgencyClasses, parseLocalDate } from '../prospects/tasks/taskUtils'
@@ -123,6 +124,12 @@ function TodayView() {
       .sort((a, b) => a.urgency.priority - b.urgency.priority)
   }, [prospects])
 
+  // Fill-the-Blanks save: patch local state so the gap leaves the queue
+  // without a refetch (the server already recalculated score/ontology).
+  const handleGapSaved = (id, field, val) => {
+    setProspects(ps => ps.map(pr => pr.id === id ? { ...pr, [field]: val } : pr))
+  }
+
   const handleComplete = async (task) => {
     setCompletingId(task.id)
     const prev = tasks
@@ -233,6 +240,12 @@ function TodayView() {
           )}
         </SectionCard>
       )}
+
+      <DataGapQueue
+        prospects={prospects}
+        onSaved={handleGapSaved}
+        onOpenProspect={openProspect}
+      />
 
       {/* Ranked call queue — same component the Prospects sub-view uses,
           unfiltered here (global top of the list). */}
