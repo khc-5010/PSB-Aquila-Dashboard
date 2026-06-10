@@ -4,6 +4,7 @@ import { useAuth, authFetch } from '../../context/AuthContext'
 
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
 import { buildHookLine } from '../../utils/buildHookLine'
+import { getPEWindowInfo, PE_WINDOW_TONES } from '../../utils/peWindow'
 import OutreachGroupBadge from './OutreachGroupBadge'
 import StatusBadge from './StatusBadge'
 import ResearchPromptModal from './ResearchPromptModal'
@@ -138,6 +139,44 @@ function CommitNumberInput({ value, onCommit, min, placeholder, className }) {
         }
       }}
       placeholder={placeholder}
+      className={className}
+    />
+  )
+}
+
+// Date input that commits on blur (same rationale as CommitNumberInput —
+// typing a year segment fires intermediate onChange events, including '' for
+// incomplete dates, which would PATCH null mid-keystroke). Escape reverts.
+function CommitDateInput({ value, onCommit, className }) {
+  // DATE columns arrive as 'YYYY-MM-DD' or full ISO; the input needs YYYY-MM-DD
+  const normalize = (v) => (v ? String(v).split('T')[0] : '')
+  const [draft, setDraft] = useState(normalize(value))
+  const [editing, setEditing] = useState(false)
+
+  useEffect(() => {
+    if (!editing) setDraft(normalize(value))
+  }, [value, editing])
+
+  const commit = () => {
+    setEditing(false)
+    const next = draft || null
+    if (next !== (normalize(value) || null)) onCommit(next)
+  }
+
+  return (
+    <input
+      type="date"
+      value={draft}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(normalize(value))
+          setEditing(false)
+        }
+      }}
       className={className}
     />
   )
@@ -912,6 +951,27 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
                         onSave={(val) => onUpdate(p.id, 'recent_ma', val)}
                         multiline
                       />
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">M&A Date</dt>
+                      <dd className="mt-0.5 flex items-center gap-2 flex-wrap">
+                        <CommitDateInput
+                          value={p.ma_date}
+                          onCommit={(val) => onUpdate(p.id, 'ma_date', val)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20"
+                        />
+                        {(() => {
+                          const win = getPEWindowInfo(p.ma_date)
+                          if (!win) {
+                            return <span className="text-xs text-gray-400">Set to compute the 6–18mo PE engagement window</span>
+                          }
+                          return (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PE_WINDOW_TONES[win.phase]}`}>
+                              {win.label}
+                            </span>
+                          )
+                        })()}
+                      </dd>
                     </div>
                     <EditableField
                       label="Parent Company"

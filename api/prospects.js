@@ -708,6 +708,73 @@ async function recalculateAllPriorities(sql) {
   return { updated, exempt, total: all.length }
 }
 
+// ─── Bundle B schema additions (self-ensuring) ───────────────────────
+// prospect_status_transitions (QA audit E7) + prospect_companies.ma_date (E4).
+// Applied lazily, once per warm instance, from the endpoints that touch them —
+// there is no local-dev/migration workflow, so endpoints self-ensure instead
+// of erroring until SQL is run by hand. Mirrored in
+// scripts/create-status-transitions.sql for schema reproducibility.
+// (Unlike the unguarded ALTER in api/opportunities.js, this runs once per
+// cold start, not on every request.)
+let schemaAdditionsEnsured = false
+async function ensureProspectSchemaAdditions(sql) {
+  if (schemaAdditionsEnsured) return
+  await sql`
+    CREATE TABLE IF NOT EXISTS prospect_status_transitions (
+      id SERIAL PRIMARY KEY,
+      prospect_id INTEGER NOT NULL REFERENCES prospect_companies(id) ON DELETE CASCADE,
+      from_status TEXT,
+      to_status TEXT NOT NULL,
+      transitioned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      transitioned_by TEXT
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_status_transitions_prospect ON prospect_status_transitions(prospect_id)`
+  await sql`CREATE INDEX IF NOT EXISTS idx_status_transitions_at ON prospect_status_transitions(transitioned_at)`
+  await sql`ALTER TABLE prospect_companies ADD COLUMN IF NOT EXISTS ma_date DATE`
+  schemaAdditionsEnsured = true
+}
+
+// Append-only prospect status history (QA audit E7) — mirrors the pipeline's
+// stage_transitions so "outreach-ready inventory over time" becomes
+// reconstructable. History accrues from deploy; earlier changes were never
+// recorded (only updated_at moved). Call sites wrap this in try/catch —
+// logging must never fail the write it accompanies.
+async function logStatusChange(sql, prospectId, fromStatus, toStatus, transitionedBy) {
+  if (!toStatus || fromStatus === toStatus) return
+  await ensureProspectSchemaAdditions(sql)
+  await sql`
+    INSERT INTO prospect_status_transitions (prospect_id, from_status, to_status, transitioned_by)
+    VALUES (${prospectId}, ${fromStatus || null}, ${toStatus}, ${transitionedBy || null})
+  `
+}
+
+// PE acquisition window from ma_date (QA audit E4). The 6-18 months
+// post-acquisition stretch is the alliance's core PE thesis.
+// SYNC: identical copy in src/utils/peWindow.js — keep both aligned.
+function getPEWindowInfo(maDate) {
+  const d = parseLocalDate(maDate)
+  if (!d || isNaN(d)) return null
+  const now = new Date()
+  const monthsSince = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth())
+  if (monthsSince < 0) {
+    return { phase: 'upcoming', monthsSince, label: 'M&A date is in the future', shortLabel: 'PE deal pending' }
+  }
+  if (monthsSince < 6) {
+    const opens = 6 - monthsSince
+    return { phase: 'early', monthsSince, label: `optimal window opens in ${opens}mo (${monthsSince}mo since acquisition)`, shortLabel: `PE window opens in ${opens}mo` }
+  }
+  if (monthsSince <= 18) {
+    const closes = 18 - monthsSince
+    const closesText = closes === 0 ? 'closing this month' : `closes in ${closes}mo`
+    return { phase: 'optimal', monthsSince, label: `INSIDE optimal window — ${closesText} (${monthsSince}mo since acquisition)`, shortLabel: `PE window ${closesText}` }
+  }
+  if (monthsSince <= 24) {
+    return { phase: 'closing', monthsSince, label: `past optimal window by ${monthsSince - 18}mo — engage soon`, shortLabel: 'PE window closing' }
+  }
+  return { phase: 'closed', monthsSince, label: `window closed (${monthsSince}mo since acquisition)`, shortLabel: 'PE window closed' }
+}
+
 // Parse a DATE-only string (YYYY-MM-DD or ISO timestamp) safely in local timezone.
 // SYNC: Also exists in ProspectTable.jsx — keep both copies identical.
 function parseLocalDate(val) {
@@ -789,6 +856,9 @@ export default async function handler(req, res) {
       }
 
       try {
+        // ma_date / status-transitions may not exist until first ensure
+        await ensureProspectSchemaAdditions(sql)
+
         // 1. Get all active users with digest enabled
         const users = await sql`
           SELECT id, name, email, digest_enabled, digest_preferences
@@ -804,7 +874,7 @@ export default async function handler(req, res) {
         const prospects = await sql`
           SELECT id, company, city, state, category, prospect_status,
                  suggested_next_step, follow_up_date, updated_at,
-                 ownership_type, recent_ma, outreach_group, signal_count,
+                 ownership_type, recent_ma, ma_date, outreach_group, signal_count,
                  parent_company
           FROM prospect_companies
         `
@@ -815,10 +885,19 @@ export default async function handler(req, res) {
           .filter(p => p.urgency !== null)
           .sort((a, b) => a.urgency.priority - b.urgency.priority)
 
-        // 4. Identify PE window prospects
-        const peWindowProspects = prospects.filter(p =>
-          isPEOwnership(p.ownership_type) && p.recent_ma
-        )
+        // 4. Identify PE window prospects. With a structured ma_date the list
+        //    ranks by time remaining in the 6-18mo window (E4); rows with only
+        //    free-text recent_ma keep the legacy behavior and sort last.
+        const peWindowProspects = prospects
+          .filter(p => isPEOwnership(p.ownership_type) && (p.ma_date || p.recent_ma))
+          .map(p => ({ ...p, peWindow: getPEWindowInfo(p.ma_date) }))
+          .filter(p => !p.peWindow || p.peWindow.phase !== 'closed')
+          .sort((a, b) => {
+            if (a.peWindow && b.peWindow) return b.peWindow.monthsSince - a.peWindow.monthsSince
+            if (a.peWindow) return -1
+            if (b.peWindow) return 1
+            return 0
+          })
 
         // 5. Send personalized digest to each user
         const results = []
@@ -849,7 +928,7 @@ export default async function handler(req, res) {
             sections.push({
               title: 'PE Window Watch',
               emoji: '⏱️',
-              items: peWindowProspects.map(p => ({ ...p, urgency: { label: p.recent_ma?.substring(0, 60) || 'PE-backed' } })),
+              items: peWindowProspects.map(p => ({ ...p, urgency: { label: p.peWindow?.shortLabel || p.recent_ma?.substring(0, 60) || 'PE-backed' } })),
               color: '#7C3AED',
             })
           }
@@ -2184,6 +2263,63 @@ export default async function handler(req, res) {
       }
     }
 
+    // ─── Trends: monthly counts for quarterly-review charts (QA audit E7) ───
+    // Deliberately global (the Charts sub-view's filters don't apply) — these
+    // are program-level momentum numbers, not slice-and-dice analytics.
+    if (action === 'trends') {
+      try {
+        await ensureProspectSchemaAdditions(sql)
+        const [added, conversions, briefs, statusFlows] = await Promise.all([
+          sql`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, COUNT(*)::int AS count
+              FROM prospect_companies
+              WHERE created_at >= NOW() - INTERVAL '12 months'
+              GROUP BY 1 ORDER BY 1`,
+          sql`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, COUNT(*)::int AS count
+              FROM opportunities
+              WHERE source_prospect_id IS NOT NULL AND created_at >= NOW() - INTERVAL '12 months'
+              GROUP BY 1 ORDER BY 1`,
+          sql`SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month, COUNT(*)::int AS count
+              FROM prospect_attachments
+              WHERE attachment_type = 'research_brief' AND created_at >= NOW() - INTERVAL '12 months'
+              GROUP BY 1 ORDER BY 1`,
+          sql`SELECT to_char(date_trunc('month', transitioned_at), 'YYYY-MM') AS month, to_status, COUNT(*)::int AS count
+              FROM prospect_status_transitions
+              WHERE transitioned_at >= NOW() - INTERVAL '12 months'
+              GROUP BY 1, 2 ORDER BY 1`,
+        ])
+
+        // Continuous last-12-months scaffold so the charts have stable axes
+        const months = []
+        const now = new Date()
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+          months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+        }
+        const toMap = rows => Object.fromEntries(rows.map(r => [r.month, r.count]))
+        const addedMap = toMap(added)
+        const convMap = toMap(conversions)
+        const briefMap = toMap(briefs)
+        const series = months.map(m => ({
+          month: m,
+          added: addedMap[m] || 0,
+          conversions: convMap[m] || 0,
+          briefs: briefMap[m] || 0,
+        }))
+
+        return res.status(200).json({
+          series,
+          status_transitions: statusFlows,
+          meta: {
+            months: 12,
+            note: 'Status history accrues from the day transition logging deployed — earlier status changes were never recorded.',
+          },
+        })
+      } catch (error) {
+        console.error('Error fetching trends:', error)
+        return res.status(500).json({ error: error.message })
+      }
+    }
+
     if (action === 'attachments' && id) {
       try {
         const attachments = await sql`
@@ -3164,6 +3300,13 @@ export default async function handler(req, res) {
 
         // Auto-advance status if research_brief
         if ((attachment_type || 'research_brief') === 'research_brief') {
+          // Pre-read so the auto-advance lands in status history (E7)
+          let statusBefore = null
+          try {
+            const [row] = await sql`SELECT prospect_status FROM prospect_companies WHERE id = ${prospect_id}`
+            statusBefore = row?.prospect_status ?? null
+          } catch { /* best effort */ }
+
           await sql`
             UPDATE prospect_companies
             SET prospect_status = 'Outreach Ready',
@@ -3172,6 +3315,14 @@ export default async function handler(req, res) {
             WHERE id = ${prospect_id}
               AND prospect_status IN ('Identified', 'Prioritized', 'Research Complete')
           `
+
+          if (['Identified', 'Prioritized', 'Research Complete'].includes(statusBefore)) {
+            try {
+              await logStatusChange(sql, prospect_id, statusBefore, 'Outreach Ready', created_by || null)
+            } catch (err) {
+              console.error('Status transition logging failed:', err)
+            }
+          }
         }
 
         return res.status(201).json(result[0])
@@ -3655,7 +3806,7 @@ export default async function handler(req, res) {
       'key_certifications', 'ownership_type', 'recent_ma', 'cwp_contacts', 'psb_connection_notes',
       'engagement_type', 'suggested_next_step', 'legacy_data_potential', 'notes',
       'outreach_group', 'outreach_rank', 'group_notes', 'last_edited_by', 'prospect_status',
-      'parent_company', 'decision_location', 'follow_up_date',
+      'parent_company', 'decision_location', 'follow_up_date', 'ma_date',
       'site_count', 'acquisition_count',
       'priority_manual',
       'needs_review', 'review_note', 'review_flagged_by', 'review_flagged_at',
@@ -3688,10 +3839,30 @@ export default async function handler(req, res) {
     `
 
     try {
+      // E4: the ma_date column self-ensures; E7: capture the old status so the
+      // transition can be logged after the write succeeds
+      let statusBefore = null
+      if (body.prospect_status !== undefined || body.ma_date !== undefined) {
+        await ensureProspectSchemaAdditions(sql)
+        if (body.prospect_status !== undefined) {
+          const [row] = await sql`SELECT prospect_status FROM prospect_companies WHERE id = ${id}`
+          statusBefore = row?.prospect_status ?? null
+        }
+      }
+
       const result = await sql.query(queryText, values)
 
       if (!result || result.length === 0) {
         return res.status(404).json({ error: 'Prospect not found' })
+      }
+
+      // E7: append-only status history (best-effort — never fails the PATCH)
+      if (body.prospect_status !== undefined) {
+        try {
+          await logStatusChange(sql, id, statusBefore, body.prospect_status, body.last_edited_by || null)
+        } catch (err) {
+          console.error('Status transition logging failed:', err)
+        }
       }
 
       // Conditional ontology rebuild — only when ontology-relevant fields changed

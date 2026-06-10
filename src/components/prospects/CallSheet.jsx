@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Phone, ChevronDown } from 'lucide-react'
 import { isPEOwnership } from '../../utils/priorityScore'
 import { buildHookLine } from '../../utils/buildHookLine'
+import { getPEWindowInfo } from '../../utils/peWindow'
 import StatusBadge from './StatusBadge'
 
 /**
@@ -59,9 +60,15 @@ function buildCallEntry(p, taskInfo, getUrgency) {
     reasons.push({ text: urgencyBoost.label, tone: 'red' })
   }
 
-  if (isPEOwnership(p.ownership_type) && p.recent_ma) {
-    score += 10
-    reasons.push({ text: 'PE window', tone: 'amber' })
+  // PE window: with a structured ma_date the boost only applies while the
+  // window is actually open/approaching (and the tag carries the countdown);
+  // without one, legacy recent_ma truthiness applies as before.
+  if (isPEOwnership(p.ownership_type)) {
+    const win = getPEWindowInfo(p.ma_date)
+    if (win ? ['early', 'optimal', 'closing'].includes(win.phase) : !!p.recent_ma) {
+      score += 10
+      reasons.push({ text: win ? win.shortLabel : 'PE window', tone: 'amber' })
+    }
   }
 
   if ((p.cwp_contacts ?? 0) >= 5) {

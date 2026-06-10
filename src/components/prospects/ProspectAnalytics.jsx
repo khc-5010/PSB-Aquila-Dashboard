@@ -6,6 +6,7 @@ import GeographyMap from './charts/GeographyMap'
 import SignalAnalysis from './charts/SignalAnalysis'
 import ReadinessScorecard from './charts/ReadinessScorecard'
 import OwnershipProfile from './charts/OwnershipProfile'
+import TrendsPanel from './charts/TrendsPanel'
 import { authFetch } from '../../context/AuthContext'
 
 function ProspectAnalytics({ filters, onFilterChange }) {
@@ -111,6 +112,11 @@ function ProspectAnalytics({ filters, onFilterChange }) {
             recentMA={data?.recentMA}
             loading={loading}
           />
+        </div>
+
+        {/* Row 5: Activity Trends (full width, self-fetching, global) */}
+        <div className="col-span-12">
+          <TrendsPanel />
         </div>
       </div>
     </div>
