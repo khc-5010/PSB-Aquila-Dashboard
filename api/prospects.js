@@ -917,6 +917,23 @@ export default async function handler(req, res) {
             return 0
           })
 
+        // 4b. Open tasks for the My Tasks digest section (Couch Mode Phase 2).
+        //     One query; per-user filtering happens in the loop below using the
+        //     badge rule (assignee = user OR unassigned). Defensive try/catch so
+        //     a tasks-table problem can never sink the whole digest run.
+        let openTasks = []
+        try {
+          openTasks = await sql`
+            SELECT t.id, t.prospect_id, t.description, t.due_date, t.assignee, p.company
+            FROM prospect_tasks t
+            JOIN prospect_companies p ON p.id = t.prospect_id
+            WHERE t.status = 'open'
+            ORDER BY t.due_date ASC NULLS LAST, t.created_at ASC
+          `
+        } catch (taskErr) {
+          console.error('Digest: tasks query failed (section skipped):', taskErr.message)
+        }
+
         // 5. Send personalized digest to each user
         const results = []
         const dashboardUrl = 'https://psb-aquila-dashboard.vercel.app'
@@ -949,6 +966,38 @@ export default async function handler(req, res) {
               items: peWindowProspects.map(p => ({ ...p, urgency: { label: p.peWindow?.shortLabel || p.recent_ma?.substring(0, 60) || 'PE-backed' } })),
               color: '#7C3AED',
             })
+          }
+
+          // My Open Tasks — same rule as the dashboard badge: assigned to this
+          // user or unassigned. The 'tasks' pref key is new; digest_preferences
+          // rows saved before it existed lack the key, so absence = enabled.
+          if (prefs.tasks !== false) {
+            const mine = openTasks.filter(t => !t.assignee || t.assignee === user.name)
+            if (mine.length > 0) {
+              const today = new Date()
+              today.setHours(0, 0, 0, 0)
+              sections.push({
+                title: 'My Open Tasks',
+                emoji: '✅',
+                color: '#041E42',
+                // Shaped for the generic 3-column row renderer: company | middle
+                // (state slot carries the task text; city stays null so the
+                // renderer doesn't add a comma) | due label.
+                items: mine.map(t => {
+                  const due = parseLocalDate(t.due_date)
+                  let label = 'no due date'
+                  if (due) {
+                    const diff = Math.round((due - today) / 86400000)
+                    label = diff < 0 ? `${Math.abs(diff)}d overdue`
+                      : diff === 0 ? 'due today'
+                      : diff <= 7 ? `due in ${diff}d`
+                      : due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  }
+                  const text = (t.description || '').length > 70 ? t.description.slice(0, 67) + '…' : (t.description || '')
+                  return { company: t.company, city: null, state: text, urgency: { label } }
+                }),
+              })
+            }
           }
 
           // Skip if nothing to report

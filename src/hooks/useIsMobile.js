@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 // Single source of truth for the mobile/desktop pivot (see CLAUDE.md "Mobile
 // Layout"). Below 1024px (Tailwind `lg`) views may swap in mobile-only
 // components; at >=1024px the desktop code paths must render untouched.
-const MOBILE_QUERY = '(max-width: 1023.98px)'
+export const MOBILE_QUERY = '(max-width: 1023.98px)'
 
 export default function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches)

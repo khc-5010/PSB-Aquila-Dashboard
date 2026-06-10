@@ -326,7 +326,9 @@ function aggregateGroupTaskInfo(parentP, children, taskCounts) {
   return { count, earliestDueDate }
 }
 
-function getProspectUrgency(prospect) {
+// Exported for TodayView (no circular import — TodayView is not imported here).
+// CallSheet still receives it as a prop from this component.
+export function getProspectUrgency(prospect) {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 

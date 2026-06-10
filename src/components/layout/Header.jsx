@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Building2, Kanban, Map, Share2, Bell } from 'lucide-react'
+import { Building2, Kanban, Map, Share2, Bell, ClipboardCheck } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
@@ -43,6 +43,18 @@ function Header({ activeView, onViewChange }) {
 
             {/* Navigation Tabs */}
             <div className="flex bg-white/10 rounded-lg p-1 max-sm:overflow-x-auto">
+              <button
+                onClick={() => onViewChange('today')}
+                aria-label="Today"
+                className={`px-4 max-sm:px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 max-sm:flex-shrink-0 ${
+                  activeView === 'today'
+                    ? 'bg-white text-[#041E42]'
+                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span className="hidden lg:inline">Today</span>
+              </button>
               <button
                 onClick={() => onViewChange('prospects')}
                 aria-label="Prospects"

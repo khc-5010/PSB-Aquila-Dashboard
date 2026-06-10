@@ -23,6 +23,8 @@ import Header from './components/layout/Header'
 import ProspectTable from './components/prospects/ProspectTable'
 import NationalMap from './components/national-map/NationalMap'
 import KnowledgeGraph from './components/ontology/KnowledgeGraph'
+import TodayView from './components/today/TodayView'
+import { MOBILE_QUERY } from './hooks/useIsMobile'
 import { PIPELINE_STAGES } from './constants/pipeline'
 
 function App() {
@@ -34,12 +36,14 @@ function App() {
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [metricsModal, setMetricsModal] = useState(null)
   const [activeId, setActiveId] = useState(null)
-  const VALID_VIEWS = ['prospects', 'pipeline', 'national-map', 'knowledge-graph']
+  const VALID_VIEWS = ['today', 'prospects', 'pipeline', 'national-map', 'knowledge-graph']
 
   function getViewFromHash() {
     const raw = window.location.hash.replace('#', '')
     const hash = raw.split('?')[0]
-    return VALID_VIEWS.includes(hash) ? hash : 'pipeline'
+    if (VALID_VIEWS.includes(hash)) return hash
+    // No (or unknown) hash: phones land on Today, desktop keeps Pipeline.
+    return window.matchMedia(MOBILE_QUERY).matches ? 'today' : 'pipeline'
   }
 
   const [activeView, setActiveView] = useState(getViewFromHash)
@@ -263,7 +267,9 @@ function App() {
         onViewChange={changeView}
       />
 
-      {activeView === 'prospects' ? (
+      {activeView === 'today' ? (
+        <TodayView />
+      ) : activeView === 'prospects' ? (
         <ProspectTable />
       ) : activeView === 'national-map' ? (
         <NationalMap />
