@@ -927,6 +927,15 @@ CRON_SECRET=             # Vercel Cron secret for securing digest endpoint
 - Currently used in `ProspectTable.jsx`: Wrench (tooling), Star (RJG confirmed), HelpCircle (RJG likely), Clock (PE urgency), AlertTriangle (family succession), Users (ESOP), ShieldCheck (medical).
 - Existing inline SVGs elsewhere in the app are fine — no need to migrate those.
 
+### Mobile Layout ("Couch Mode" retrofit — in progress)
+The dashboard is being retrofitted for phone use (Kyle's couch/passenger-seat enrichment sessions) WITHOUT changing the desktop experience Brett relies on. **Hard rule: every mobile change must be desktop-invariant.** Two approved mechanisms only:
+1. **`max-*` variant additions** (`max-sm:`, `max-lg:` — Tailwind 3.4 default screens): add overrides for small viewports; never edit/remove an existing desktop class. Example: `gap-8 max-sm:gap-4`.
+2. **Additive mobile-first stacking** where the desktop breakpoint restores today's exact layout: `grid-cols-2` → `grid-cols-1 sm:grid-cols-2` (identical at ≥640px).
+A `useIsMobile()` matchMedia hook (~1024px pivot) for conditionally rendering mobile-only components (e.g. card list instead of the prospect table) arrives with Phase 1 — desktop code paths must render untouched.
+- Phase status: **Phase 0 shipped** (header icon-only tabs below `lg`, MetricsBar swipeable, footer hidden below `lg`, form-modal grids stack below `sm`, OpportunityDetail panel full-width below `sm`). Phase 1 = mobile prospect card list + full-screen ProspectDetail. Phase 2 = "Today" view (tasks + call sheet + flags) as default mobile landing + tasks section in daily digest. Phase 3 = enrichment queues (data gaps, FDA checks with match-confidence badges — auto-suggest only, never auto-write `medical_device_mfg`; zero-hit scans must NOT set `'No'` — component suppliers are FDA-exempt).
+- Knowledge Graph and bulk import remain desktop-only by design. Pipeline touch-drag is deliberately NOT enabled (stage changes on mobile go through EditOpportunityModal's stage dropdown).
+- Verify each phase with `npm run build` + visual check at 1440px (desktop must be pixel-identical) and 390px.
+
 ## National Map Feature
 
 ### Overview

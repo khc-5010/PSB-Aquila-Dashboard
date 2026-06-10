@@ -106,7 +106,7 @@ export default function DataAuditModal({ onClose }) {
           {data && !loading && (
             <>
               {/* Summary bar */}
-              <div className="grid grid-cols-4 gap-3 mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 {[
                   { key: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 border-red-200' },
                   { key: 'high', label: 'High', color: 'bg-amber-100 text-amber-700 border-amber-200' },
@@ -237,7 +237,7 @@ export default function DataAuditModal({ onClose }) {
                       {data.ontology_health.reason}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
                         <div className="text-lg font-bold text-gray-900">{data.ontology_health.coverage_pct}%</div>
                         <div className="text-xs text-gray-500">Prospect coverage ({data.ontology_health.companies_in_ontology}/{data.ontology_health.total_prospects})</div>

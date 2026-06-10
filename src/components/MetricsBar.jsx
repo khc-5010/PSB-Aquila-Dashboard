@@ -52,9 +52,9 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
   ]
 
   return (
-    <div className="border-b border-gray-200 px-6 py-4 flex gap-8" style={{ backgroundColor: 'rgba(4, 30, 66, 0.05)' }}>
+    <div className="border-b border-gray-200 px-6 py-4 flex gap-8 max-sm:px-4 max-sm:py-3 max-sm:gap-4 max-sm:overflow-x-auto" style={{ backgroundColor: 'rgba(4, 30, 66, 0.05)' }}>
       {metrics.map((metric, index) => (
-        <div key={metric.key} className="flex items-center gap-8">
+        <div key={metric.key} className="flex items-center gap-8 max-sm:gap-4 max-sm:flex-shrink-0">
           <div
             className={`flex flex-col gap-0.5 ${
               metric.clickable
