@@ -325,6 +325,18 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - `GET /api/prospects?action=trends` — Monthly counts for the last 12 months (prospects added, conversions, research briefs, status transitions). Global — ignores filter params by design. Rendered by `charts/TrendsPanel.jsx` at the bottom of the Charts sub-view (self-fetching).
 - `GET /api/prospects?action=export-json&id=X` — Full single-company export: the live company + its 1-hop corporate links (typed parent/children + former-name rows) + each record's contacts, attachments, activity log, and tasks, assembled into one JSON payload (see "Company JSON Export" below)
 - `GET /api/prospects?action=contacts&id=X` / `POST ?action=contacts` / `PATCH ?action=contacts&contact_id=X` / `DELETE ?action=contacts&contact_id=X&deleted_by=...` — Structured contacts CRUD (see `prospect_contacts` table)
+- `POST /api/prospects?action=assistant` — Read-only in-dashboard reasoning assistant (see "Read-Only Reasoning Assistant" below)
+
+### Read-Only Reasoning Assistant (`?action=assistant`)
+
+An embedded, **strictly read-only** AI assistant that answers questions and compares prospects, grounded entirely in data it fetches through five read-only tools. It **never** edits records, creates tasks, changes priority, or drafts outreach.
+
+- **Where:** a single `POST ?action=assistant` arm in `api/prospects.js` (no new serverless file — **function count stays 10**). Auth is the file-level `requireAuth` guard (`:861-864`), same as every other action.
+- **Runtime:** a server-side Anthropic Messages API tool-use loop via **plain `fetch`** (no SDK — house style, like Resend). Headers are `x-api-key: ${process.env.ANTHROPIC_API_KEY}` + `anthropic-version: 2023-06-01` (NOT `Authorization: Bearer` — that's Resend's pattern, not Anthropic's). Model `claude-sonnet-4-6`, `max_tokens` 2048, loop capped at 8 turns; single JSON response (no streaming). All work awaited before `res.json()`.
+- **Contract:** body `{ messages:[{role:'user'|'assistant', content:string}], prospectId|null }` → `200 { answer, toolsUsed[] }`; `400` malformed, `401` auth, `500` safe message (never leaks the key or a stack trace).
+- **Five tools** (module-scope `assistant*` executors + `runAssistantTool` dispatcher; each a `SELECT`-only query mirroring an existing arm — **zero writes anywhere in the path**): `search_prospects` (list arm), `get_prospect` (trimmed export-json bundle), `find_similar_prospects` (`ontology-similar`), `query_ontology` (`ontology-query`), `get_research_brief` (`prospect_attachments`). `ontology-neighborhood` is deliberately NOT a tool (it needs an entity_id, not a prospect_id).
+- **Token-bounding:** search ≤50 rows, `query_ontology` ≤25, `find_similar` ≤15, brief excerpt 500 chars in `get_prospect` / ~8000 in `get_research_brief`, plus a 12K hard cap per stringified `tool_result`.
+- **UI:** chat panel launched from ProspectDetail (Phase 1 Prompt 2).
 
 ### Frontend Components
 - `ProspectTable` — Main sortable table with inline-editable rank and outreach group columns, plus status badges
@@ -925,6 +937,7 @@ DATABASE_URL=            # Neon PostgreSQL connection string
 VITE_API_URL=            # API base URL (if separate backend)
 RESEND_API_KEY=          # Resend API key for daily digest emails
 CRON_SECRET=             # Vercel Cron secret for securing digest endpoint
+ANTHROPIC_API_KEY=       # Anthropic Messages API key for the ?action=assistant reasoning assistant (set in Vercel: Preview + Production)
 ```
 
 ## Conventions
