@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Implementation Notes — Add IEP Prospects (Arburg, Blue Moose)</title>
+<title>Implementation Notes — IEP Prospects (Arburg, Blue Moose) + Flex Technologies</title>
 <style>
   :root { --navy:#041E42; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --amber:#b45309; --green:#15803d; }
   body { font: 15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); max-width:920px; margin:2rem auto; padding:0 1.25rem; }
@@ -170,6 +170,144 @@ they'll also appear on the next bulk import/rebuild.</p>
   primary contact is now via Shibaura (which could be its own equipment-OEM relationship).</li>
   <li><strong>Blue Moose in the Infrastructure group</strong> — used purely as the scoring-exemption lever. If you'd rather it not
   sit alongside RJG/Husky in that group filter, say so and we can use an exempt <em>category</em> instead.</li>
+</ul>
+
+<hr style="margin:3rem 0 0; border:none; border-top:3px double var(--navy);">
+
+<h1 style="margin-top:2rem;">FOLLOW-UP — Add <code>Flex Technologies, Inc.</code> (a scored converter)</h1>
+<p class="meta">Branch <code>claude/sharp-tesla-zp41y6</code> · data task, <strong>no application code changed</strong> · <strong>executed live 2026-06-24</strong> · row <code>id 952</code></p>
+
+<p><strong>Goal.</strong> A third IEP-conference prospect, independent of Arburg/Blue Moose. Unlike those two
+(non-converter, scoring-exempt Infrastructure rows), <strong>Flex is a genuine client prospect — a vertically
+integrated converter with in-house tooling — and gets a REAL readiness score.</strong> Create one
+<code>prospect_companies</code> row (+ its conference/PoC contacts) so Kyle can promote it into <em>Outreach</em>
+via the existing UI. Intro email already sent (Brett cleared Flex for send).</p>
+
+<h2>What was built (deliverables)</h2>
+<ul>
+  <li><code>scripts/add-flex-prospect.mjs</code> — idempotent + transactional insert via the <code>@neondatabase/serverless</code> HTTP driver, with <code>--dry-run</code>. <strong>Imports <code>src/utils/priorityScore.js</code> and computes the score in-script</strong> (the canonical scoring source — a pure UI util, not a server action), so <code>priority_score</code>/<code>ai_readiness</code> match the app exactly. <span class="tag done">written + run live</span></li>
+  <li>This section of <code>implementation-notes.html</code> + the Flex block in <code>tasks/todo.md</code>. <span class="tag done">written</span></li>
+  <li><strong>Live insert into Neon</strong> — Flex (id 952) + 5 contacts. <span class="tag done">done + verified</span></li>
+  <li>Ontology Layer-1 regeneration. <span class="tag pending">pending (shared rebuild — see below)</span></li>
+</ul>
+
+<h2>The row</h2>
+<table>
+  <tr><th>Column</th><th>Value</th><th>Note</th></tr>
+  <tr><td>company / also_known_as</td><td>Flex Technologies, Inc. / Flex Plastics, Inc.</td><td>FKA = original 1975 name (name change, not absorption)</td></tr>
+  <tr><td>category</td><td><strong>Converter + In-House Tooling</strong></td><td>existing value, matched exactly; <strong>not</strong> an exempt category</td></tr>
+  <tr><td>city / state / country</td><td>Midvale / OH / US</td><td>HQ + decision in OH (also operates in TN)</td></tr>
+  <tr><td>outreach_group</td><td><strong>Time-Sensitive</strong></td><td>founder-succession window; deliberately NOT Infrastructure (that = exempt)</td></tr>
+  <tr><td>prospect_status</td><td>Outreach Ready</td><td>intro email sent → promote button shows</td></tr>
+  <tr><td>signal_count / site_count</td><td>5 / 5</td><td>5 distinct signals (below); ~5 US sites</td></tr>
+  <tr><td>in_house_tooling</td><td>Yes</td><td>CNC mill/lathe/EDM, prototype+production tooling, 3D printing</td></tr>
+  <tr><td>key_certifications</td><td>ISO 9001, IATF 16949:2016</td><td>automotive; Polyflex REACH/RoHS noted in <code>notes</code></td></tr>
+  <tr><td>ownership_type</td><td>Family/Founder</td><td>founder-built (Burket family/estate); matches the converter cohort convention</td></tr>
+  <tr><td>medical_device_mfg / rjg_cavity_pressure</td><td>No / <strong>Unknown</strong></td><td>medical minor; RJG NOT confirmed (open question)</td></tr>
+  <tr><td>year_founded / years_in_business</td><td>1975 / 50</td><td>50-year mark 2025</td></tr>
+  <tr><td>employees_approx / revenue_est_m / press_count</td><td>50 / 30 / <em>null</em></td><td>directory estimate; ~$30M est.; press count unknown</td></tr>
+  <tr><td>priority_score / ai_readiness</td><td><strong>32 / green</strong></td><td>computed (not 0/null) — the point of difference vs. Arburg/Blue Moose</td></tr>
+  <tr><td>priority / priority_manual</td><td><strong>HIGH PRIORITY</strong> / HIGH PRIORITY</td><td>human override (task said Priority HIGH) — see Scoring</td></tr>
+</table>
+
+<h2>Scoring — the convention I matched (and one divergence)</h2>
+
+<h3><code>signal_count</code> is a count, not the score</h3>
+<p>The brief framed <code>signal_count</code> as the "readiness score," but in the live data it's a small integer
+(<strong>0–9</strong>) counting <em>distinct positive signals</em>; the real readiness is the computed
+<code>priority_score</code> (0–100) + <code>ai_readiness</code>. <strong>Plastikos itself is a poor template</strong> —
+its row is sparse (<code>signal_count = null</code>, <code>priority_score = 10</code>), so I mirrored the richly-filled
+<strong>Converter + In-House Tooling cohort</strong> instead (Nolato 72, Technimark 66, Weiss-Aug/Accumold/HTI 60…).
+Notable: <strong>no converter in the DB exceeds 72</strong> — see the divergence below. Flex carries
+<strong>5</strong> distinct signals, so <code>signal_count = 5</code> (Signal-Density dimension → 6 pts):</p>
+<ul>
+  <li>in-house tooling + molding <span class="muted">[highest]</span></li>
+  <li>50-year legacy mold/process/formulation library <span class="muted">[highest]</span></li>
+  <li>founder succession — Glenn Burket led ~50 yrs, died Nov 2024; knowledge-capture window open now <span class="muted">[highest, time-sensitive]</span></li>
+  <li>active tech investment — new CNC mold-making, 3D printing, engineering hires <span class="muted">[high]</span></li>
+  <li>multi-process / multi-site complexity across 5 sites <span class="muted">[high]</span></li>
+  <li><strong>RJG / cavity-pressure NOT credited</strong> — unconfirmed (captured as a discovery question, not a signal)</li>
+</ul>
+
+<h3>Computed breakdown → 32</h3>
+<table>
+  <tr><th>Dimension</th><th>Pts</th><th>Why</th></tr>
+  <tr><td>Scale</td><td>7</td><td>no press_count → employees fallback (~50)</td></tr>
+  <tr><td>Relationship warmth</td><td>0</td><td>no CWP contacts / no PSB notes</td></tr>
+  <tr><td>Ownership urgency</td><td>8</td><td>Family/Founder + 30+ years (50)</td></tr>
+  <tr><td>Strategic vertical</td><td>8</td><td>automotive (IATF 16949)</td></tr>
+  <tr><td>Signal density</td><td>6</td><td>signal_count 5</td></tr>
+  <tr><td>Technology</td><td>3</td><td>in-house tooling (+3); RJG unknown (+0)</td></tr>
+  <tr><th>Total</th><th>32</th><th>tier = WATCH; ai_readiness = green (Tooling + ISO + Automotive)</th></tr>
+</table>
+
+<h3>The divergence: computed WATCH vs. requested HIGH</h3>
+<blockquote>
+<p>The brief's data table says <strong>Priority: HIGH</strong>, but the formula yields <strong>32 → WATCH</strong>. The
+gap is structural, not a weakness of Flex: <strong>half the model is Scale (25) + Warmth (25)</strong>, and both are
+near-empty here — we have <strong>no confirmed press count</strong> and <strong>zero PSB/CWP warmth</strong> (a cold
+conference handshake). The entire converter cohort tops out at 72, so the computed <em>HIGH PRIORITY</em> tier (≥75) is
+effectively unreachable by formula. I honored the brief by setting <code>priority</code> <em>and</em>
+<code>priority_manual</code> to <strong>HIGH PRIORITY</strong> — the system's documented manual-override mechanism (and the
+same set-both pattern used for the Arburg/Blue Moose rows), so future recalcs preserve it. <code>priority_score</code>
+stays the honest computed <strong>32</strong> and <code>ai_readiness</code> the honest <strong>green</strong>.
+<strong>Confirming a press count and/or any PSB contact would lift the computed score materially</strong> (e.g. 20+
+presses = +8–13 scale; a few CWP = +7–12 warmth).</p>
+</blockquote>
+
+<h2>Other judgment calls</h2>
+<ul>
+  <li><strong><code>outreach_group = 'Time-Sensitive'</code>.</strong> The founder-succession window (Burket, Nov 2024) is
+  exactly what that group models (cf. Currier/Allegheny PE windows). It does <strong>not</strong> affect the score (only
+  <code>Infrastructure</code> exempts). Easily changed in the UI if Kyle prefers Group 1/2.</li>
+  <li><strong><code>ownership_type = 'Family/Founder'</code></strong> (not bare "Private"). Matches the 12-row converter
+  cohort convention, earns the family-succession urgency points + table icon, and is accurate (founder-built, Burket
+  family/estate). Honest given the open succession.</li>
+  <li><strong><code>recent_ma</code> left null.</strong> Flex is independent; the founder's death is succession, not M&amp;A —
+  recording it in <code>recent_ma</code> would be semantically wrong (and wouldn't add urgency points anyway). Captured in <code>notes</code>.</li>
+  <li><strong><code>press_count</code> left null.</strong> They run 85–440-ton presses across sites but no count is public; per "leave null rather than guess." This is the single biggest lever on the computed score (see above).</li>
+</ul>
+
+<h2>The one open discovery question (RJG / cavity-pressure)</h2>
+<blockquote>
+<p>No public evidence of RJG / Kistler / cavity-pressure monitoring or scientific molding, so
+<code>rjg_cavity_pressure = 'Unknown'</code> and it is <strong>not credited</strong> in the score.
+<strong>Discovery ask:</strong> confirm whether Flex runs in-mold pressure/process monitoring. If they do
+<em>without</em> an AI layer, this becomes a clean "RJG without AI" entry — and bumps Technology +7 (→ 10).</p>
+</blockquote>
+
+<h2>Contacts (5 added; founder deliberately excluded)</h2>
+<p>Added to <code>prospect_contacts</code> for id 952: <strong>Scott Cecil, Caden Haynes, Jacoby Jackson,
+Brandon Nisewonger</strong> (conference reps, paid roster) and <strong>Francie Williams</strong> (Sales Manager,
+public PoC). <strong>Glenn E. Burket is deliberately NOT added</strong> — founder/president, died early Nov 2024
+(some directories still list him). Current post-Burket top leadership is unconfirmed (noted in <code>notes</code>).</p>
+
+<h2>Ontology Layer-1</h2>
+<p>Same as the prior rows: Layer-1 derivation is <strong>application-level only</strong>, so the raw insert did not
+auto-generate ontology nodes. <strong>One rebuild now covers all three IEP rows</strong> (Arburg + Blue Moose + Flex):
+<code>POST /api/prospects?action=rebuild-ontology-layer1</code> (authenticated), or edit any ontology field on a row to
+fire <code>rebuildOntologyForProspect</code>. I did <strong>not</strong> import that server action (guardrail: don't
+import other modules' server actions; it isn't exported anyway). Flex's expected edges:
+<code>holds_certification</code> → ISO 9001 + IATF 16949, and <code>has_ownership_structure</code> → Family/Founder.
+No parent/medical/RJG edges.</p>
+
+<h2>Verification (done live this session)</h2>
+<ul>
+  <li><span class="tag done">PASS</span> <code>--dry-run</code> (score computed = 32/green, no apostrophes), then live run — row 952 inserted with the values above.</li>
+  <li><span class="tag done">PASS</span> Idempotent re-run kept counts at <strong>1/1 row, 5/5 contacts</strong> (no dupes).</li>
+  <li><span class="tag done">PASS</span> <strong>Arburg (950) + Blue Moose (951) untouched</strong> — still Infrastructure, score null (their status is now <code>Converted</code> = Kyle already promoted them; my script didn't touch them).</li>
+  <li><span class="tag done">PASS</span> Dedupe: only "Flex Technologies, Inc." (952) matches; pre-existing "Flexcraft" (NJ) is a different company.</li>
+  <li><span class="tag done">PASS</span> National Map: OH = 9 US prospects, includes Flex. Converter parent-group filter (<code>LIKE 'Converter%'</code>) matches. Promote-button gate (<code>Outreach Ready</code>) satisfied — <em>confirmed, not promoted</em>.</li>
+</ul>
+
+<h2>Open questions for Kyle</h2>
+<ul>
+  <li><strong>Keep the HIGH PRIORITY override?</strong> Computed tier is WATCH (32). I set the manual override per the brief; say the word to drop it and let it track the computed tier.</li>
+  <li><strong>Press count?</strong> The biggest score lever — a confirmed number (esp. 20+) would lift Scale and the computed tier.</li>
+  <li><strong>Any PSB / CWP contacts?</strong> Currently zero warmth; even a few would add up to +12.</li>
+  <li><strong>RJG / cavity-pressure?</strong> The one discovery gap (see above).</li>
+  <li><strong><code>outreach_group = 'Time-Sensitive'</code> OK?</strong> Or move to Group 1/2.</li>
+  <li><strong>Run the shared ontology Layer-1 rebuild</strong> (covers all three IEP rows).</li>
 </ul>
 
 </body>
