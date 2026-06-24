@@ -386,6 +386,8 @@ Time-Sensitive: Currier Plastics (PE acquisition), Allegheny Performance Plastic
 Group 2: Venture Plastics, Ferriot Inc., Accudyn Products, Caplugs/Protective Industries, TTMP/PRISM Plastics, Adler Industrial Solutions, Essentra Components
 Infrastructure: RJG Inc., DME Company, Husky Technologies, Mold-Masters, Beaumont Technologies
 
+**IEP 2026 additions (one-off load, `scripts/add-iep-prospects.sql` / `scripts/add-iep-prospects.mjs`):** Two non-converter ecosystem/partner contacts met at the IEP conference (June 2026): **Arburg, Inc.** (Rocky Hill, CT — injection-molding machine OEM; `category='Strategic Partner'`, `parent_company='ARBURG GmbH + Co KG'` kind `subsidiary`) and **Blue Moose Descaling** (Charlotte, NC — cooling-system descaling service; `category='Ecosystem'`). Both: `outreach_group='Infrastructure'` (the prospects-side scoring-exemption lever → `priority_score=NULL`, `ai_readiness='exempt'`; same as RJG/DME/Husky/Mold-Masters/Beaumont), `signal_count=0` (deliberately unscored — not converters), and `prospect_status='Outreach Ready'` so the "Add to Pipeline" promote button shows. **"Kistler" is an _opportunities_-side partner (`lead_type='partner'`), NOT a `prospect_companies` row** — for an equipment/infrastructure partner prospect, mirror the Infrastructure outreach_group, not a (nonexistent) Kistler prospect. Raw SQL/HTTP inserts do **not** fire ontology Layer-1 (application-level only) — run `POST ?action=rebuild-ontology-layer1` (or PATCH an ontology field) afterward.
+
 ### Prospect Status Lifecycle
 - **Identified** — Default for new/imported companies
 - **Prioritized** — Company has been reviewed and ranked for outreach
