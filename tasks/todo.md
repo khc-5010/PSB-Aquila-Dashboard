@@ -1,37 +1,41 @@
-# TODO — Per-Company "Export JSON" Button
+# Task: Add two IEP prospects (Arburg, Blue Moose) to `prospect_companies`
 
-Approved plan: `/root/.claude/plans/claude-code-handoff-lucky-prism.md`
-Branch: `claude/sleepy-lovelace-qRi2X`
+**Branch:** `claude/cool-keller-rp2a72`
+**Type:** Data task — no application code changes.
+**Goal:** Create two `prospect_companies` rows (+ contacts) so Kyle can promote them into the
+Kanban pipeline via the existing "Add to Pipeline" UI. Both are non-converter ecosystem/partner
+contacts and must NOT be scored on the converter readiness rubric.
 
-## Phase 4 — Execution
+## Decisions (confirmed with Kyle)
+- Arburg → `category = 'Strategic Partner'`; Blue Moose → `category = 'Ecosystem'`.
+- Both → `outreach_group = 'Infrastructure'` (the only scoring-exemption lever on the prospects side;
+  mirrors RJG/DME/Husky/Mold-Masters/Beaumont). Result: `priority_score = NULL`, `ai_readiness = 'exempt'`.
+- Both → `prospect_status = 'Outreach Ready'` so the promote button shows immediately.
+- `signal_count = 0` (no converter scoring / no inflated signals).
+- DB access: env-secret route (applies to a new session); `.sql` is the no-setup fallback.
 
-### Server
-- [x] Add `action=export-json&id=X` GET branch to `api/prospects.js` (before the generic `if (id)`)
-  - [x] Primary company read (reuse `SELECT p.*, conversion_count` shape) + 404
-  - [x] Link walk: typed children, typed parent, former_names→rows (case-insensitive, `= ANY`)
-  - [x] Dedup by id (typed label wins), cycle guard via visited Set, cap at 25
-  - [x] Batch sub-entity fetch (`= ANY(${allIds})`); group by prospect_id
-  - [x] Shape payload (generated_at, schema_version, company, contacts[], attachments, activity_log w/ derived type, tasks, linked_entities[])
+## Checklist
+- [x] Plan mode + subagent recon (schema, exemption rule, ontology wiring, contacts table)
+- [x] Dedupe scan — no existing Arburg / Blue Moose / Shibaura rows
+- [x] Resolve category values with Kyle (Strategic Partner / Ecosystem)
+- [x] Write `scripts/add-iep-prospects.sql` (idempotent, transactional, Neon SQL Editor path)
+- [x] Write `scripts/add-iep-prospects.mjs` (Neon HTTP driver path + `--dry-run`)
+- [x] Write `implementation-notes.html`
+- [x] Update `CLAUDE.md` with the durable decision
+- [x] Validate `.mjs --dry-run`; validate `.sql` against throwaway local Postgres 16 — PASS (both rows + contacts; re-run idempotent at 2/2)
+- [x] Commit + push to `claude/cool-keller-rp2a72`
+- [x] **(Kyle)** Set `DATABASE_URL` env var + Custom network access (`*.neon.tech`) — done
+- [ ] **(new session)** Run the insert via `.mjs` (or `.sql` in Neon Editor); verify rows/contacts
+- [ ] **(new session)** Trigger ontology Layer-1 rebuild for the two new rows
+- [ ] **(Kyle)** Promote each prospect into the pipeline via the existing UI (manual — out of scope here)
 
-### Client
-- [x] `src/utils/exportProspect.js` — `downloadJson` + `copyText` + `formatBytes` + `companySlug`
-- [x] `src/components/prospects/ExportJsonModal.jsx` — preview modal (fetch, pretty-print, size indicator, Copy primary / Download fallback, loading+error, z-[60], Escape+backdrop close)
-- [x] `src/components/prospects/ProspectDetail.jsx` — "Export JSON" header button + `showExportModal` state + Escape-stacking guard + modal render
+## Guardrails honored
+- Prospects only — no `opportunities` writes, no Kanban cards, no promotion.
+- No converter scoring — exemption via Infrastructure; `signal_count = 0`.
+- Idempotent + transactional — check-then-insert on `LOWER(TRIM(company))` + `state`; `BEGIN`/`COMMIT`.
+- Wrote through the project's own data layer (Neon `sql`) — no importing server actions from other modules.
+- "Unknown/unconfirmed" values left NULL rather than guessed.
 
-### Verification
-- [x] `node --check api/prospects.js` — PASS
-- [x] `npm run build` — PASS (new modal/util/wiring compile)
-- [x] `scripts/verify-export.js --mock` — PASS (26/26): Sybridge → X-Cell + Pyramid; standalone → empty
-- [x] Round-trip check: import never writes partner-managed fields; `former_names` stays array
-- [x] Provided read-only Neon SQL + deployed-endpoint steps (no DATABASE_URL in this container)
-
-### Docs / wrap-up
-- [x] `implementation-notes.html` — maintained continuously + verification results
-- [x] `CLAUDE.md` — export feature + final JSON schema + linked-entity serialization rule
-- [x] `tasks/lessons.md` — APPENDED lesson: exports must follow corporate links
-- [ ] Commit + push to `claude/sleepy-lovelace-qRi2X`
-
-## Guardrails (honored)
-- OFF LIMITS untouched: import internals, partner-managed fields, ontology rebuild, CSV export, unrelated components. No refactors.
-- No new files under `api/` (function count stays 10). Server logic inside `api/prospects.js`.
-- Server does not import from `src/` (Vercel). Pure assembly inlined server-side; reference copy in `scripts/verify-export.js`.
+## Review
+_(filled in after the insert runs — see implementation-notes.html for the running decision log)_
+- Status: scripts written + validated; awaiting a session with `DATABASE_URL` (or a Neon SQL Editor run).
