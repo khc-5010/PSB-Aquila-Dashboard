@@ -16,8 +16,14 @@ const formatValue = (value) => {
  * @param {Function} props.onActionClick - Handler for Need Action metric click
  * @param {Function} props.onActiveClick - Handler for Active Projects metric click
  */
+// Working stages where an open next_action means a ball is in play.
+// On Deck is excluded by design (parked until you initiate outreach).
+// SYNC: keep aligned with ActionSummaryModal + the MetricsBar needAction filter.
+const ACTION_STAGES = ['outreach', 'channel_routing', 'client_readiness', 'project_setup']
+
 function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveClick, onImpactClick }) {
-  // Total Pipeline: count of non-complete opportunities
+  // Total Pipeline: count of non-complete opportunities (now includes On Deck +
+  // Outreach — they're the pipeline too; their null value contributes $0).
   const totalPipeline = opportunities.filter(opp => opp.stage !== 'complete').length
 
   // Est. Value: sum of est_value for non-complete opportunities.
@@ -27,11 +33,15 @@ function MetricsBar({ opportunities = [], onValueClick, onActionClick, onActiveC
     .filter(opp => opp.stage !== 'complete')
     .reduce((sum, opp) => sum + (parseFloat(opp.est_value) || 0), 0)
 
-  // Need Action: opportunities with next_action set AND in early pipeline stages
+  // Need Action: opportunities with next_action set, in a working stage, where
+  // the ball is on us (waiting_on !== 'them' suppresses legitimately-parked
+  // leads like a partner sitting in their own internal process).
+  // SYNC: keep this predicate identical to ActionSummaryModal's ACTION_STAGES.
   const needAction = opportunities.filter(opp =>
     opp.next_action &&
     opp.next_action.trim() !== '' &&
-    (opp.stage === 'channel_routing' || opp.stage === 'client_readiness')
+    ACTION_STAGES.includes(opp.stage) &&
+    opp.waiting_on !== 'them'
   ).length
 
   // Active Projects: count where stage is 'active'

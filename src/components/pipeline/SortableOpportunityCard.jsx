@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import OpportunityCard from './OpportunityCard'
 
-function SortableOpportunityCard({ opportunity, onClick, users, onNoFit }) {
+function SortableOpportunityCard({ opportunity, onClick, users, onNoFit, onLogContact }) {
   const {
     attributes,
     listeners,
@@ -26,6 +26,7 @@ function SortableOpportunityCard({ opportunity, onClick, users, onNoFit }) {
         isDragging={isDragging}
         users={users}
         onNoFit={onNoFit}
+        onLogContact={onLogContact}
       />
     </div>
   )

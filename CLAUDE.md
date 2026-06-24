@@ -105,15 +105,17 @@ Partnership opportunities for the **Industrial AI Alliance**—a collaboration b
 
 ### Alliance Client Journey (Pipeline Stages)
 
-The pipeline maps to Stages 3-5 of the Alliance Client Journey (Stages 1-2 are handled in the Prospects tab):
+The pipeline has **7 stages**. The first two ("activation") model the pre-discovery outreach that used to fall through the cracks between the Prospects tab and the old first stage; the last five map to Stages 3-5 of the Alliance Client Journey.
 
-1. **Channel Routing** (`channel_routing`) — Discovery meeting, determine project type and fit. 2-4 weeks. Gate: channel selected, stakeholders notified.
-2. **Client Readiness** (`client_readiness`) — Client completes AI Readiness Modules (governance, data prep, internal alignment). 4-8 weeks. Gate: client passes readiness checklist.
-3. **Project Setup** (`project_setup`) — SOW development, faculty matching, contract processing. 4-8 weeks. Gate: SOW signed, faculty/students assigned.
-4. **Active** (`active`) — Project executing, solution scaling. 6-18 months. Gate: solution validated, data contributed to ontology.
-5. **Complete** (`complete`) — Project delivered, marketplace listing approved. Gate: deliverables accepted, relationship preserved.
+1. **On Deck** (`on_deck`) — Committed lead, ready to work, not yet contacted. Gate: first outreach sent. (Where held leads sit — e.g. partners being planned for an in-person approach.)
+2. **Outreach** (`outreach`) — Active contact, working toward the first meeting. 1-4 weeks. Gate: discovery meeting scheduled. (Bidirectional comms log + "who has the ball.")
+3. **Channel Routing** (`channel_routing`) — Discovery meeting, determine project type and fit. 2-4 weeks. Gate: channel selected, stakeholders notified.
+4. **Client Readiness** (`client_readiness`) — Client completes AI Readiness Modules (governance, data prep, internal alignment). 4-8 weeks. Gate: client passes readiness checklist.
+5. **Project Setup** (`project_setup`) — SOW development, faculty matching, contract processing. 4-8 weeks. Gate: SOW signed, faculty/students assigned.
+6. **Active** (`active`) — Project executing, solution scaling. 6-18 months. Gate: solution validated, data contributed to ontology.
+7. **Complete** (`complete`) — Project delivered, marketplace listing approved. Gate: deliverables accepted, relationship preserved.
 
-Stage constants defined in `src/constants/pipeline.js`.
+**Stage constant SYNC (4 places):** the stage list is duplicated across `src/constants/pipeline.js` (`PIPELINE_STAGES`, the richer source: columns, colors, tooltips), `src/constants/options.js` (`STAGES`, used by EditOpportunityModal + the metric modals for stage *names*), and the `VALID_STAGES` arrays in `api/opportunities.js` and `api/opportunities/[id].js` (POST/PATCH validation). All four carry `// SYNC: pipeline stages` comments — add/rename/remove a stage in all four or promotes/drags 400. `opportunities.stage` has no DB CHECK constraint (validation is app-level); `scripts/pipeline-activation.sql` drops one defensively if a legacy CHECK exists.
 
 ### Project Types
 
@@ -126,19 +128,22 @@ Stage constants defined in `src/constants/pipeline.js`.
 
 Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'`, `'Strategic Membership'`
 
-### Prospect-to-Pipeline Conversion
+### Prospect-to-Pipeline Conversion (Pipeline Activation)
 
-- **Promote to Pipeline** button appears on ProspectDetail when `prospect_status` is `'Outreach Ready'` or `'Converted'`
-- Opens `ConvertToOpportunityModal` with company name pre-filled, project type and owner (dynamic from users table) required
-- Creates opportunity with `source_prospect_id` linking back to the prospect, stage defaults to `'channel_routing'`
-- Prospect status auto-updates to `'Converted'` (one prospect can generate multiple opportunities)
+- **Add to Pipeline** button appears on ProspectDetail when `prospect_status` is `'Outreach Ready'` or `'Converted'`
+- Opens `ConvertToOpportunityModal` — **lightweight entry**: company is the only hard requirement. The modal collects: **Lead Type** (`client` | `partner` — partners skip project type entirely), **Starting Stage** (`on_deck` default, or `outreach` for already-contacted leads like Kistler), **Account Owner** (defaults to current user, optional, stable — *not* the rotating action-owner), an optional **Project Type** (clients only, "decide later"), an optional **Next Step** (`next_action`), and an optional **Log First Contact** note (creates an `activities` row if filled). Project type / value / scope are deferred until knowable.
+- Creates opportunity with `source_prospect_id` linking back to the prospect; stage defaults to `'on_deck'` (modal can pick `'outreach'`). The opportunity POST/PATCH accept `lead_type` and `waiting_on`.
+- Prospect status auto-updates to `'Converted'` (one prospect can generate multiple opportunities). The post-create prospect-status PATCH, stage-transition log, and first-contact activity are best-effort with `res.ok` checks (no longer silently fire-and-forget — QA audit follow-up).
 - `conversion_count` subquery included in prospects GET API response
 - Purple badge on ProspectTable shows count of active opportunities per prospect
+- **Owner semantics:** `owner` = stable account owner. The shifting "who's got the next action" churn lives in `next_action` / the activity log, not in reassigning owner.
+- **Communication transparency (Brett's ask):** the opportunity activity log (`activities` table) is bidirectional and freeform. The opportunities GET adds `last_activity_at` (`MAX(activity_date)` subquery, no new column) so cards show "contacted Xd ago". OpportunityCard has a one-click **Log contact** button (App threads `quickLogId` → OpportunityDetail `autoOpenLog` to open the Log Activity modal directly). The detail panel's **Engagement** section sets `lead_type` and `waiting_on` (Us / Them) via optimistic single-field PATCH.
+- **Who has the ball (`waiting_on`):** `'them'` excludes a lead from the **Need Action** count/list (it's legitimately parked on their side, not a dropped ball). `'us'` shows a "Your move" chip. Surfaced as chips on the card.
 - **Impact / ROI surface (QA audit E1):** MetricsBar has a "From Prospects" metric (pipeline $ on opportunities with `source_prospect_id`, non-complete) that opens `ImpactModal` (`src/components/ImpactModal.jsx`): pipeline sourced $, won $ (`outcome = 'won'`), active count, total converted, by-quarter breakdown (conversions/$ by `created_at`, won $ by `closed_at`), and the clickable opportunity list. Computed entirely client-side from the opportunities App already fetches. EditOpportunityModal logs a `stage_transitions` row on stage changes (best-effort), so funnel analytics no longer lose edit-form moves.
 
 ### No Fit Off-Ramp
 
-- "No Fit" button on pipeline cards in Channel Routing stage
+- "No Fit" button on pipeline cards in the early stages (`on_deck`, `outreach`, `channel_routing` — see `NO_FIT_STAGES` in `OpportunityCard.jsx`)
 - Deletes the opportunity and sets the source prospect's status to `'Nurture'`
 - Nurture prospects can be re-promoted later
 
@@ -175,7 +180,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `company_name` - Company/organization name
   - `description` - Opportunity description
   - `project_type` - Type classification (Research Agreement, Senior Design, etc.)
-  - `stage` - Pipeline stage (channel_routing, client_readiness, project_setup, active, complete)
+  - `stage` - Pipeline stage (on_deck, outreach, channel_routing, client_readiness, project_setup, active, complete)
   - `owner` - Assigned team member (Kyle, Duane, Steve)
   - `estimated_value` - Estimated deal value
   - `source` - Lead source
@@ -183,10 +188,13 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `next_action` - Next action to take
   - `outcome` - Deal outcome (won, lost, abandoned) - set when closed
   - `source_prospect_id` (FK → prospect_companies.id) - Links to source prospect if converted from Prospects tab
+  - `lead_type` (TEXT, nullable) - `'client'` | `'partner'`. Partners (vendors/ecosystem like Kistler, Beaumont) carry no `project_type`. Self-ensured by `ensureOpportunitySchema()` in `api/opportunities.js` (guarded, once per warm instance — not the per-request unguarded ALTER antipattern).
+  - `waiting_on` (TEXT, nullable) - `'us'` | `'them'`. `'them'` suppresses the lead from the Need Action count (parked on their side, not a dropped ball).
   - `closed_at` - Timestamp when opportunity was closed
   - `created_at`, `updated_at` - Timestamps
+  - **Computed (not a column):** the opportunities GET adds `last_activity_at` via `(SELECT MAX(activity_date) FROM activities ...)` so cards can show "contacted Xd ago" without an N+1.
 
-- **`activities`** - Activity log entries
+- **`activities`** - Activity log entries (per-opportunity, bidirectional/freeform comms log)
   - `id`, `opportunity_id` (FK), `activity_date`, `description`, `created_by`
 
 - **`contacts`** - Contact info per opportunity

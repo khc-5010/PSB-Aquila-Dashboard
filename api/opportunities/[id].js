@@ -1,7 +1,9 @@
 import { neon } from '@neondatabase/serverless'
 import { requireAuth } from '../../lib/requireAuth.js'
 
-const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
+// SYNC: pipeline stages — mirrored in src/constants/pipeline.js (PIPELINE_STAGES),
+// src/constants/options.js (STAGES), and api/opportunities.js (VALID_STAGES).
+const VALID_STAGES = ['on_deck', 'outreach', 'channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
 /**
  * Consolidated opportunity-by-ID API.
@@ -158,6 +160,8 @@ export default async function handler(req, res) {
       outcome: 'outcome',
       closed_at: 'closed_at',
       source_prospect_id: 'source_prospect_id',
+      lead_type: 'lead_type',
+      waiting_on: 'waiting_on',
     }
 
     const setClauses = []

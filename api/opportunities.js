@@ -1,7 +1,28 @@
 import { neon } from '@neondatabase/serverless'
 import { requireAuth } from '../lib/requireAuth.js'
 
-const VALID_STAGES = ['channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
+// SYNC: pipeline stages — mirrored in src/constants/pipeline.js (PIPELINE_STAGES),
+// src/constants/options.js (STAGES), and api/opportunities/[id].js (VALID_STAGES).
+const VALID_STAGES = ['on_deck', 'outreach', 'channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
+
+// Guarded one-time schema ensure: runs once per warm instance, not on every
+// request. The old per-request unguarded ALTER was the antipattern flagged in
+// the June QA audit. lead_type ('client'|'partner') and waiting_on ('us'|'them')
+// back the Pipeline Activation feature.
+let schemaEnsured = false
+async function ensureOpportunitySchema(sql) {
+  if (schemaEnsured) return
+  try {
+    await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS source_prospect_id INTEGER REFERENCES prospect_companies(id)`
+    await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS lead_type TEXT`
+    await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS waiting_on TEXT`
+    schemaEnsured = true
+  } catch (e) {
+    // Non-fatal: columns may already exist or the table differs. Leave the flag
+    // unset so a transient failure retries on the next request.
+    console.log('opportunity schema ensure note:', e.message)
+  }
+}
 
 export default async function handler(req, res) {
   const authUser = await requireAuth(req, res)
@@ -9,23 +30,15 @@ export default async function handler(req, res) {
 
   const sql = neon(process.env.DATABASE_URL)
 
-  // Ensure source_prospect_id column exists (idempotent)
-  try {
-    await sql`
-      ALTER TABLE opportunities
-      ADD COLUMN IF NOT EXISTS source_prospect_id INTEGER REFERENCES prospect_companies(id)
-    `
-  } catch (e) {
-    // Column may already exist or table structure differs — non-fatal
-    console.log('source_prospect_id migration note:', e.message)
-  }
+  await ensureOpportunitySchema(sql)
 
   // GET - Fetch all opportunities
   if (req.method === 'GET') {
     try {
       const opportunities = await sql`
         SELECT o.*,
-          pc.company as source_prospect_name
+          pc.company as source_prospect_name,
+          (SELECT MAX(a.activity_date) FROM activities a WHERE a.opportunity_id = o.id) as last_activity_at
         FROM opportunities o
         LEFT JOIN prospect_companies pc ON pc.id = o.source_prospect_id
         ORDER BY o.updated_at DESC
@@ -47,9 +60,9 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const {
-        company_name, description, project_type, stage = 'channel_routing',
+        company_name, description, project_type, stage = 'on_deck',
         owner, est_value, source, psb_relationship, next_action,
-        source_prospect_id,
+        source_prospect_id, lead_type, waiting_on,
       } = req.body
 
       if (!company_name?.trim()) {
@@ -64,12 +77,12 @@ export default async function handler(req, res) {
         INSERT INTO opportunities (
           company_name, description, project_type, stage, owner,
           estimated_value, source, psb_relationship, next_action,
-          source_prospect_id, created_at, updated_at
+          source_prospect_id, lead_type, waiting_on, created_at, updated_at
         ) VALUES (
           ${company_name.trim()}, ${description || null}, ${project_type || null}, ${stage},
           ${owner || null}, ${est_value || null}, ${source || null},
           ${psb_relationship || null}, ${next_action || null},
-          ${source_prospect_id || null}, NOW(), NOW()
+          ${source_prospect_id || null}, ${lead_type || null}, ${waiting_on || null}, NOW(), NOW()
         )
         RETURNING *
       `

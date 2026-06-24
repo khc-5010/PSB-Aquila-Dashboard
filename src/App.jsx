@@ -35,6 +35,9 @@ function App() {
   const [error, setError] = useState(null)
   const [selectedOpportunity, setSelectedOpportunity] = useState(null)
   const [metricsModal, setMetricsModal] = useState(null)
+  // When set to an opportunity id, the detail panel auto-opens its Log Activity
+  // modal (powers the one-click "Log contact" button on the card).
+  const [quickLogId, setQuickLogId] = useState(null)
   const [activeId, setActiveId] = useState(null)
   const VALID_VIEWS = ['today', 'prospects', 'pipeline', 'national-map', 'knowledge-graph']
 
@@ -124,6 +127,13 @@ function App() {
 
   const handleCloseDetail = () => {
     setSelectedOpportunity(null)
+    setQuickLogId(null)
+  }
+
+  // Card "Log contact" → open the detail with its Log Activity modal already up
+  const handleQuickLog = (opportunity) => {
+    setSelectedOpportunity(opportunity)
+    setQuickLogId(opportunity.id)
   }
 
   const handleMetricsSelect = (opp) => {
@@ -337,6 +347,7 @@ function App() {
                             onClick={handleCardClick}
                             users={users}
                             onNoFit={handleNoFit}
+                            onLogContact={handleQuickLog}
                           />
                         ))
                       ) : (
@@ -362,6 +373,8 @@ function App() {
             onClose={handleCloseDetail}
             onUpdate={handleOpportunityUpdate}
             users={users}
+            autoOpenLog={!!selectedOpportunity && quickLogId === selectedOpportunity.id}
+            onAutoLogConsumed={() => setQuickLogId(null)}
           />
 
           {metricsModal === 'value' && (
