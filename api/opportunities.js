@@ -16,11 +16,49 @@ async function ensureOpportunitySchema(sql) {
     await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS source_prospect_id INTEGER REFERENCES prospect_companies(id)`
     await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS lead_type TEXT`
     await sql`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS waiting_on TEXT`
-    schemaEnsured = true
   } catch (e) {
-    // Non-fatal: columns may already exist or the table differs. Leave the flag
-    // unset so a transient failure retries on the next request.
-    console.log('opportunity schema ensure note:', e.message)
+    // Non-fatal: columns may already exist or the table differs.
+    console.log('opportunity column ensure note:', e.message)
+  }
+  try {
+    await ensureStageEnumValues(sql)
+  } catch (e) {
+    // Non-fatal: stage may be a plain text column, or values may already exist.
+    console.log('stage enum ensure note:', e.message)
+  }
+  // Best-effort, once per warm instance. DDL persists, so a later cold start
+  // retries anything that failed transiently here.
+  schemaEnsured = true
+}
+
+// `opportunities.stage` (and the stage_transitions stage columns) are backed by
+// a Postgres ENUM. The two new front stages must be added to that enum type or
+// INSERT/PATCH with 'on_deck'/'outreach' fails with "invalid input value for
+// enum stage". Each ALTER runs as its own neon HTTP statement (autocommit), which
+// sidesteps the "ALTER TYPE ADD VALUE cannot run inside a transaction block"
+// restriction. Idempotent via ADD VALUE IF NOT EXISTS; a no-op if stage is text.
+async function ensureStageEnumValues(sql) {
+  const rows = await sql`
+    SELECT DISTINCT t.typname
+    FROM pg_type t
+    JOIN pg_attribute a ON a.atttypid = t.oid
+    JOIN pg_class c ON c.oid = a.attrelid
+    WHERE t.typtype = 'e'
+      AND (
+        (c.relname = 'opportunities' AND a.attname = 'stage')
+        OR (c.relname = 'stage_transitions' AND a.attname IN ('from_stage', 'to_stage'))
+      )
+  `
+  for (const { typname } of rows) {
+    // typname comes from pg_catalog, but validate as an identifier before
+    // interpolating (ALTER TYPE can't be parameterized). Looping VALID_STAGES
+    // (vetted ^[a-z_]+$ constants) means a future stage is covered for free —
+    // existing values are a harmless no-op via ADD VALUE IF NOT EXISTS.
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(typname)) continue
+    for (const val of VALID_STAGES) {
+      if (!/^[a-z_]+$/.test(val)) continue
+      await sql.query(`ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${val}'`)
+    }
   }
 }
 
