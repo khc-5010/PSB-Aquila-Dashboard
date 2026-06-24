@@ -37,6 +37,8 @@ function getStageBadge(opp) {
   }
   const stage = STAGES.find(s => s.id === opp.stage)
   const stageColors = {
+    on_deck: 'bg-slate-100 text-slate-700',
+    outreach: 'bg-indigo-100 text-indigo-700',
     channel_routing: 'bg-teal-100 text-teal-700',
     client_readiness: 'bg-amber-100 text-amber-700',
     project_setup: 'bg-purple-100 text-purple-700',

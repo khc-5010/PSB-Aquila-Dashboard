@@ -7,8 +7,16 @@ const PROJECT_TYPE_COLORS = {
   'Strategic Membership': 'bg-purple-50 text-purple-700 border-purple-200',
 }
 
-function OpportunityCard({ opportunity, onClick, isDragging = false, users = [], onNoFit }) {
-  const { company_name, description, owner, project_type, next_action, source_prospect_id, created_at, stage } = opportunity
+// Stages where killing the lead ("No Fit") makes sense.
+const NO_FIT_STAGES = ['on_deck', 'outreach', 'channel_routing']
+// Stages where a client should have a project type by now (nudge if missing).
+const PROJECT_TYPE_EXPECTED = ['channel_routing', 'client_readiness', 'project_setup', 'active']
+
+function OpportunityCard({ opportunity, onClick, isDragging = false, users = [], onNoFit, onLogContact }) {
+  const {
+    company_name, description, owner, project_type, next_action, source_prospect_id,
+    stage, lead_type, waiting_on, last_activity_at,
+  } = opportunity
 
   const getInitials = (name) => {
     if (!name) return '?'
@@ -19,16 +27,22 @@ function OpportunityCard({ opportunity, onClick, isDragging = false, users = [],
   const ownerUser = users.find(u => u.name === owner)
   const ownerColor = ownerUser?.color || '#6B7280'
 
-  // Days in current stage
-  const daysInStage = (() => {
-    if (!opportunity.updated_at) return null
-    const diff = Date.now() - new Date(opportunity.updated_at).getTime()
+  const daysSince = (dateStr) => {
+    if (!dateStr) return null
+    const diff = Date.now() - new Date(dateStr).getTime()
     return Math.floor(diff / (1000 * 60 * 60 * 24))
-  })()
+  }
+
+  const daysInStage = daysSince(opportunity.updated_at)
+  const lastContactDays = daysSince(last_activity_at)
 
   // Project type styling
   const typeInfo = PROJECT_TYPES.find(t => t.value === project_type)
   const typeColorClass = PROJECT_TYPE_COLORS[project_type] || 'bg-gray-50 text-gray-600 border-gray-200'
+
+  const isPartner = lead_type === 'partner'
+  const needsProjectType = !isPartner && !project_type && PROJECT_TYPE_EXPECTED.includes(stage)
+  const isComplete = stage === 'complete'
 
   return (
     <div
@@ -39,9 +53,16 @@ function OpportunityCard({ opportunity, onClick, isDragging = false, users = [],
         hover:shadow-md hover:-translate-y-0.5
         ${isDragging ? 'shadow-lg ring-2 ring-indigo-400 rotate-2' : ''}`}
     >
-      {/* Header: company name + owner avatar */}
+      {/* Header: company name (+ partner tag) + owner avatar */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight">{company_name}</h3>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-900 text-sm leading-tight">{company_name}</h3>
+          {isPartner && (
+            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-violet-50 text-violet-700 border border-violet-200">
+              Partner
+            </span>
+          )}
+        </div>
         <span
           className="flex-shrink-0 w-7 h-7 rounded-full text-white text-xs font-medium flex items-center justify-center"
           style={{ backgroundColor: ownerColor }}
@@ -51,14 +72,33 @@ function OpportunityCard({ opportunity, onClick, isDragging = false, users = [],
         </span>
       </div>
 
-      {/* Project type badge */}
-      {project_type && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${typeColorClass}`}>
-            {project_type}
-          </span>
-          {typeInfo?.lead && (
-            <span className="text-xs text-gray-400">{typeInfo.lead}</span>
+      {/* Project type badge / nudge + waiting-on chip */}
+      {(project_type || needsProjectType || waiting_on) && (
+        <div className="flex items-center flex-wrap gap-2 mb-2">
+          {project_type && (
+            <>
+              <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium border ${typeColorClass}`}>
+                {project_type}
+              </span>
+              {typeInfo?.lead && (
+                <span className="text-xs text-gray-400">{typeInfo.lead}</span>
+              )}
+            </>
+          )}
+          {needsProjectType && (
+            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium border bg-amber-50 text-amber-700 border-amber-200">
+              Set project type
+            </span>
+          )}
+          {!isComplete && waiting_on === 'them' && (
+            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500">
+              Waiting on them
+            </span>
+          )}
+          {!isComplete && waiting_on === 'us' && (
+            <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+              Your move
+            </span>
           )}
         </div>
       )}
@@ -76,12 +116,17 @@ function OpportunityCard({ opportunity, onClick, isDragging = false, users = [],
         </div>
       )}
 
-      {/* Footer: days in stage + source link */}
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-        <div className="flex items-center gap-2">
+      {/* Footer: time + last contact + actions */}
+      <div className="flex items-center justify-between flex-wrap gap-x-2 gap-y-1 mt-2 pt-2 border-t border-gray-100">
+        <div className="flex items-center gap-2 text-xs text-gray-400">
           {daysInStage !== null && (
-            <span className={`text-xs ${daysInStage > 30 ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+            <span className={daysInStage > 30 ? 'text-amber-600 font-medium' : ''}>
               {daysInStage}d in stage
+            </span>
+          )}
+          {lastContactDays !== null && (
+            <span title="Last logged contact">
+              · contacted {lastContactDays === 0 ? 'today' : `${lastContactDays}d ago`}
             </span>
           )}
         </div>
@@ -89,7 +134,16 @@ function OpportunityCard({ opportunity, onClick, isDragging = false, users = [],
           {source_prospect_id && (
             <span className="text-xs text-purple-500">from Prospects</span>
           )}
-          {stage === 'channel_routing' && onNoFit && (
+          {!isComplete && onLogContact && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onLogContact(opportunity) }}
+              className="text-xs text-indigo-500 hover:text-indigo-700 transition-colors"
+              title="Log a contact / outreach touch"
+            >
+              Log contact
+            </button>
+          )}
+          {NO_FIT_STAGES.includes(stage) && onNoFit && (
             <button
               onClick={(e) => { e.stopPropagation(); onNoFit(opportunity) }}
               className="text-xs text-gray-400 hover:text-red-500 transition-colors"

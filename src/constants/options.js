@@ -18,7 +18,12 @@ export const getStageLabel = (value) => {
   return stage ? stage.name : value
 }
 
+// SYNC: pipeline stages — mirrored in src/constants/pipeline.js (PIPELINE_STAGES,
+// the richer source of truth) and the VALID_STAGES arrays in api/opportunities.js
+// and api/opportunities/[id].js. Keep all four aligned.
 export const STAGES = [
+  { id: 'on_deck', name: 'On Deck' },
+  { id: 'outreach', name: 'Outreach' },
   { id: 'channel_routing', name: 'Channel Routing' },
   { id: 'client_readiness', name: 'Client Readiness' },
   { id: 'project_setup', name: 'Project Setup' },

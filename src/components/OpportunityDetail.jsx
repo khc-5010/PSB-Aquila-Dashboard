@@ -41,7 +41,7 @@ const alertStyles = {
   }
 }
 
-function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
+function OpportunityDetail({ opportunity, onClose, onUpdate, users = [], autoOpenLog = false, onAutoLogConsumed }) {
   const { user } = useAuth()
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(false)
@@ -133,6 +133,33 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
   useEffect(() => {
     fetchActivities()
   }, [opportunity?.id])
+
+  // Card "Log contact" deep-link: open the Log Activity modal on mount, then
+  // tell the parent it's been consumed so it doesn't re-fire.
+  useEffect(() => {
+    if (autoOpenLog) {
+      setShowLogModal(true)
+      onAutoLogConsumed?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenLog])
+
+  // Optimistic single-field PATCH (lead_type, waiting_on). Reverts on failure.
+  const patchField = async (field, value) => {
+    const prev = opportunity[field] ?? null
+    onUpdate?.({ ...opportunity, [field]: value })
+    try {
+      const res = await authFetch(`/api/opportunities/${opportunity.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: value }),
+      })
+      if (!res.ok) throw new Error('Update failed')
+    } catch (err) {
+      console.error(`Failed to update ${field}:`, err)
+      onUpdate?.({ ...opportunity, [field]: prev })
+    }
+  }
 
   // Fetch dynamic alerts
   const fetchAlerts = async () => {
@@ -286,6 +313,19 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
   }
 
   const contacts = getContacts()
+
+  // Most recent logged contact, derived from the fetched activity timeline
+  const lastContact = activities.length > 0 ? (() => {
+    const d = Math.floor((Date.now() - new Date(activities[0].activity_date).getTime()) / 86400000)
+    return d <= 0 ? 'today' : `${d} day${d === 1 ? '' : 's'} ago`
+  })() : null
+
+  const engagementPill = (active) =>
+    `px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+      active
+        ? 'bg-[#041E42] text-white border-[#041E42]'
+        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+    }`
 
   // Handle Log Activity submission
   const handleLogActivity = async () => {
@@ -512,6 +552,56 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [] }) {
                   )}
                 </dd>
               </div>
+            </div>
+          </div>
+
+          {/* Engagement — lead type + who has the ball */}
+          <div className="px-6 py-5 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
+              Engagement
+            </h3>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Lead Type</p>
+                <div className="flex gap-2">
+                  {['client', 'partner'].map(t => (
+                    <button
+                      key={t}
+                      onClick={() => patchField('lead_type', t)}
+                      className={`capitalize ${engagementPill(opportunity.lead_type === t)}`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {opportunity.stage !== 'complete' && (
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Who has the ball?</p>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => patchField('waiting_on', 'us')} className={engagementPill(opportunity.waiting_on === 'us')}>
+                      Us
+                    </button>
+                    <button onClick={() => patchField('waiting_on', 'them')} className={engagementPill(opportunity.waiting_on === 'them')}>
+                      Them
+                    </button>
+                    {opportunity.waiting_on && (
+                      <button
+                        onClick={() => patchField('waiting_on', null)}
+                        className="px-2 py-1 text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    "Them" hides this lead from the Need Action count while you wait on their reply.
+                  </p>
+                </div>
+              )}
+              {lastContact && (
+                <p className="text-xs text-gray-400">Last logged contact: {lastContact}</p>
+              )}
             </div>
           </div>
 

@@ -51,7 +51,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
       const payload = {
         company_name: formData.company_name.trim(),
         description: formData.description.trim() || null,
-        project_type: formData.project_type,
+        project_type: formData.project_type || null,
         stage: formData.stage,
         owner: formData.owner || null,
         est_value: formData.est_value ? parseFloat(formData.est_value) : null,
@@ -188,6 +188,7 @@ function EditOpportunityModal({ opportunity, onClose, onUpdate }) {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     disabled={isSubmitting}
                   >
+                    <option value="">— None / N/A (Partner) —</option>
                     {PROJECT_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}

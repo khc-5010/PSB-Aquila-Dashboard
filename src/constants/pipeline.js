@@ -1,4 +1,23 @@
+// SYNC: pipeline stages — the stage list is mirrored in src/constants/options.js
+// (STAGES) and in the VALID_STAGES arrays of api/opportunities.js and
+// api/opportunities/[id].js. Add/rename/remove a stage in all four places.
 export const PIPELINE_STAGES = [
+  {
+    key: 'on_deck',
+    label: 'On Deck',
+    description: 'Committed leads ready to work, not yet contacted',
+    gate: 'First outreach sent',
+    timeline: '',
+    color: '#64748B',
+  },
+  {
+    key: 'outreach',
+    label: 'Outreach',
+    description: 'Active contact, working toward the first meeting',
+    gate: 'Discovery meeting scheduled',
+    timeline: '1-4 weeks',
+    color: '#4F46E5',
+  },
   {
     key: 'channel_routing',
     label: 'Channel Routing',
