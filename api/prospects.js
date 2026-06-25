@@ -851,6 +851,391 @@ function getProspectUrgency(prospect) {
  * POST /api/prospects?action=import — bulk import/upsert (preserves user-edited fields)
  * PATCH /api/prospects?id=123   — update single prospect
  */
+// ─────────────────────────────────────────────────────────────────────────
+// Read-only reasoning assistant (POST ?action=assistant)
+//
+// Server-side tool-use loop against Together.ai's OpenAI-compatible chat
+// completions API. Plain fetch (house style, like the Resend call above) with
+// an Authorization: Bearer ${TOGETHER_AI_API} header. STRICTLY READ-ONLY:
+// every tool executor issues SELECT only; there is no INSERT/UPDATE/DELETE
+// anywhere in this code path. All work is awaited before the response is sent
+// (Vercel freezes after res.end()).
+// ─────────────────────────────────────────────────────────────────────────
+const ASSISTANT_ENDPOINT = 'https://api.together.xyz/v1/chat/completions'
+const ASSISTANT_MODEL = 'deepseek-ai/DeepSeek-V3'
+const ASSISTANT_MAX_TURNS = 8
+const ASSISTANT_MAX_TOKENS = 2048
+const ASSISTANT_TOOL_RESULT_CAP = 12000 // hard backstop on each stringified tool_result
+
+const ASSISTANT_SYSTEM = `You are the research assistant inside the PSB-Aquila prospect dashboard, a tool the Penn State Behrend - Aquila Industrial AI Alliance uses to track injection-molding and plastics manufacturers as partnership prospects. Your users are the alliance team, including Brett Hyder, a 40-year plastics-industry expert.
+
+Answer questions about prospects using only data you retrieve through your tools. Ground every factual claim in tool results. If a tool returns nothing, or a brief is missing, say so plainly instead of guessing. You are read-only: you cannot change records, create tasks, or send anything, and you never imply that you have.
+
+Be concise and direct, in a neutral analyst voice. When sizing up a company, weight what Brett weights: press count over raw employee count, ownership type and acquisition urgency, relevant certifications, technology signals such as RJG cavity-pressure, and relationship warmth from the PSB connection notes. To compare a prospect against others, call find_similar_prospects and pull detail with get_prospect before answering.
+
+Keep answers to a few short paragraphs. Use a compact list only when comparing multiple companies.`
+
+const ASSISTANT_TOOLS = [
+  {
+    name: 'search_prospects',
+    description: 'Search the prospect database by structured filters and/or a free-text term. Returns a trimmed list (id, company, city, state, category, priority, top_signal, key_certifications). Use this to find prospects matching criteria, then call get_prospect for detail. Results are capped; narrow with filters.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Free text matched (ILIKE) against company name and notes.' },
+        category: { type: 'string' },
+        priority: { type: 'string' },
+        corridor: { type: 'string' },
+        outreach_group: { type: 'string' },
+        medical_device_mfg: { type: 'string' },
+        prospect_status: { type: 'string' },
+        geography_tier: { type: 'string' },
+        limit: { type: 'integer', description: 'Default 25, max 50.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_prospect',
+    description: 'Get full context for one prospect by id: company profile, metrics, signals, ownership and relationship notes (including PSB connection notes), contacts, corporate links (parent/subsidiaries), and whether a research brief exists (with a short excerpt). For the full brief text, call get_research_brief.',
+    input_schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+  },
+  {
+    name: 'find_similar_prospects',
+    description: "Given a prospect id, return the most similar prospects by shared ontology entities (certifications, technologies, markets, equipment), with a similarity score and the shared entities. Use this to answer 'how does this compare to similar companies in our pipeline'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        prospect_id: { type: 'integer' },
+        limit: { type: 'integer', description: 'Default 5, max 15.' },
+      },
+      required: ['prospect_id'],
+    },
+  },
+  {
+    name: 'query_ontology',
+    description: "Find prospects matching capability criteria across the ontology. Provide any of: certifications, technologies, markets, ownership, equipment, quality_methods (each a list of strings), optionally scoped to a state. Returns matching companies with a match score, the matched criteria, and a one-line hook. Use for 'which prospects have X cert / serve Y vertical / run Z equipment'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        certifications: { type: 'array', items: { type: 'string' } },
+        technologies: { type: 'array', items: { type: 'string' } },
+        markets: { type: 'array', items: { type: 'string' } },
+        ownership: { type: 'array', items: { type: 'string' } },
+        equipment: { type: 'array', items: { type: 'string' } },
+        quality_methods: { type: 'array', items: { type: 'string' } },
+        state: { type: 'string' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_research_brief',
+    description: 'Return the full research-brief text for a prospect, if one exists. Call this only when the excerpt from get_prospect is not enough. Returns the brief content or a note that none exists.',
+    input_schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+  },
+]
+
+// search_prospects — mirrors the GET list arm's filter-building, with a trimmed
+// SELECT and an added free-text ILIKE. Uses sql.query(text, params) with $N
+// placeholders (the file's dynamic-WHERE convention).
+async function assistantSearchProspects(sql, input = {}) {
+  const conditions = []
+  const params = []
+  const add = (val) => { params.push(val); return `$${params.length}` }
+
+  if (input.search && String(input.search).trim()) {
+    const p = add(`%${String(input.search).trim()}%`)
+    conditions.push(`(company ILIKE ${p} OR notes ILIKE ${p})`)
+  }
+  if (input.outreach_group) conditions.push(`outreach_group = ${add(input.outreach_group)}`)
+  if (input.category) {
+    const c = buildCategoryCondition(String(input.category).trim(), params)
+    if (c) conditions.push(c)
+  }
+  if (input.priority) conditions.push(`priority = ${add(input.priority)}`)
+  if (input.prospect_status) conditions.push(`prospect_status = ${add(input.prospect_status)}`)
+  if (input.geography_tier) conditions.push(`geography_tier = ${add(input.geography_tier)}`)
+  if (input.medical_device_mfg) conditions.push(`medical_device_mfg LIKE 'Yes%'`)
+  if (input.corridor) {
+    // SYNC: corridor→states — mirrors the GET list arm, ProspectTable.jsx, corridors.js
+    const CORRIDOR_TO_STATES = {
+      'Great Lakes Auto': ['MI', 'OH', 'IN', 'IL', 'WI'],
+      'Northeast Tool': ['PA', 'NY', 'CT', 'NJ', 'MA', 'NH', 'VT', 'ME', 'RI', 'DC', 'DE', 'MD', 'WV'],
+      'Southeast Growth': ['NC', 'GA', 'FL', 'TN', 'SC', 'VA', 'AL', 'MS', 'KY'],
+      'Gulf / Resin Belt': ['TX', 'LA', 'OK', 'AR'],
+      'Upper Midwest Medical': ['MN'],
+      'West Coast': ['CA', 'OR', 'WA'],
+      'Mountain / Central': ['CO', 'AZ', 'UT', 'NV', 'NM', 'ID', 'MT', 'WY', 'ND', 'SD', 'NE', 'KS', 'IA', 'MO'],
+      'Non-Contiguous': ['AK', 'HI'],
+    }
+    const c = String(input.corridor).trim()
+    if (c === 'International') conditions.push(`(country IS NOT NULL AND country != 'US')`)
+    else if (c === 'Unknown') conditions.push(`((country IS NULL OR country = 'US') AND (state IS NULL OR state = ''))`)
+    else if (CORRIDOR_TO_STATES[c]) {
+      const ph = CORRIDOR_TO_STATES[c].map((s) => add(s)).join(',')
+      conditions.push(`((country IS NULL OR country = 'US') AND state IN (${ph}))`)
+    }
+  }
+
+  let limit = parseInt(input.limit, 10)
+  if (!Number.isFinite(limit) || limit <= 0) limit = 25
+  if (limit > 50) limit = 50
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const limitPh = add(limit)
+  const text = `
+    SELECT id, company, city, state, category, priority, top_signal, key_certifications,
+           signal_count, press_count, cwp_contacts, prospect_status, outreach_group
+    FROM prospect_companies
+    ${where}
+    ORDER BY signal_count DESC NULLS LAST, company ASC
+    LIMIT ${limitPh}
+  `
+  const rows = await sql.query(text, params)
+  return { count: rows.length, limit, results: rows }
+}
+
+// get_prospect — trimmed version of the export-json bundle: explicit columns
+// (never SELECT *), 1-hop typed corporate links, contacts, and a research-brief
+// flag + ~500-char excerpt.
+async function assistantGetProspect(sql, input = {}) {
+  const id = parseInt(input.id, 10)
+  if (!Number.isFinite(id)) return { error: 'A numeric prospect id is required.' }
+
+  const rows = await sql`
+    SELECT id, company, also_known_as, website, category, in_house_tooling, city, state, country,
+           priority, priority_score, ai_readiness, employees_approx, year_founded, years_in_business,
+           revenue_known, revenue_est_m, press_count, site_count, acquisition_count, signal_count,
+           top_signal, rjg_cavity_pressure, medical_device_mfg, key_certifications, ownership_type,
+           recent_ma, parent_company, parent_relationship_kind, financial_sponsor, former_names,
+           decision_location, cwp_contacts, psb_connection_notes, engagement_type, suggested_next_step,
+           legacy_data_potential, notes, outreach_group, prospect_status, created_at, updated_at,
+           (SELECT COUNT(*)::int FROM opportunities o WHERE o.source_prospect_id = prospect_companies.id) AS conversion_count
+    FROM prospect_companies
+    WHERE id = ${id}
+  `
+  if (!rows || rows.length === 0) return { error: `No prospect found with id ${id}.` }
+  const p = rows[0]
+
+  const TYPED_KINDS = ['subsidiary', 'absorbed_into']
+  const linked = []
+  const seen = new Set([p.id])
+  const pushLink = (row, relationship) => {
+    if (!row || seen.has(row.id) || linked.length >= 25) return
+    seen.add(row.id)
+    linked.push({ id: row.id, company: row.company, city: row.city, state: row.state, relationship })
+  }
+
+  if (p.company) {
+    const children = await sql`
+      SELECT id, company, city, state, parent_relationship_kind
+      FROM prospect_companies
+      WHERE LOWER(TRIM(parent_company)) = LOWER(TRIM(${p.company}))
+        AND parent_relationship_kind = ANY(${TYPED_KINDS})
+        AND id <> ${p.id}
+    `
+    for (const c of children) pushLink(c, c.parent_relationship_kind)
+  }
+  if (p.parent_company && TYPED_KINDS.includes(p.parent_relationship_kind)) {
+    const parents = await sql`
+      SELECT id, company, city, state
+      FROM prospect_companies
+      WHERE LOWER(TRIM(company)) = LOWER(TRIM(${p.parent_company})) AND id <> ${p.id}
+      LIMIT 1
+    `
+    if (parents[0]) pushLink(parents[0], 'parent')
+  }
+  if (Array.isArray(p.former_names) && p.former_names.length) {
+    const lowered = p.former_names.map((n) => String(n).trim().toLowerCase()).filter(Boolean)
+    if (lowered.length) {
+      const fnRows = await sql`
+        SELECT id, company, city, state
+        FROM prospect_companies
+        WHERE LOWER(TRIM(company)) = ANY(${lowered}) AND id <> ${p.id}
+      `
+      for (const f of fnRows) pushLink(f, 'former_name')
+    }
+  }
+
+  const contacts = await sql`
+    SELECT name, role, email, phone, notes, source, last_contacted
+    FROM prospect_contacts WHERE prospect_id = ${p.id} ORDER BY name ASC
+  `
+  const trimmedContacts = contacts.map((c) => ({
+    ...c,
+    notes: c.notes && c.notes.length > 200 ? c.notes.slice(0, 200) + '…' : c.notes,
+  }))
+
+  const briefRows = await sql`
+    SELECT content FROM prospect_attachments
+    WHERE prospect_id = ${p.id} AND attachment_type = 'research_brief'
+    ORDER BY created_at DESC LIMIT 1
+  `
+  const hasBrief = briefRows.length > 0 && !!briefRows[0].content
+  const briefExcerpt = hasBrief ? String(briefRows[0].content).slice(0, 500) : null
+
+  return {
+    company: p,
+    contacts: trimmedContacts,
+    linked_entities: linked,
+    has_research_brief: hasBrief,
+    brief_excerpt: briefExcerpt,
+  }
+}
+
+// find_similar_prospects — mirrors the ontology-similar arm.
+async function assistantFindSimilar(sql, input = {}) {
+  const prospectId = parseInt(input.prospect_id, 10)
+  if (!Number.isFinite(prospectId)) return { error: 'A numeric prospect_id is required.' }
+  let limit = parseInt(input.limit, 10)
+  if (!Number.isFinite(limit) || limit <= 0) limit = 5
+  if (limit > 15) limit = 15
+
+  const targetRows = await sql`SELECT id, company FROM prospect_companies WHERE id = ${prospectId}`
+  if (!targetRows.length) return { error: `No prospect found with id ${prospectId}.` }
+
+  const rows = await sql`
+    WITH target_entity AS (
+      SELECT id FROM ontology_entities WHERE prospect_company_id = ${prospectId} LIMIT 1
+    ),
+    target_edges AS (
+      SELECT r.object_entity_id, oe.name AS entity_name
+      FROM ontology_relationships r
+      JOIN target_entity te ON te.id = r.subject_entity_id
+      JOIN ontology_entities oe ON oe.id = r.object_entity_id
+    ),
+    other_companies AS (
+      SELECT ce.prospect_company_id,
+             COUNT(DISTINCT te.object_entity_id) AS shared_count,
+             ARRAY_AGG(DISTINCT te.entity_name) AS shared_entities
+      FROM ontology_relationships r
+      JOIN ontology_entities ce ON ce.id = r.subject_entity_id
+      JOIN ontology_entity_types cet ON cet.id = ce.type_id AND cet.name = 'Company'
+      JOIN target_edges te ON te.object_entity_id = r.object_entity_id
+      WHERE ce.prospect_company_id IS NOT NULL AND ce.prospect_company_id != ${prospectId}
+      GROUP BY ce.prospect_company_id
+    )
+    SELECT oc.prospect_company_id AS id, pc.company, pc.state, pc.city,
+           oc.shared_count, oc.shared_entities,
+           (SELECT COUNT(*)::int FROM target_edges) AS total_target_edges
+    FROM other_companies oc
+    JOIN prospect_companies pc ON pc.id = oc.prospect_company_id
+    ORDER BY oc.shared_count DESC
+    LIMIT ${limit}
+  `
+  const similar = rows.map((r) => ({
+    id: r.id,
+    company: r.company,
+    city: r.city,
+    state: r.state,
+    sharedEdges: r.shared_count,
+    sharedEntities: r.shared_entities,
+    similarity: r.total_target_edges ? Math.round((r.shared_count / r.total_target_edges) * 100) / 100 : 0,
+  }))
+  return { target: { id: targetRows[0].id, company: targetRows[0].company }, similar }
+}
+
+// query_ontology — mirrors the ontology-query arm (AND across categories, OR within).
+async function assistantQueryOntology(sql, input = {}) {
+  const CRITERIA_MAP = [
+    ['certifications', 'Certification'],
+    ['technologies', 'Technology / Software'],
+    ['markets', 'Market Vertical'],
+    ['ownership', 'Ownership Structure'],
+    ['equipment', 'Equipment Brand'],
+    ['quality_methods', 'Quality Method'],
+  ]
+  const criteria = {}
+  const allEntityNames = []
+  for (const [key, typeName] of CRITERIA_MAP) {
+    const vals = input[key]
+    let cleaned = []
+    if (Array.isArray(vals)) cleaned = vals.map((v) => String(v).trim()).filter(Boolean)
+    else if (typeof vals === 'string' && vals.trim()) cleaned = vals.split(',').map((v) => v.trim()).filter(Boolean)
+    if (cleaned.length) { criteria[typeName] = cleaned; allEntityNames.push(...cleaned) }
+  }
+  if (allEntityNames.length === 0) {
+    return { error: 'Provide at least one criterion: certifications, technologies, markets, ownership, equipment, or quality_methods.' }
+  }
+  const categoryCount = Object.keys(criteria).length
+
+  const state = input.state ? String(input.state).trim() : null
+  const params = [allEntityNames, categoryCount]
+  let stateClause = ''
+  if (state === 'INTL') stateClause = `WHERE pc.country IS NOT NULL AND pc.country != 'US'`
+  else if (state) { params.push(state); stateClause = `WHERE pc.state = $3` }
+
+  const text = `
+    WITH company_edges AS (
+      SELECT ce.prospect_company_id, et.name AS entity_type, oe.name AS entity_name
+      FROM ontology_relationships r
+      JOIN ontology_entities ce ON ce.id = r.subject_entity_id
+      JOIN ontology_entity_types cet ON cet.id = ce.type_id AND cet.name = 'Company'
+      JOIN ontology_entities oe ON oe.id = r.object_entity_id
+      JOIN ontology_entity_types et ON et.id = oe.type_id
+      WHERE ce.prospect_company_id IS NOT NULL AND oe.name = ANY($1)
+    ),
+    company_matches AS (
+      SELECT prospect_company_id,
+             COUNT(DISTINCT entity_name) AS match_count,
+             COUNT(DISTINCT entity_type) AS categories_matched,
+             ARRAY_AGG(DISTINCT entity_name) AS matched_edges
+      FROM company_edges
+      GROUP BY prospect_company_id
+      HAVING COUNT(DISTINCT entity_type) >= $2
+    )
+    SELECT cm.prospect_company_id, cm.match_count, cm.matched_edges,
+           pc.company, pc.state, pc.city
+    FROM company_matches cm
+    JOIN prospect_companies pc ON pc.id = cm.prospect_company_id
+    ${stateClause}
+    ORDER BY cm.match_count DESC, pc.signal_count DESC NULLS LAST
+    LIMIT 25
+  `
+  const rows = await sql.query(text, params)
+  const totalCriteria = allEntityNames.length
+  const results = rows.map((r) => ({
+    id: r.prospect_company_id,
+    company: r.company,
+    state: r.state,
+    city: r.city,
+    matchScore: totalCriteria ? Math.round((r.match_count / totalCriteria) * 100) / 100 : 0,
+    matchedEdges: r.matched_edges,
+    hookLine: (r.matched_edges || []).join(', '),
+  }))
+  return { count: results.length, criteria, results }
+}
+
+// get_research_brief — full brief content (token-capped) or a "none" note.
+async function assistantGetResearchBrief(sql, input = {}) {
+  const id = parseInt(input.id, 10)
+  if (!Number.isFinite(id)) return { error: 'A numeric prospect id is required.' }
+  const rows = await sql`
+    SELECT content, created_at, created_by FROM prospect_attachments
+    WHERE prospect_id = ${id} AND attachment_type = 'research_brief'
+    ORDER BY created_at DESC LIMIT 1
+  `
+  if (!rows.length || !rows[0].content) return { note: 'No research brief on file for this prospect.' }
+  const MAX = 8000
+  let content = String(rows[0].content)
+  let truncated = false
+  if (content.length > MAX) { content = content.slice(0, MAX); truncated = true }
+  return { content, truncated, created_at: rows[0].created_at, created_by: rows[0].created_by }
+}
+
+// Dispatch a tool_use block to its read-only executor.
+async function runAssistantTool(sql, name, input) {
+  switch (name) {
+    case 'search_prospects': return assistantSearchProspects(sql, input)
+    case 'get_prospect': return assistantGetProspect(sql, input)
+    case 'find_similar_prospects': return assistantFindSimilar(sql, input)
+    case 'query_ontology': return assistantQueryOntology(sql, input)
+    case 'get_research_brief': return assistantGetResearchBrief(sql, input)
+    default: return { error: `Unknown tool: ${name}` }
+  }
+}
+
 export default async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL)
   const { action, id } = req.query
@@ -3120,6 +3505,140 @@ export default async function handler(req, res) {
       } catch (error) {
         console.error('Error rebuilding ontology Layer 1:', error)
         return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Read-only reasoning assistant (Together.ai chat-completions tool-use loop) ───
+    // Answers questions about prospects, grounded entirely in data fetched
+    // through the five read-only tools above. No DB writes. Auth is already
+    // enforced by the file-level requireAuth guard at the top of the handler.
+    if (action === 'assistant') {
+      try {
+        const apiKey = process.env.TOGETHER_AI_API
+        if (!apiKey) {
+          console.error('Assistant: TOGETHER_AI_API is not configured')
+          return res.status(500).json({ error: 'The assistant is not configured.' })
+        }
+
+        const body = req.body || {}
+        const incoming = body.messages
+        if (!Array.isArray(incoming) || incoming.length === 0) {
+          return res.status(400).json({ error: 'messages must be a non-empty array.' })
+        }
+        for (const m of incoming) {
+          if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string') {
+            return res.status(400).json({ error: 'Each message must be { role: "user" | "assistant", content: string }.' })
+          }
+        }
+
+        // OpenAI-compatible: the system prompt is the first message (not a
+        // top-level field). Add the prospect-context line when launched from one.
+        let systemPrompt = ASSISTANT_SYSTEM
+        const prospectId = parseInt(body.prospectId, 10)
+        if (Number.isFinite(prospectId)) {
+          const ctxRows = await sql`SELECT company FROM prospect_companies WHERE id = ${prospectId}`
+          if (ctxRows.length) {
+            systemPrompt += `\n\nThe user is currently viewing prospect #${prospectId} (${ctxRows[0].company}). Treat that as the starting point unless they ask about something else.`
+          }
+        }
+
+        // System message + the visible conversation; tool round-trips appended server-side.
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          ...incoming.map((m) => ({ role: m.role, content: m.content })),
+        ]
+        // Map the neutral tool defs to OpenAI's function-tool shape (input_schema → parameters).
+        const openaiTools = ASSISTANT_TOOLS.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema },
+        }))
+        const toolsUsed = new Set()
+
+        const callModel = async ({ forceText = false } = {}) => {
+          const payload = {
+            model: ASSISTANT_MODEL,
+            max_tokens: ASSISTANT_MAX_TOKENS,
+            messages,
+            tools: openaiTools,
+            tool_choice: forceText ? 'none' : 'auto',
+          }
+          const r = await fetch(ASSISTANT_ENDPOINT, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          })
+          if (!r.ok) {
+            const detail = await r.text().catch(() => '')
+            console.error(`Assistant: Together API ${r.status}: ${detail.slice(0, 500)}`)
+            const err = new Error('llm_error')
+            err.isLlm = true
+            throw err
+          }
+          return r.json()
+        }
+
+        for (let turn = 0; turn < ASSISTANT_MAX_TURNS; turn++) {
+          const data = await callModel()
+          const choice = (data.choices && data.choices[0]) || {}
+          const message = choice.message || {}
+          const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : []
+
+          if (choice.finish_reason !== 'tool_calls' || toolCalls.length === 0) {
+            // stop / length / content_filter — terminal.
+            const answer = (message.content && message.content.trim()) || 'I was unable to produce an answer.'
+            return res.status(200).json({ answer, toolsUsed: [...toolsUsed] })
+          }
+
+          // Append the assistant turn (carries the tool_calls) before the tool results.
+          messages.push({ role: 'assistant', content: message.content ?? null, tool_calls: toolCalls })
+
+          // Run each tool call read-only; append one tool message per call.
+          for (const call of toolCalls) {
+            const fn = call.function || {}
+            toolsUsed.add(fn.name)
+            let resultStr
+            try {
+              let args = {}
+              if (fn.arguments) {
+                try { args = JSON.parse(fn.arguments) } catch { args = {} }
+              }
+              const result = await runAssistantTool(sql, fn.name, args)
+              resultStr = JSON.stringify(result)
+            } catch (toolErr) {
+              console.error(`Assistant tool ${fn.name} failed:`, toolErr)
+              resultStr = JSON.stringify({ error: 'The tool failed to run.' })
+            }
+            if (resultStr.length > ASSISTANT_TOOL_RESULT_CAP) {
+              resultStr = resultStr.slice(0, ASSISTANT_TOOL_RESULT_CAP) + '…(truncated)'
+            }
+            messages.push({ role: 'tool', tool_call_id: call.id, content: resultStr })
+          }
+        }
+
+        // Hit MAX_TURNS — one final no-tools call to force a text wrap-up.
+        try {
+          const data = await callModel({ forceText: true })
+          const message = (data.choices && data.choices[0] && data.choices[0].message) || {}
+          const answer = (message.content && message.content.trim()) || 'I gathered some information but ran out of reasoning steps before finishing.'
+          return res.status(200).json({
+            answer: answer + '\n\n_(Note: reached the reasoning-step limit.)_',
+            toolsUsed: [...toolsUsed],
+          })
+        } catch (finalErr) {
+          return res.status(200).json({
+            answer: 'I gathered some information but ran out of reasoning steps before finishing. Please try narrowing your question.',
+            toolsUsed: [...toolsUsed],
+          })
+        }
+      } catch (error) {
+        if (error && error.isLlm) {
+          return res.status(500).json({ error: 'The assistant is temporarily unavailable. Please try again.' })
+        }
+        console.error('Assistant error:', error)
+        return res.status(500).json({ error: 'Something went wrong while answering.' })
       }
     }
 

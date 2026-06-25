@@ -3,311 +3,102 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Implementation Notes — IEP Prospects (Arburg, Blue Moose) + Flex Technologies</title>
+<title>Implementation Notes — Read-Only Reasoning Assistant (Phase 1, Prompt 1)</title>
 <style>
-  :root { --navy:#041E42; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --amber:#b45309; --green:#15803d; }
-  body { font: 15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); max-width:920px; margin:2rem auto; padding:0 1.25rem; }
-  h1 { color:var(--navy); font-size:1.6rem; margin-bottom:.25rem; }
-  h2 { color:var(--navy); font-size:1.15rem; margin-top:2rem; border-bottom:2px solid var(--line); padding-bottom:.3rem; }
-  h3 { font-size:1rem; margin-top:1.25rem; }
-  code { background:#f3f4f6; padding:.1em .35em; border-radius:4px; font-size:.88em; }
-  table { border-collapse:collapse; width:100%; margin:.75rem 0; font-size:.9rem; }
-  th,td { border:1px solid var(--line); padding:.45rem .6rem; text-align:left; vertical-align:top; }
-  th { background:#f9fafb; }
-  .tag { display:inline-block; font-size:.72rem; font-weight:600; padding:.1em .5em; border-radius:999px; }
-  .done { background:#dcfce7; color:var(--green); }
-  .pending { background:#fef3c7; color:var(--amber); }
-  .muted { color:var(--muted); }
-  ul { margin:.4rem 0; }
-  .meta { color:var(--muted); font-size:.85rem; }
-  blockquote { border-left:4px solid var(--navy); background:#f8fafc; margin:.75rem 0; padding:.5rem .9rem; }
+  body { font: 15px/1.55 -apple-system, Segoe UI, Roboto, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; color: #1a2233; }
+  h1 { color: #041E42; font-size: 1.5rem; border-bottom: 3px solid #041E42; padding-bottom: .4rem; }
+  h2 { color: #041E42; font-size: 1.15rem; margin-top: 1.8rem; }
+  h3 { font-size: 1rem; margin-top: 1.2rem; color: #2563EB; }
+  code { background: #f1f3f7; padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
+  pre { background: #0f172a; color: #e2e8f0; padding: .8rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .85em; }
+  .tag { display: inline-block; font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; vertical-align: middle; }
+  .decision { background: #dbeafe; color: #1e40af; }
+  .deviation { background: #fef3c7; color: #92400e; }
+  .tradeoff { background: #e0e7ff; color: #3730a3; }
+  .open { background: #fee2e2; color: #991b1b; }
+  table { border-collapse: collapse; width: 100%; margin: .6rem 0; }
+  th, td { border: 1px solid #d1d8e3; padding: .4rem .6rem; text-align: left; font-size: .9em; vertical-align: top; }
+  th { background: #eef2f8; }
+  .muted { color: #64748b; }
+  ul { margin: .4rem 0; }
 </style>
 </head>
 <body>
 
-<h1>Add two IEP-conference prospects to <code>prospect_companies</code></h1>
-<p class="meta">Branch <code>claude/cool-keller-rp2a72</code> · data task, <strong>no application code changed</strong> · last updated 2026-06-24</p>
+<h1>Read-Only Reasoning Assistant — Backend (Phase 1, Prompt 1)</h1>
+<p class="muted">Branch <code>claude/loving-allen-ubj6j4</code>. Endpoint <code>POST /api/prospects?action=assistant</code>. One new <code>?action=</code> arm + module-scope helpers in <code>api/prospects.js</code>. No new files, no schema changes, no DB writes, no SDK. Grounded in <code>tasks/agent-phase1-findings.md</code>.</p>
 
-<p><strong>Goal.</strong> At the IEP conference (June 17–18, 2026) Kyle met <strong>Arburg, Inc.</strong> and
-<strong>Blue Moose Descaling</strong>, both already sent intro emails. They didn't exist as prospect records,
-so they couldn't be promoted into the Kanban pipeline. This work creates the two <code>prospect_companies</code>
-rows (+ a contact each) so Kyle can promote them himself via the existing "Add to Pipeline" UI. Both are
-non-converter ecosystem/partner contacts and are deliberately kept <strong>off the converter readiness rubric</strong>.</p>
+<p style="background:#fef3c7;border-left:4px solid #d97706;padding:.6rem .9rem;border-radius:6px;"><strong>Update — provider switched to Together.ai.</strong> Originally built against the Anthropic Messages API; mid-task Kyle switched the assistant to <strong>Together.ai</strong> (OpenAI-compatible chat completions) and chose model <code>deepseek-ai/DeepSeek-V3</code>. Env var is <code>TOGETHER_AI_API</code> (already set in Vercel Preview). The five SQL tool executors were unchanged — only the LLM plumbing (request/response shape, tool format, system-prompt placement, auth header) was converted. Details in the provider decision below.</p>
 
-<h2>What was built (deliverables)</h2>
+<h2>What was built</h2>
 <ul>
-  <li><code>scripts/add-iep-prospects.sql</code> — idempotent + transactional insert (Neon SQL Editor path; no setup, no egress dependency). <span class="tag done">written + validated</span></li>
-  <li><code>scripts/add-iep-prospects.mjs</code> — same inserts via the <code>@neondatabase/serverless</code> HTTP driver (the path that uses the DB access being set up), with a dependency-free <code>--dry-run</code>. <span class="tag done">written + validated</span></li>
-  <li><code>implementation-notes.html</code> (this file) and <code>tasks/todo.md</code>. <span class="tag done">written</span></li>
-  <li><code>CLAUDE.md</code> — durable note recording the two rows + classification. <span class="tag done">written</span></li>
-  <li><strong>Live insert into Neon</strong> — runs in a new session (DB access applies to new sessions only) or via the Neon SQL Editor. <span class="tag pending">pending</span></li>
+  <li>A module-scope block (just above the handler in <code>api/prospects.js</code>): constants (<code>ASSISTANT_MODEL = 'claude-sonnet-4-6'</code>, <code>ASSISTANT_MAX_TURNS = 8</code>, <code>ASSISTANT_MAX_TOKENS = 2048</code>), the <code>ASSISTANT_SYSTEM</code> prompt (verbatim from spec), the <code>ASSISTANT_TOOLS</code> array (5 tools, verbatim), five <strong>SELECT-only</strong> executors, and a <code>runAssistantTool</code> dispatcher.</li>
+  <li>A <code>POST ?action=assistant</code> arm inserted in the POST block, immediately after <code>rebuild-ontology-layer1</code>. It validates the body, builds the system prompt (+ prospect-context line), runs the Anthropic Messages API tool-use loop via plain <code>fetch</code>, and returns <code>{ answer, toolsUsed }</code>.</li>
 </ul>
 
-<h2>The two rows</h2>
+<h2>Contract (matches Prompt 2)</h2>
+<pre>POST /api/prospects?action=assistant   (Authorization: Bearer &lt;session_token&gt;)
+body:  { messages: [{ role: "user"|"assistant", content: "..." }], prospectId: 123 | null }
+200:   { answer: "...markdown...", toolsUsed: ["search_prospects", ...] }
+400 malformed body · 401 auth (requireAuth) · 500 safe message (never leaks key/stack)</pre>
+
+<h2>Key decisions</h2>
+
+<h3><span class="tag decision">DECISION</span> Auth: no new code — the file-level guard already covers it</h3>
+<p>Recon found <code>api/prospects.js:861-864</code> runs <code>requireAuth</code> for <em>every</em> action except <code>GET daily-digest</code>. A new POST action is therefore auth-gated automatically. Adding a second <code>requireAuth</code> call inside the arm would be redundant (and the <code>authUser</code> from the file-level call is block-scoped, so it isn't reachable here anyway — and Prompt 1 needs no DB writes, so no attribution is required).</p>
+
+<h3><span class="tag decision">DECISION</span> Provider: Together.ai (OpenAI-compatible), model <code>deepseek-ai/DeepSeek-V3</code></h3>
+<p>Plain <code>fetch</code> to <code>https://api.together.xyz/v1/chat/completions</code> with <code>Authorization: Bearer ${TOGETHER_AI_API}</code> (house style; the Resend call at <code>~1062</code> is the fetch template). OpenAI-compatible shape: the system prompt is the first <code>messages</code> entry (not a top-level field); tools are mapped to <code>{type:'function', function:{name, description, parameters}}</code> at call time (the neutral defs keep <code>input_schema</code>, mapped to <code>parameters</code>); tool calls return on <code>choices[0].message.tool_calls</code> with <code>finish_reason === 'tool_calls'</code>; each result goes back as a separate <code>{role:'tool', tool_call_id, content}</code> message; <code>arguments</code> arrive as a JSON string and are <code>JSON.parse</code>d (guarded). No SDK, no streaming (single JSON response). The five SQL executors are provider-agnostic — unchanged by the switch; only <code>callModel</code> + the endpoint/model/auth constants changed.</p>
+
+<h3><span class="tag decision">DECISION</span> Tool SELECTs mirror existing arms verbatim</h3>
 <table>
-  <tr><th>Field</th><th>Arburg, Inc.</th><th>Blue Moose Descaling</th></tr>
-  <tr><td>category</td><td>Strategic Partner</td><td>Ecosystem</td></tr>
-  <tr><td>outreach_group</td><td>Infrastructure</td><td>Infrastructure</td></tr>
-  <tr><td>prospect_status</td><td>Outreach Ready</td><td>Outreach Ready</td></tr>
-  <tr><td>city / state</td><td>Rocky Hill / CT</td><td>Charlotte / NC</td></tr>
-  <tr><td>decision_location</td><td>Rocky Hill, CT</td><td>Charlotte, NC</td></tr>
-  <tr><td>signal_count</td><td>0</td><td>0</td></tr>
-  <tr><td>priority / priority_manual</td><td>STRATEGIC PARTNER</td><td>WATCH</td></tr>
-  <tr><td>ownership_type</td><td>Private</td><td>Private</td></tr>
-  <tr><td>parent_company / kind</td><td>ARBURG GmbH + Co KG / <code>subsidiary</code></td><td>—</td></tr>
-  <tr><td>website</td><td>arburg.com/en/us</td><td><em>null</em> (none found — open question)</td></tr>
-  <tr><td>contact</td><td>Joshua Castonguay</td><td>Kip Petrykowski</td></tr>
+  <tr><th>Tool</th><th>Mirrors</th><th>Shape returned</th></tr>
+  <tr><td><code>search_prospects</code></td><td>GET list arm (<code>~2915–3043</code>), <code>sql.query(text,$N)</code></td><td>trimmed rows (id, company, city, state, category, priority, top_signal, key_certifications, signal_count, press_count, cwp_contacts, status, group). LIMIT min(limit||25, 50).</td></tr>
+  <tr><td><code>get_prospect</code></td><td><code>export-json</code> bundle (<code>~2450+</code>), trimmed</td><td>explicit columns (never <code>SELECT *</code>) + conversion_count; 1-hop typed corporate links; contacts; <code>has_research_brief</code> + ~500-char <code>brief_excerpt</code>.</td></tr>
+  <tr><td><code>find_similar_prospects</code></td><td><code>ontology-similar</code> (<code>~1887–1963</code>)</td><td><code>{ target, similar[] }</code> (id, company, city, state, sharedEdges, sharedEntities, similarity). LIMIT min(limit||5, 15).</td></tr>
+  <tr><td><code>query_ontology</code></td><td><code>ontology-query</code> (<code>~1784–1879</code>)</td><td><code>{ results[], criteria }</code>; AND across categories, OR within; LIMIT 25.</td></tr>
+  <tr><td><code>get_research_brief</code></td><td><code>prospect_attachments</code> where <code>attachment_type='research_brief'</code></td><td>full content capped ~8000 chars, or a "none on file" note.</td></tr>
 </table>
 
-<h2>Design decisions</h2>
-<h3>Scoring exemption via <code>outreach_group = 'Infrastructure'</code></h3>
-<p>The server scorer (<code>api/prospects.js</code>, mirrored in <code>src/utils/priorityScore.js</code>) exempts a
-prospect from the converter rubric when <code>outreach_group === 'Infrastructure'</code> <em>or</em> <code>category &isin;
-{Knowledge Sector, Hot Runner Systems, Catalog/Standards, Strategic Partner}</code> → <code>priority_score = NULL</code>,
-<code>ai_readiness = 'exempt'</code>. Both rows use <code>outreach_group='Infrastructure'</code> — the prospects-side home of
-the other equipment/infrastructure players (RJG, DME, Husky, Mold-Masters, Beaumont). This is the only mechanism
-that keeps them unscored, which the brief required.</p>
-
-<h3>Category labels (confirmed with Kyle)</h3>
-<p>Arburg → <strong>Strategic Partner</strong>; Blue Moose → <strong>Ecosystem</strong>. Both are
-<strong>existing</strong> category values, so <strong>no code changed</strong>. (<code>category</code> is free TEXT, not an
-enum/CHECK — a brand-new value would have been safe too, falling to the <code>'Other'</code> parent group, but existing
-values keep filters/legend grouping clean. <code>'Strategic Partner'</code> is itself an exempt category; <code>'Ecosystem'</code>
-maps to the existing <code>'Ecosystem/Channel'</code> parent group.)</p>
-
-<h3><code>prospect_status = 'Outreach Ready'</code></h3>
-<p>The "Add to Pipeline" promote button only appears when status is <code>'Outreach Ready'</code> or <code>'Converted'</code>.
-Since the whole point is for Kyle to promote them, both rows are seeded at <code>'Outreach Ready'</code> (accurate — intro
-emails already sent), rather than the default <code>'Identified'</code>.</p>
-
-<h3>No inflated signals</h3>
-<p><code>signal_count = 0</code> for both — they are partner/ecosystem contacts, not converters; the value is captured in
-<code>category</code> + <code>notes</code>, never an invented signal score.</p>
-
-<h2>Deviations from the brief</h2>
-<blockquote>
-<p><strong>"Kistler is already in the system tagged PARTNER" — not as a prospect row.</strong> A full-repo scan found
-no <code>prospect_companies</code> row for Kistler; it appears only in docs, <code>CLAUDE.md</code>, and cavity-pressure
-logic. "Tagged PARTNER" refers to the <em>opportunities</em> side (<code>lead_type='partner'</code>). On the
-<em>prospects</em> side, the real precedent for an equipment/infrastructure partner is the <strong>Infrastructure
-outreach_group</strong> — that's what Arburg mirrors. (Net effect is the same intent the brief asked for.)</p>
-</blockquote>
-<blockquote>
-<p><strong>I did not perform the live insert myself this session.</strong> This sandbox had no <code>DATABASE_URL</code>
-and the egress proxy blocks raw-TCP Postgres; Neon was also not in the allowlist (egress test returned 403). DB access
-was configured as an env-secret, which applies only to a <em>new</em> session. So the deliverable is two validated,
-runnable scripts; the live run happens in a fresh session (or via the Neon SQL Editor). The SQL was instead validated
-end-to-end against a throwaway local Postgres 16 (see Verification).</p>
-</blockquote>
-
-<h2>Tradeoffs &amp; judgment calls</h2>
+<h3><span class="tag decision">DECISION</span> Tool-use loop &amp; cap behaviour</h3>
 <ul>
-  <li><strong>Execution channel.</strong> A SQL script (Neon SQL Editor) is the guaranteed, zero-dependency path; the
-  Node/HTTP-driver script is what leverages the DB access being set up and lets me run + verify directly. Both produce
-  identical data and are idempotent; both are committed. The deployed API single-create path was rejected because it
-  cannot set <code>prospect_status</code> or <code>parent_relationship_kind</code> (so it couldn't make the rows promotable).</li>
-  <li><strong>Infrastructure group for a micro vendor.</strong> Blue Moose is an ecosystem/relationship contact, not
-  "infrastructure" in the RJG/Husky sense — but Infrastructure is the system's lever for "don't score as a converter."
-  Category <code>'Ecosystem'</code> carries the honest label; <code>outreach_group='Infrastructure'</code> carries the
-  exemption. (Open to revisiting — see Open Questions.)</li>
-  <li><strong><code>ownership_type = 'Private'</code> for Arburg</strong> (vs. "Family/Founder-Owned"). Both are accurate
-  (Hehl &amp; Keinath family), but "Family/Founder-Owned" + 30+ years would trigger the table's family-succession urgency
-  icon — misleading for a stable German Mittelstand parent. "Private" keeps indicators quiet; family ownership is in <code>notes</code>.</li>
-  <li><strong><code>key_certifications</code> left null.</strong> Arburg is "ISO-certified across quality/environment/energy"
-  but the specific standards are unconfirmed. Per the brief's "leave null rather than guess," the column is null (so the
-  ontology doesn't generate guessed Certification entities); the ISO note lives in <code>notes</code>.</li>
-  <li><strong>US-entity vs. parent metrics.</strong> The row is "Arburg, Inc." (US subsidiary): <code>year_founded=1990</code>
-  (US entity), <code>employees</code>/<code>revenue</code> left null (US-entity figures unknown). Parent scale (~3,000–3,400
-  staff, ~&euro;750M, founded 1923) is recorded in <code>notes</code>, not conflated into the US row's metric columns.</li>
-  <li><strong><code>parent_relationship_kind='subsidiary'</code>.</strong> Generates a clean <code>subsidiary_of</code>
-  ontology edge to the German parent. With only one child and no parent prospect row, it does <em>not</em> create a parent
-  grouping in the table (per the grouping rules), so no visual surprise.</li>
+  <li><code>stop_reason === 'tool_use'</code> → append the assistant turn verbatim (carries <code>tool_use</code> blocks), run each tool read-only, append a single user turn of <code>tool_result</code> blocks, loop.</li>
+  <li>Terminal (<code>end_turn</code> / <code>max_tokens</code> / <code>stop_sequence</code> / <code>refusal</code>) → join <code>text</code> blocks into <code>answer</code>; <code>refusal</code> returns a canned safe line.</li>
+  <li>On the MAX_TURNS cap, one final call with <code>tool_choice: {type:'none'}</code> forces a text wrap-up (tools stay in the payload so the prior tool turns in history remain valid), returning the best answer + a "(reached the reasoning-step limit.)" note.</li>
+  <li>Failed tool → <code>tool_result</code> with <code>is_error:true</code> and a safe <code>{error}</code> (never a raw stack). Each stringified tool_result is hard-capped at 12000 chars as a backstop on top of the per-tool bounds.</li>
 </ul>
 
-<h2>Ontology Layer-1</h2>
-<p>Layer-1 derivation is <strong>application-level only</strong> (it runs inside the API handlers — there is no DB trigger),
-so a raw SQL/HTTP insert does <strong>not</strong> auto-generate ontology nodes. This is documented, not a bug. After the
-rows exist, regenerate via <code>POST /api/prospects?action=rebuild-ontology-layer1</code> (authenticated), or simply edit
-any ontology field on each row (a PATCH fires <code>rebuildOntologyForProspect</code>). For these light-data rows the only
-edges are Arburg → <code>subsidiary_of</code> → ARBURG GmbH + Co KG and the two ownership-structure edges — non-critical;
-they'll also appear on the next bulk import/rebuild.</p>
-
-<h2>Verification</h2>
-<h3>Done this session</h3>
+<h2>Deviations from spec (small, intentional)</h2>
 <ul>
-  <li><span class="tag done">PASS</span> <code>node --check</code> + <code>node scripts/add-iep-prospects.mjs --dry-run</code>
-  — script loads, values correct, sanity check confirms no apostrophes (so the SQL strings are safe).</li>
-  <li><span class="tag done">PASS</span> End-to-end against a throwaway <strong>local Postgres 16</strong>: applied the base
-  table (<code>create-prospect-table.sql</code>) only, then ran <code>add-iep-prospects.sql</code>. The script's
-  <code>ADD COLUMN IF NOT EXISTS</code> guards added the prod-only columns; both prospects + both contacts inserted with the
-  intended values. <strong>Re-running it kept the counts at 2/2</strong> (idempotency confirmed — only "already exists,
-  skipping" notices on the guards).</li>
-</ul>
-<h3>Pending (new session with DB access, or Neon SQL Editor)</h3>
-<ul>
-  <li><span class="tag pending">TODO</span> Run the live insert; confirm both rows exist with correct state/category/status.</li>
-  <li><span class="tag pending">TODO</span> Confirm they appear in the Prospects list/filters; National Map (CT, NC) and the
-  category legend still render; the promote path is intact (status shows the button — <em>confirm only, do not promote</em>).</li>
-  <li><span class="tag pending">TODO</span> Trigger the ontology Layer-1 rebuild.</li>
+  <li><span class="tag deviation">DEVIATION</span> <strong>MAX_TURNS wrap-up uses <code>tool_choice:{type:'none'}</code> instead of omitting <code>tools</code>.</strong> The spec said "one final call with <code>tools</code> omitted." Omitting <code>tools</code> while the message history still contains <code>tool_use</code>/<code>tool_result</code> blocks risks an API validation error; keeping <code>tools</code> present and forcing <code>tool_choice:none</code> achieves the same "must produce text" outcome safely. Same observable behaviour.</li>
+  <li><span class="tag deviation">DEVIATION</span> <strong><code>search_prospects</code> free-text matches <code>company</code> + <code>notes</code> only</strong> (per the tool description), not the wider client-side search field set. Kept narrow to match what the model is told the tool does.</li>
 </ul>
 
-<h2>How to run</h2>
-<ol>
-  <li><strong>New Claude session</strong> (DB access applies to new sessions): I run
-  <code>NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt node scripts/add-iep-prospects.mjs</code>,
-  then verify + trigger the ontology rebuild. <em>Or</em></li>
-  <li><strong>Neon SQL Editor</strong> (anytime, no setup): paste <code>scripts/add-iep-prospects.sql</code> and run; then
-  run the verification SELECTs at the bottom of the file.</li>
-  <li><strong>Then Kyle</strong> promotes each prospect into the pipeline via the existing UI (manual — intentionally out of scope here).</li>
-</ol>
-
-<h2>Open questions for Kyle</h2>
+<h2>Tradeoffs</h2>
 <ul>
-  <li><strong>Blue Moose website</strong> — none found (minimal web footprint, essentially the principal's LinkedIn). Left null. Confirm if you have a URL.</li>
-  <li><strong>Joshua Castonguay's title</strong> at Arburg — captured as "confirm title" in the contact note.</li>
-  <li><strong>Kip Petrykowski's current affiliation</strong> — LinkedIn suggests he recently joined <strong>Shibaura Machine</strong>
-  (Regional Sales Manager, Southeast) while his profile still lists Blue Moose. Recorded as a caveat; please confirm whether the
-  primary contact is now via Shibaura (which could be its own equipment-OEM relationship).</li>
-  <li><strong>Blue Moose in the Infrastructure group</strong> — used purely as the scoring-exemption lever. If you'd rather it not
-  sit alongside RJG/Husky in that group filter, say so and we can use an exempt <em>category</em> instead.</li>
+  <li><span class="tag tradeoff">TRADEOFF</span> <code>get_prospect</code> returns the full company row (explicit columns), which is verbose, vs. a hand-picked few. Chose completeness because the assistant's job is sizing-up/comparison and the row is bounded; the brief is excerpted (500 chars) and contact notes capped (200 chars) to control tokens.</li>
+  <li><span class="tag tradeoff">TRADEOFF</span> Single JSON response, no streaming. Simpler, and it matches the serverless "await everything before <code>res.end()</code>" rule. A typing indicator on the client covers the wait (Prompt 2).</li>
+  <li><span class="tag tradeoff">TRADEOFF</span> <code>ontology-neighborhood</code> is deliberately <em>not</em> a tool — it needs an <code>ontology_entities</code> id, not a prospect id. <code>find_similar_prospects</code> covers prospect-centric comparison directly.</li>
 </ul>
 
-<hr style="margin:3rem 0 0; border:none; border-top:3px double var(--navy);">
-
-<h1 style="margin-top:2rem;">FOLLOW-UP — Add <code>Flex Technologies, Inc.</code> (a scored converter)</h1>
-<p class="meta">Branch <code>claude/sharp-tesla-zp41y6</code> · data task, <strong>no application code changed</strong> · <strong>executed live 2026-06-24</strong> · row <code>id 952</code></p>
-
-<p><strong>Goal.</strong> A third IEP-conference prospect, independent of Arburg/Blue Moose. Unlike those two
-(non-converter, scoring-exempt Infrastructure rows), <strong>Flex is a genuine client prospect — a vertically
-integrated converter with in-house tooling — and gets a REAL readiness score.</strong> Create one
-<code>prospect_companies</code> row (+ its conference/PoC contacts) so Kyle can promote it into <em>Outreach</em>
-via the existing UI. Intro email already sent (Brett cleared Flex for send).</p>
-
-<h2>What was built (deliverables)</h2>
+<h2>Verification done here (read-only / offline)</h2>
 <ul>
-  <li><code>scripts/add-flex-prospect.mjs</code> — idempotent + transactional insert via the <code>@neondatabase/serverless</code> HTTP driver, with <code>--dry-run</code>. <strong>Imports <code>src/utils/priorityScore.js</code> and computes the score in-script</strong> (the canonical scoring source — a pure UI util, not a server action), so <code>priority_score</code>/<code>ai_readiness</code> match the app exactly. <span class="tag done">written + run live</span></li>
-  <li>This section of <code>implementation-notes.html</code> + the Flex block in <code>tasks/todo.md</code>. <span class="tag done">written</span></li>
-  <li><strong>Live insert into Neon</strong> — Flex (id 952) + 5 contacts. <span class="tag done">done + verified</span></li>
-  <li>Ontology Layer-1 regeneration. <span class="tag pending">pending (shared rebuild — see below)</span></li>
+  <li><code>node --check api/prospects.js</code> → <strong>SYNTAX OK</strong>.</li>
+  <li><code>npm run build</code> → <strong>built</strong> (frontend untouched; chunk-size warning is pre-existing).</li>
+  <li>Read-only SQL smoke test against the live <code>DATABASE_URL</code> — all five tool queries execute and return correctly-shaped data: <code>search_prospects</code> (10 rows, all columns resolve), <code>get_prospect</code> (43 cols + conversion_count, link/contact/brief sub-queries run), <code>find_similar</code> (real shared ontology entities), <code>query_ontology</code> "ISO 13485" (25 medical molders), <code>get_research_brief</code> (correct "none" path).</li>
 </ul>
+<p class="muted">Note: I ran <code>npm ci</code> to materialise the existing lockfile-pinned dependencies so the build and DB smoke test could run. No new dependency was added (the feature uses native <code>fetch</code>); <code>node_modules</code> is gitignored.</p>
 
-<h2>The row</h2>
-<table>
-  <tr><th>Column</th><th>Value</th><th>Note</th></tr>
-  <tr><td>company / also_known_as</td><td>Flex Technologies, Inc. / Flex Plastics, Inc.</td><td>FKA = original 1975 name (name change, not absorption)</td></tr>
-  <tr><td>category</td><td><strong>Converter + In-House Tooling</strong></td><td>existing value, matched exactly; <strong>not</strong> an exempt category</td></tr>
-  <tr><td>city / state / country</td><td>Midvale / OH / US</td><td>HQ + decision in OH (also operates in TN)</td></tr>
-  <tr><td>outreach_group</td><td><strong>Time-Sensitive</strong></td><td>founder-succession window; deliberately NOT Infrastructure (that = exempt)</td></tr>
-  <tr><td>prospect_status</td><td>Outreach Ready</td><td>intro email sent → promote button shows</td></tr>
-  <tr><td>signal_count / site_count</td><td>5 / 5</td><td>5 distinct signals (below); ~5 US sites</td></tr>
-  <tr><td>in_house_tooling</td><td>Yes</td><td>CNC mill/lathe/EDM, prototype+production tooling, 3D printing</td></tr>
-  <tr><td>key_certifications</td><td>ISO 9001, IATF 16949:2016</td><td>automotive; Polyflex REACH/RoHS noted in <code>notes</code></td></tr>
-  <tr><td>ownership_type</td><td>Family/Founder</td><td>founder-built (Burket family/estate); matches the converter cohort convention</td></tr>
-  <tr><td>medical_device_mfg / rjg_cavity_pressure</td><td>No / <strong>Unknown</strong></td><td>medical minor; RJG NOT confirmed (open question)</td></tr>
-  <tr><td>year_founded / years_in_business</td><td>1975 / 50</td><td>50-year mark 2025</td></tr>
-  <tr><td>employees_approx / revenue_est_m / press_count</td><td>50 / 30 / <em>null</em></td><td>directory estimate; ~$30M est.; press count unknown</td></tr>
-  <tr><td>priority_score / ai_readiness</td><td><strong>32 / green</strong></td><td>computed (not 0/null) — the point of difference vs. Arburg/Blue Moose</td></tr>
-  <tr><td>priority / priority_manual</td><td><strong>HIGH PRIORITY</strong> / HIGH PRIORITY</td><td>human override (task said Priority HIGH) — see Scoring</td></tr>
-</table>
-
-<h2>Scoring — the convention I matched (and one divergence)</h2>
-
-<h3><code>signal_count</code> is a count, not the score</h3>
-<p>The brief framed <code>signal_count</code> as the "readiness score," but in the live data it's a small integer
-(<strong>0–9</strong>) counting <em>distinct positive signals</em>; the real readiness is the computed
-<code>priority_score</code> (0–100) + <code>ai_readiness</code>. <strong>Plastikos itself is a poor template</strong> —
-its row is sparse (<code>signal_count = null</code>, <code>priority_score = 10</code>), so I mirrored the richly-filled
-<strong>Converter + In-House Tooling cohort</strong> instead (Nolato 72, Technimark 66, Weiss-Aug/Accumold/HTI 60…).
-Notable: <strong>no converter in the DB exceeds 72</strong> — see the divergence below. Flex carries
-<strong>5</strong> distinct signals, so <code>signal_count = 5</code> (Signal-Density dimension → 6 pts):</p>
+<h2>Not verifiable here — the live checkpoint (needs Kyle + Vercel preview)</h2>
 <ul>
-  <li>in-house tooling + molding <span class="muted">[highest]</span></li>
-  <li>50-year legacy mold/process/formulation library <span class="muted">[highest]</span></li>
-  <li>founder succession — Glenn Burket led ~50 yrs, died Nov 2024; knowledge-capture window open now <span class="muted">[highest, time-sensitive]</span></li>
-  <li>active tech investment — new CNC mold-making, 3D printing, engineering hires <span class="muted">[high]</span></li>
-  <li>multi-process / multi-site complexity across 5 sites <span class="muted">[high]</span></li>
-  <li><strong>RJG / cavity-pressure NOT credited</strong> — unconfirmed (captured as a discovery question, not a signal)</li>
-</ul>
-
-<h3>Computed breakdown → 32</h3>
-<table>
-  <tr><th>Dimension</th><th>Pts</th><th>Why</th></tr>
-  <tr><td>Scale</td><td>7</td><td>no press_count → employees fallback (~50)</td></tr>
-  <tr><td>Relationship warmth</td><td>0</td><td>no CWP contacts / no PSB notes</td></tr>
-  <tr><td>Ownership urgency</td><td>8</td><td>Family/Founder + 30+ years (50)</td></tr>
-  <tr><td>Strategic vertical</td><td>8</td><td>automotive (IATF 16949)</td></tr>
-  <tr><td>Signal density</td><td>6</td><td>signal_count 5</td></tr>
-  <tr><td>Technology</td><td>3</td><td>in-house tooling (+3); RJG unknown (+0)</td></tr>
-  <tr><th>Total</th><th>32</th><th>tier = WATCH; ai_readiness = green (Tooling + ISO + Automotive)</th></tr>
-</table>
-
-<h3>The divergence: computed WATCH vs. requested HIGH</h3>
-<blockquote>
-<p>The brief's data table says <strong>Priority: HIGH</strong>, but the formula yields <strong>32 → WATCH</strong>. The
-gap is structural, not a weakness of Flex: <strong>half the model is Scale (25) + Warmth (25)</strong>, and both are
-near-empty here — we have <strong>no confirmed press count</strong> and <strong>zero PSB/CWP warmth</strong> (a cold
-conference handshake). The entire converter cohort tops out at 72, so the computed <em>HIGH PRIORITY</em> tier (≥75) is
-effectively unreachable by formula. I honored the brief by setting <code>priority</code> <em>and</em>
-<code>priority_manual</code> to <strong>HIGH PRIORITY</strong> — the system's documented manual-override mechanism (and the
-same set-both pattern used for the Arburg/Blue Moose rows), so future recalcs preserve it. <code>priority_score</code>
-stays the honest computed <strong>32</strong> and <code>ai_readiness</code> the honest <strong>green</strong>.
-<strong>Confirming a press count and/or any PSB contact would lift the computed score materially</strong> (e.g. 20+
-presses = +8–13 scale; a few CWP = +7–12 warmth).</p>
-</blockquote>
-
-<h2>Other judgment calls</h2>
-<ul>
-  <li><strong><code>outreach_group = 'Time-Sensitive'</code>.</strong> The founder-succession window (Burket, Nov 2024) is
-  exactly what that group models (cf. Currier/Allegheny PE windows). It does <strong>not</strong> affect the score (only
-  <code>Infrastructure</code> exempts). Easily changed in the UI if Kyle prefers Group 1/2.</li>
-  <li><strong><code>ownership_type = 'Family/Founder'</code></strong> (not bare "Private"). Matches the 12-row converter
-  cohort convention, earns the family-succession urgency points + table icon, and is accurate (founder-built, Burket
-  family/estate). Honest given the open succession.</li>
-  <li><strong><code>recent_ma</code> left null.</strong> Flex is independent; the founder's death is succession, not M&amp;A —
-  recording it in <code>recent_ma</code> would be semantically wrong (and wouldn't add urgency points anyway). Captured in <code>notes</code>.</li>
-  <li><strong><code>press_count</code> left null.</strong> They run 85–440-ton presses across sites but no count is public; per "leave null rather than guess." This is the single biggest lever on the computed score (see above).</li>
-</ul>
-
-<h2>The one open discovery question (RJG / cavity-pressure)</h2>
-<blockquote>
-<p>No public evidence of RJG / Kistler / cavity-pressure monitoring or scientific molding, so
-<code>rjg_cavity_pressure = 'Unknown'</code> and it is <strong>not credited</strong> in the score.
-<strong>Discovery ask:</strong> confirm whether Flex runs in-mold pressure/process monitoring. If they do
-<em>without</em> an AI layer, this becomes a clean "RJG without AI" entry — and bumps Technology +7 (→ 10).</p>
-</blockquote>
-
-<h2>Contacts (5 added; founder deliberately excluded)</h2>
-<p>Added to <code>prospect_contacts</code> for id 952: <strong>Scott Cecil, Caden Haynes, Jacoby Jackson,
-Brandon Nisewonger</strong> (conference reps, paid roster) and <strong>Francie Williams</strong> (Sales Manager,
-public PoC). <strong>Glenn E. Burket is deliberately NOT added</strong> — founder/president, died early Nov 2024
-(some directories still list him). Current post-Burket top leadership is unconfirmed (noted in <code>notes</code>).</p>
-
-<h2>Ontology Layer-1</h2>
-<p>Same as the prior rows: Layer-1 derivation is <strong>application-level only</strong>, so the raw insert did not
-auto-generate ontology nodes. <strong>One rebuild now covers all three IEP rows</strong> (Arburg + Blue Moose + Flex):
-<code>POST /api/prospects?action=rebuild-ontology-layer1</code> (authenticated), or edit any ontology field on a row to
-fire <code>rebuildOntologyForProspect</code>. I did <strong>not</strong> import that server action (guardrail: don't
-import other modules' server actions; it isn't exported anyway). Flex's expected edges:
-<code>holds_certification</code> → ISO 9001 + IATF 16949, and <code>has_ownership_structure</code> → Family/Founder.
-No parent/medical/RJG edges.</p>
-
-<h2>Verification (done live this session)</h2>
-<ul>
-  <li><span class="tag done">PASS</span> <code>--dry-run</code> (score computed = 32/green, no apostrophes), then live run — row 952 inserted with the values above.</li>
-  <li><span class="tag done">PASS</span> Idempotent re-run kept counts at <strong>1/1 row, 5/5 contacts</strong> (no dupes).</li>
-  <li><span class="tag done">PASS</span> <strong>Arburg (950) + Blue Moose (951) untouched</strong> — still Infrastructure, score null (their status is now <code>Converted</code> = Kyle already promoted them; my script didn't touch them).</li>
-  <li><span class="tag done">PASS</span> Dedupe: only "Flex Technologies, Inc." (952) matches; pre-existing "Flexcraft" (NJ) is a different company.</li>
-  <li><span class="tag done">PASS</span> National Map: OH = 9 US prospects, includes Flex. Converter parent-group filter (<code>LIKE 'Converter%'</code>) matches. Promote-button gate (<code>Outreach Ready</code>) satisfied — <em>confirmed, not promoted</em>.</li>
+  <li><span class="tag open">OPEN</span> <code>TOGETHER_AI_API</code> is set in <strong>Vercel → Preview</strong> (confirmed by Kyle); add it to <strong>Production</strong> before the prod deploy. It is not present in this build environment, so the live loop can only run on the preview, not here.</li>
+  <li><span class="tag open">OPEN</span> The three spec questions (ISO 13485 list; summarize-this-company; compare-to-similar) must return grounded answers against the preview deploy before Prompt 2 starts. Kyle provides the preview URL + a <code>session_token</code>; I run them via <code>curl</code> from here and report answers + <code>toolsUsed</code>.</li>
 </ul>
 
 <h2>Open questions for Kyle</h2>
 <ul>
-  <li><strong>Keep the HIGH PRIORITY override?</strong> Computed tier is WATCH (32). I set the manual override per the brief; say the word to drop it and let it track the computed tier.</li>
-  <li><strong>Press count?</strong> The biggest score lever — a confirmed number (esp. 20+) would lift Scale and the computed tier.</li>
-  <li><strong>Any PSB / CWP contacts?</strong> Currently zero warmth; even a few would add up to +12.</li>
-  <li><strong>RJG / cavity-pressure?</strong> The one discovery gap (see above).</li>
-  <li><strong><code>outreach_group = 'Time-Sensitive'</code> OK?</strong> Or move to Group 1/2.</li>
-  <li><strong>Run the shared ontology Layer-1 rebuild</strong> (covers all three IEP rows).</li>
+  <li><strong>Resolved:</strong> provider = Together.ai; model = DeepSeek-V3; verification = Kyle sends the preview URL + a session token and I run the three checks.</li>
+  <li>Should the assistant log each query to <code>prospect_activity_log</code> for an audit trail? (Out of scope for Prompt 1 — it would be the only DB write; flagged for a possible follow-up. If yes, it must be a bare INSERT, not the <code>add-activity</code> action, to avoid clobbering <code>suggested_next_step</code>.)</li>
 </ul>
 
 </body>
