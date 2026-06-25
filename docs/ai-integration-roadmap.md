@@ -104,7 +104,8 @@ Each phase is independently shippable and PR-sized. Effort is rough: **S** ≈ �
 **Guardrails:** still strictly read-only. Clear scoping in answers (prospects vs. live pipeline).
 **Success signal:** team uses the global Ask AI for cross-domain questions; "where does X stand?" answered in one query instead of clicking through tabs.
 
-### Phase 2 — Communication drafting *(L1 — the biggest daily win)* · **M**
+### Phase 2 — Communication drafting *(L1 — the biggest daily win)* · **M** · ✅ SHIPPED (this PR)
+**As built:** `mode:'draft'` on the `?action=assistant` arm appends `ASSISTANT_DRAFT_GUIDANCE` (outreach voice + stakeholder-routing matrix + no-fabrication/`[placeholder]` rules). "Draft" buttons in ProspectDetail (outreach) and OpportunityDetail (stakeholder note, routed by project type) open `AssistantModal` in draft mode with an auto-sent seed; per-message Copy button; copy-to-clipboard only (no send). Iterative refinement is free (it's the chat panel). Still read-only on data.
 **Value:** collapses the gap between *research done* and *first contact made* — today's slowest manual step. Turns a rich brief + hooks + CWP warmth into a ready-to-edit message.
 **What it does:**
 - **Draft outreach** (ProspectDetail): a tailored first-touch email/LinkedIn note in the team's voice, grounded in the prospect's hooks (`buildHookLine`), research brief, certifications, RJG signal, and PSB connection notes — citing *why* each point was included. Routes by project-type context where known.

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { PenLine } from 'lucide-react'
 import EditOpportunityModal from './EditOpportunityModal'
+import AssistantModal from './prospects/AssistantModal'
 import { getProjectTypeLabel } from '../constants/options'
 import { PIPELINE_STAGES } from '../constants/pipeline'
 import { useAuth, authFetch } from '../context/AuthContext'
@@ -52,6 +54,7 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [], autoOpe
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showAssistant, setShowAssistant] = useState(false)
 
   // Log Activity modal state
   const [showLogModal, setShowLogModal] = useState(false)
@@ -490,15 +493,25 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [], autoOpe
                 </p>
               )}
             </div>
-            <button
-              onClick={onClose}
-              className="flex-shrink-0 p-1 -mr-1 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Close panel"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex-shrink-0 flex items-center gap-1">
+              <button
+                onClick={() => setShowAssistant(true)}
+                className="flex items-center gap-1 px-2 py-1 text-gray-400 hover:text-[#041E42] hover:bg-gray-100 rounded-lg transition-colors text-sm font-medium"
+                title="Draft a stakeholder notification for this deal (AI draft — review & edit before sending)"
+              >
+                <PenLine className="w-4 h-4" />
+                <span className="hidden sm:inline">Draft</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="p-1 -mr-1 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Close panel"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1116,6 +1129,13 @@ function OpportunityDetail({ opportunity, onClose, onUpdate, users = [], autoOpe
             onUpdate(updated)
             setShowEditModal(false)
           }}
+        />
+      )}
+      {showAssistant && (
+        <AssistantModal
+          mode="draft"
+          initialMessage={`Draft a stakeholder notification email for our ${getProjectTypeLabel(opportunity.project_type) || 'pipeline'} opportunity with ${opportunity.company_name}.`}
+          onClose={() => setShowAssistant(false)}
         />
       )}
     </>

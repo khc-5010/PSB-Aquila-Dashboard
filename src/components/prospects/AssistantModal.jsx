@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Sparkles, Search } from 'lucide-react'
+import { X, Send, Sparkles, Search, Copy, Check } from 'lucide-react'
 import { authFetch, useAuth } from '../../context/AuthContext'
 import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
+import { copyText } from '../../utils/exportProspect'
 
 // Read-only reasoning assistant chat panel, launched from ProspectDetail.
 // Talks to POST /api/prospects?action=assistant (Together.ai tool-use loop over
@@ -49,14 +50,16 @@ const TOOL_TIPS = {
 }
 const labelForTool = (t) => TOOL_LABELS[t] || t.replace(/_/g, ' ')
 
-export default function AssistantModal({ prospect, onClose }) {
+export default function AssistantModal({ prospect, onClose, mode = 'chat', initialMessage = null }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState([]) // { role: 'user'|'assistant', content, toolsUsed? }
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [copiedIdx, setCopiedIdx] = useState(null)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const seededRef = useRef(false)
 
   // Own Escape handler so this sub-modal closes first (ProspectDetail's Escape
   // is suppressed while showAssistantModal is open).
@@ -70,6 +73,17 @@ export default function AssistantModal({ prospect, onClose }) {
 
   useEffect(() => {
     inputRef.current?.focus()
+  }, [])
+
+  // Draft mode (and any caller that passes initialMessage): auto-send the seed
+  // once on open so the user sees their request + the grounded draft. Ref-guarded
+  // against StrictMode double-invoke.
+  useEffect(() => {
+    if (initialMessage && !seededRef.current) {
+      seededRef.current = true
+      send(initialMessage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Keep the latest message / thinking indicator in view.
@@ -86,6 +100,7 @@ export default function AssistantModal({ prospect, onClose }) {
         body: JSON.stringify({
           messages: convo.map((m) => ({ role: m.role, content: m.content })),
           prospectId: prospect?.id ?? null,
+          mode,
         }),
       })
       if (!res.ok) {
@@ -130,9 +145,21 @@ export default function AssistantModal({ prospect, onClose }) {
   // Global mode = launched from the header (no prospect context); prospect mode =
   // launched from a specific prospect. Drives copy + starter prompts.
   const isGlobal = !prospect
+  const isDraft = mode === 'draft'
   const suggestions = isGlobal ? GLOBAL_SUGGESTIONS : PROSPECT_SUGGESTIONS
-  const subtitle = isGlobal ? 'across prospects & pipeline' : prospect?.company
+  const title = isDraft ? 'Draft message' : 'Ask AI'
+  const subtitle = isDraft
+    ? 'AI draft · review & edit before sending'
+    : (isGlobal ? 'across prospects & pipeline' : prospect?.company)
   const askName = isGlobal ? 'your prospects or the pipeline' : (prospect?.company || 'this company')
+
+  async function handleCopy(text, idx) {
+    const ok = await copyText(text)
+    if (ok) {
+      setCopiedIdx(idx)
+      setTimeout(() => setCopiedIdx((c) => (c === idx ? null : c)), 2000)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={onClose}>
@@ -145,7 +172,7 @@ export default function AssistantModal({ prospect, onClose }) {
           <div className="min-w-0">
             <h3 className="text-lg font-semibold text-[#041E42] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#041E42]" />
-              Ask AI
+              {title}
             </h3>
             <p className="text-sm text-gray-500 mt-0.5 truncate">
               {subtitle}
@@ -159,7 +186,7 @@ export default function AssistantModal({ prospect, onClose }) {
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {empty ? (
+          {empty && !initialMessage ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <Sparkles className="w-7 h-7 text-gray-300 mb-3" />
               <p className="text-sm text-gray-500 max-w-sm">
@@ -214,6 +241,16 @@ export default function AssistantModal({ prospect, onClose }) {
                         ))}
                       </div>
                     )}
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => handleCopy(m.content, i)}
+                        className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600"
+                        title="Copy this message"
+                      >
+                        {copiedIdx === i ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedIdx === i ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )

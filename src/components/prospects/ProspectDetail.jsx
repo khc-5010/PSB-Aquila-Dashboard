@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, X, Flag, FileJson, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flag, FileJson, Sparkles, PenLine } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
@@ -256,6 +256,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   const [showImportModal, setShowImportModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showAssistantModal, setShowAssistantModal] = useState(false)
+  const [assistantMode, setAssistantMode] = useState('chat') // 'chat' | 'draft'
   const [editingBrief, setEditingBrief] = useState(null)
   const [attachments, setAttachments] = useState([])
 
@@ -486,12 +487,20 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
               {/* Navigation + Close */}
               <div className="flex items-center gap-2 ml-4 flex-shrink-0">
                 <button
-                  onClick={() => setShowAssistantModal(true)}
+                  onClick={() => { setAssistantMode('chat'); setShowAssistantModal(true) }}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
                   title="Ask AI about this company (read-only, grounded in dashboard data)"
                 >
                   <Sparkles className="w-4 h-4" />
                   <span className="hidden sm:inline">Ask AI</span>
+                </button>
+                <button
+                  onClick={() => { setAssistantMode('draft'); setShowAssistantModal(true) }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
+                  title="Draft a first-touch outreach message (AI draft — review & edit before sending)"
+                >
+                  <PenLine className="w-4 h-4" />
+                  <span className="hidden sm:inline">Draft</span>
                 </button>
                 <button
                   onClick={() => setShowExportModal(true)}
@@ -1241,6 +1250,10 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
       {showAssistantModal && (
         <AssistantModal
           prospect={p}
+          mode={assistantMode}
+          initialMessage={assistantMode === 'draft'
+            ? `Draft a concise first-touch outreach email to ${p.company} for the PSB-Aquila Industrial AI Alliance.`
+            : null}
           onClose={() => setShowAssistantModal(false)}
         />
       )}

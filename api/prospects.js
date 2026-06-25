@@ -888,6 +888,19 @@ Your reply is shown to the user as the finished answer. Never end a reply by say
 
 Keep answers to a few short paragraphs. Use a compact list only when comparing multiple companies.`
 
+// Appended to the system prompt only when the request is mode:'draft' (Phase 2,
+// L1). The assistant writes a message for the user to review/edit/send — it still
+// sends nothing and writes nothing. Grounding + no-fabrication rules still apply.
+const ASSISTANT_DRAFT_GUIDANCE = `DRAFTING MODE. The user wants you to draft a message they will review, edit, and send themselves. You are NOT sending anything and you cannot send — produce text only. First gather context with your tools (get_prospect / get_research_brief for a prospect; search_pipeline / get_opportunity for a live deal), then write.
+
+Voice & shape: write as the Penn State Behrend - Aquila Industrial AI Alliance making a warm, professional first contact. Open with a specific, genuine reason we're reaching out to THIS company — a real hook from the data (RJG/cavity-pressure use, in-house tooling, a recent acquisition or PE window, a relevant certification, medical/automotive focus, a PSB/CWP connection). Keep it short and skimmable (~120-180 words), plain language, no buzzword soup, no hard sell. Close with a low-friction call to action (a brief intro conversation).
+
+Stakeholder notifications (for an opportunity / deal): route by project type — Research Agreement → Alicyn Rhoades (VC Research) + Jennifer Surrena (contracts), 4-6 week processing; Senior Design → Dean Lewis (dal16@psu.edu), Aug 15 fall deadline; Strategic Membership → Amy Bridger. Reflect the right contact and any deadline.
+
+Hard rules: ground every company-specific claim in tool data — never invent facts, names, numbers, contacts, or relationships. For anything you can't know (sender name, scheduling, signature, a recipient name not in the data), leave a clearly marked [placeholder]. If you lack enough data to personalize, say so and draft a minimal version rather than fabricating.
+
+Output format: a "Subject:" line, then the message body. After the message, add one short italic line listing the hooks you used and any [placeholders] to fill before sending.`
+
 const ASSISTANT_TOOLS = [
   {
     name: 'search_prospects',
@@ -3654,8 +3667,10 @@ export default async function handler(req, res) {
         }
 
         // OpenAI-compatible: the system prompt is the first message (not a
-        // top-level field). Add the prospect-context line when launched from one.
-        let systemPrompt = ASSISTANT_SYSTEM
+        // top-level field). Draft mode (L1) appends drafting guidance; still
+        // read-only on data (it generates text, sends nothing). Then add the
+        // prospect-context line when launched from one.
+        let systemPrompt = body.mode === 'draft' ? `${ASSISTANT_SYSTEM}\n\n${ASSISTANT_DRAFT_GUIDANCE}` : ASSISTANT_SYSTEM
         const prospectId = parseInt(body.prospectId, 10)
         if (Number.isFinite(prospectId)) {
           const ctxRows = await sql`SELECT company FROM prospect_companies WHERE id = ${prospectId}`
