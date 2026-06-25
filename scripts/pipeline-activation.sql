@@ -1,63 +1,43 @@
 -- Pipeline Activation migration (run once in the Neon SQL Editor)
 --
--- Adds the two opportunity columns and teaches the `stage` ENUM the two new
--- front stages ('on_deck', 'outreach'). api/opportunities.js also self-heals
--- both at runtime (ensureOpportunitySchema), so this script is mainly for
--- reproducibility / immediate application without waiting for a redeploy.
+-- api/opportunities.js self-heals all of this on deploy (ensureOpportunitySchema:
+-- add columns → ensureEnumValues → convertEnumColumnsToText), so this script is
+-- mainly for reproducibility / immediate application without waiting for a redeploy.
 
 -- 1. New columns (idempotent)
 ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS lead_type TEXT;   -- 'client' | 'partner'
 ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS waiting_on TEXT;  -- 'us' | 'them'
 
--- 2. Add the new stages to whatever ENUM type backs the stage columns.
---    `stage` is a Postgres enum (not a CHECK), so new values must be added to
---    the type or INSERT/UPDATE with the new stages raises
---    "invalid input value for enum stage". ADD VALUE IF NOT EXISTS is idempotent.
---    On PG 12+ this is allowed inside a DO block as long as the value isn't used
---    in the same transaction (it isn't here). No-op if stage is a text column.
+-- 2. Durable fix: convert the legacy enum columns to TEXT.
+--    `stage` and `project_type` (and possibly `outcome`) were Postgres enums whose
+--    value lists drifted from the app, causing "invalid input value for enum ...".
+--    Converting to TEXT (the convention used by lead_type/waiting_on) ends that
+--    class of bug; the app validates these via VALID_STAGES + its dropdowns.
+--    ALTER TABLE ... ALTER COLUMN TYPE is fully transactional (no ADD VALUE caveat).
+--    Guarded per column; a no-op if already text. DROP DEFAULT first so an enum
+--    default doesn't block the cast; the stage default is restored in step 3.
 DO $$
 DECLARE
-  tn text;
+  rec record;
 BEGIN
-  FOR tn IN
-    SELECT DISTINCT t.typname
-    FROM pg_type t
-    JOIN pg_attribute a ON a.atttypid = t.oid
-    JOIN pg_class c ON c.oid = a.attrelid
-    WHERE t.typtype = 'e'
+  FOR rec IN
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE data_type = 'USER-DEFINED'
       AND (
-        (c.relname = 'opportunities' AND a.attname = 'stage')
-        OR (c.relname = 'stage_transitions' AND a.attname IN ('from_stage', 'to_stage'))
+        (table_name = 'opportunities' AND column_name IN ('stage', 'project_type', 'outcome'))
+        OR (table_name = 'stage_transitions' AND column_name IN ('from_stage', 'to_stage'))
       )
   LOOP
-    EXECUTE format('ALTER TYPE %I ADD VALUE IF NOT EXISTS %L', tn, 'on_deck');
-    EXECUTE format('ALTER TYPE %I ADD VALUE IF NOT EXISTS %L', tn, 'outreach');
-    RAISE NOTICE 'Added on_deck/outreach to enum type %', tn;
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I DROP DEFAULT', rec.table_name, rec.column_name);
+    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE TEXT USING %I::text',
+                   rec.table_name, rec.column_name, rec.column_name);
+    RAISE NOTICE 'Converted %.% to TEXT', rec.table_name, rec.column_name;
   END LOOP;
 END $$;
 
--- 3. project_type is ALSO a Postgres enum, and its value list drifted from the
---    app: it still carries legacy values ('research', 'senior_design', …) while
---    the app writes display values ('Pilot Project', …). Add the current display
---    values so promoting a client with a project type doesn't raise
---    "invalid input value for enum project_type". Idempotent. No-op if text.
-DO $$
-DECLARE
-  tn text;
-  v  text;
-BEGIN
-  SELECT t.typname INTO tn
-  FROM pg_type t
-  JOIN pg_attribute a ON a.atttypid = t.oid
-  JOIN pg_class c ON c.oid = a.attrelid
-  WHERE t.typtype = 'e' AND c.relname = 'opportunities' AND a.attname = 'project_type'
-  LIMIT 1;
+-- 3. Restore a sensible default on the (now TEXT) stage column.
+ALTER TABLE opportunities ALTER COLUMN stage SET DEFAULT 'on_deck';
 
-  IF tn IS NOT NULL THEN
-    FOREACH v IN ARRAY ARRAY['Pilot Project', 'Research Agreement', 'Senior Design', 'Strategic Membership']
-    LOOP
-      EXECUTE format('ALTER TYPE %I ADD VALUE IF NOT EXISTS %L', tn, v);
-    END LOOP;
-    RAISE NOTICE 'Added current project types to enum type %', tn;
-  END IF;
-END $$;
+-- The now-orphaned enum types are left in place (harmless). Drop them manually
+-- later if desired, only once nothing references them.
