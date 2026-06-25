@@ -306,6 +306,12 @@ function App() {
         <KnowledgeGraph />
       ) : (
         <>
+          {/* Desktop: lock the board to the viewport so each column scrolls its
+              cards vertically and the single horizontal scrollbar stays pinned at
+              the bottom of the always-visible board (no page scroll). 7rem =
+              4rem header (h-16) + ~3rem reserved for the fixed desktop footer.
+              Below lg this is a plain wrapper — mobile keeps the snap-scroll flow. */}
+          <div className="lg:flex lg:flex-col lg:h-[calc(100vh-7rem)] lg:overflow-hidden">
           <MetricsBar
             opportunities={opportunities}
             onValueClick={() => setMetricsModal('value')}
@@ -328,7 +334,7 @@ function App() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <main className="p-6 max-lg:p-3">
+            <main className="p-6 max-lg:p-3 lg:flex lg:flex-col lg:flex-1 lg:min-h-0">
               {!loading && !hasOpportunities && (
                 <div className="mb-6 bg-white border border-gray-200 rounded-lg p-8 text-center">
                   <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -343,7 +349,7 @@ function App() {
                 </div>
               )}
 
-              <div className="flex gap-4 overflow-x-auto pb-4 max-lg:snap-x max-lg:snap-mandatory">
+              <div className="flex gap-4 overflow-x-auto pb-4 max-lg:snap-x max-lg:snap-mandatory lg:flex-1 lg:min-h-0 lg:overflow-y-hidden">
                 {PIPELINE_STAGES.map((stage) => {
                   const stageOpportunities = opportunitiesByStage[stage.key] || []
 
@@ -386,6 +392,7 @@ function App() {
               ) : null}
             </DragOverlay>
           </DndContext>
+          </div>
 
           <OpportunityDetail
             opportunity={selectedOpportunity}
