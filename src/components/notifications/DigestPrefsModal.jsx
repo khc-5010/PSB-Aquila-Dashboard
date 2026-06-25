@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 
-const DEFAULT_PREFS = { overdue: true, due_soon: true, stale: true, pe_windows: true, tasks: true }
+const DEFAULT_PREFS = { stale: true, pe_windows: true, tasks: true }
 
 function DigestPrefsModal({ onClose }) {
   const { user, authFetch, updateUser } = useAuth()
@@ -38,8 +38,6 @@ function DigestPrefsModal({ onClose }) {
   }
 
   const sections = [
-    { key: 'overdue', label: 'Overdue follow-ups', desc: 'Prospects past their follow-up date' },
-    { key: 'due_soon', label: 'Due this week', desc: 'Follow-ups due today or within 7 days' },
     { key: 'stale', label: 'Stale prospects', desc: 'Prospects idle too long for their status' },
     { key: 'pe_windows', label: 'PE window alerts', desc: 'PE-backed companies with recent M&A activity' },
     { key: 'tasks', label: 'My open tasks', desc: 'Tasks assigned to you (or up for grabs)' },

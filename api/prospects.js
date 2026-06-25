@@ -1488,21 +1488,14 @@ export default async function handler(req, res) {
         const dashboardUrl = 'https://psb-aquila-dashboard.vercel.app'
 
         for (const user of users) {
-          const prefs = user.digest_preferences || { overdue: true, due_soon: true, stale: true, pe_windows: true }
+          const prefs = user.digest_preferences || { stale: true, pe_windows: true }
 
           // Build sections based on user preferences
           const sections = []
 
-          if (prefs.overdue) {
-            const items = actionItems.filter(p => p.urgency.level === 'overdue')
-            if (items.length > 0) sections.push({ title: 'Overdue Follow-Ups', emoji: '🔴', items, color: '#DC2626' })
-          }
-
-          if (prefs.due_soon) {
-            const items = actionItems.filter(p => ['due_today', 'due_soon', 'due_week'].includes(p.urgency.level))
-            if (items.length > 0) sections.push({ title: 'Due This Week', emoji: '🟡', items, color: '#F59E0B' })
-          }
-
+          // (The "Overdue Follow-Ups" and "Due This Week" sections were removed when
+          //  follow_up_date urgency was retired — getProspectUrgency only emits stale/
+          //  stalled now, and date-based items live on tasks → "My Open Tasks" below.)
           if (prefs.stale) {
             const items = actionItems.filter(p =>
               ['stale', 'stalled'].includes(p.urgency.level) && !openTaskProspectIds.has(p.id)
