@@ -40,7 +40,14 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - [x] **Root cause:** `ASSISTANT_MODEL = 'deepseek-ai/DeepSeek-V3'` is a stale Together model id (Together serves DeepSeek V3 as `deepseek-ai/DeepSeek-V3-0324` now). Unknown model id → Together 4xx → `!r.ok` (`callModel`, ~3573) → `err.isLlm` → catch returns 500 "The assistant is temporarily unavailable." (Confirmed model strings via web search; couldn't reproduce live — sandbox egress still blocks `api.together.xyz` this session.)
 - [x] **Fix:** switch to `meta-llama/Llama-3.3-70B-Instruct-Turbo` — current, tool-calling-capable, **stable id** (date-stamped DeepSeek ids rotate and re-break). One constant (`api/prospects.js:865`).
 - [x] **Ripple/regression:** `ASSISTANT_MODEL` used only at `:3559` (model-agnostic payload). Tool schemas, the turn loop, `tool_calls`/`finish_reason` parsing, `tool_choice`, `toolsUsed` — all standard OpenAI tool-calling, identical across models → no plumbing change. No `src/` refs (UI calls the endpoint, model-blind). CLAUDE.md model line updated. `node --check` + `npm run build` PASS.
-- [ ] **(Kyle) Verify on the PR preview:** open a prospect → "Ask AI" → three questions return grounded answers + sensible `toolsUsed`. Definitive root-cause confirmation is the Vercel runtime log line `Assistant: Together API <status>: <detail>` (added at `:3575`) — grab it if the fix doesn't take.
+- [x] **Verified working** — assistant calls tools and answers (PR #138 merged).
+
+## UX clarity pass (branch `claude/assistant-ux-clarity`, PR #__)
+Kyle's feedback on the working assistant: (1) the `find_similar_prospects` chip with the wrench icon is jargon and *looks* clickable but isn't; (2) an answer trailed off with "I will retrieve their prospect records" and stopped.
+- [x] **Tool tags → plain English, clearly non-interactive.** `AssistantModal.jsx`: `TOOL_LABELS`/`TOOL_TIPS` maps (e.g. `find_similar_prospects` → "Similar companies"), caption changed to "Based on:" with a `Search` icon (was a bare wrench), tags now muted `cursor-default` pills with hover tooltips — read as a data-source footnote, not buttons. (No onClick existed; the bordered/mono styling just implied one.)
+- [x] **Self-contained answers.** System prompt (`api/prospects.js`): added a rule that the reply IS the finished answer — never end by saying it "will" look something up; call the tool now (runs automatically) or finish. Also tightened the compare instruction (find_similar → get_prospect → then write).
+- [x] `node --check` + `npm run build` PASS.
+- [ ] **(Kyle) Verify on the PR preview:** re-ask the compare question — answer should be complete (no "I will…" dangling), and the footnote should read "Based on: Similar companies, Company details" etc. with tooltips, not clickable jargon.
 
 ## Notes / gotchas (from recon)
 - Auth already enforced at `api/prospects.js:861-864` for every non-digest action → no extra auth code.
