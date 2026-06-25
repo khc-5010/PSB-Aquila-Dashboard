@@ -69,11 +69,13 @@ Every L2+ action: reversible, attributed, logged, and never touches money/contra
 ## 3. Architecture foundation
 
 ### 3.1 Promote the assistant to a domain-agnostic gateway
-Today the assistant is one arm inside `api/prospects.js` (already ~4,100 lines) and its tools only read prospect data. As AI goes cross-cutting, extract it into a dedicated **`api/assistant.js`** gateway:
+Today the assistant is one arm inside `api/prospects.js` (already ~4,100 lines) and its tools only read prospect data. The long-term target is a dedicated **`api/assistant.js`** gateway:
 
 - Houses the tool-loop, the system prompt, the tool **registry**, and the provider plumbing.
 - Tools call into each domain's existing query logic (prospects, opportunities, ontology, state reports, tasks).
-- **Function budget:** this takes us from 10 → **11 / 12**. Acceptable and worth it (one slot buys all future AI). Discipline rule: all AI features are arms/tools inside this one file — never a new serverless function per feature. (If we ever need slot 12 back, the dynamic `opportunities/[id].js` is the consolidation candidate.)
+- **Function budget:** this would take us from 10 → **11 / 12**. Acceptable, but pure plumbing.
+
+> **DEFERRED (decided during Phase 1 ripple analysis — see `ai-phase1-spec.md` §1.1).** The extraction drags along `buildCategoryCondition`/`CATEGORY_PARENT_RULES`, changes the `?action=assistant` URL contract, and means moving ~400 lines of an LLM loop that **can't be live-tested from the build sandbox** (Together egress is blocked) — all for zero user value. So Phases 1–4 **augment the assistant in place** inside `api/prospects.js` (function count stays **10/12**). The gateway extraction becomes its own isolated PR when a second AI surface needs the shared file *and* the live model is testable. Discipline rule still holds: AI capability is added as arms/tools, never a new serverless function per feature.
 
 ### 3.2 Tool registry (grows by phase)
 - **Read tools (L0):** the five shipped + `get_opportunity` / `search_pipeline` (opportunities), `get_state_report`, `list_tasks`, `get_contacts`.
@@ -95,11 +97,11 @@ Today the assistant is one arm inside `api/prospects.js` (already ~4,100 lines) 
 
 Each phase is independently shippable and PR-sized. Effort is rough: **S** ≈ ½–1 day, **M** ≈ 1–2 days, **L** ≈ 3–5 days of focused work.
 
-### Phase 1 — Whole-app analyst *(foundation, L0)* · **M**
+### Phase 1 — Whole-app analyst *(foundation, L0)* · **M** · ✅ SHIPPED (this PR)
 **Value:** one place to ask anything about the business — prospects *and* the live pipeline — instead of a prospect-only widget.
 **What it does:** "Which medical molders in the Northeast haven't we contacted?" · "What's in the pipeline right now and what's stalled?" · "Who owns the C&J opportunity and what's the next step?"
-**Approach:** extract `api/assistant.js` gateway (§3.1); add read tools for **opportunities** (`search_pipeline`, `get_opportunity` — stage, owner, `waiting_on`, `last_activity_at`, `source_prospect_id`) and **state reports**; add the global header entry point.
-**Guardrails:** still strictly read-only. Clear scoping in answers (prospects vs. live pipeline — the distinction we just clarified).
+**Approach (as built):** augment the assistant in place (gateway extraction deferred — §3.1 / `ai-phase1-spec.md`); add read tools for **opportunities** (`search_pipeline`, `get_opportunity`), **state reports** (`get_state_report`); revise the system prompt to read prospects *and* pipeline while keeping them distinct; add the global header "Ask AI" entry (`AssistantModal` gains a global mode). Function count stays 10/12.
+**Guardrails:** still strictly read-only. Clear scoping in answers (prospects vs. live pipeline).
 **Success signal:** team uses the global Ask AI for cross-domain questions; "where does X stand?" answered in one query instead of clicking through tabs.
 
 ### Phase 2 — Communication drafting *(L1 — the biggest daily win)* · **M**

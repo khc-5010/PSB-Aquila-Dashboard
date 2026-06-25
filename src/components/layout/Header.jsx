@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Building2, Kanban, Map, Share2, Bell, ClipboardCheck } from 'lucide-react'
+import { Building2, Kanban, Map, Share2, Bell, ClipboardCheck, Sparkles } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import AdminPanel from '../auth/AdminPanel'
 import ChangePinModal from '../auth/ChangePinModal'
 import DigestPrefsModal from '../notifications/DigestPrefsModal'
+import AssistantModal from '../prospects/AssistantModal'
 
 function Header({ activeView, onViewChange }) {
   const { user, logout, authFetch } = useAuth()
   const [showAdmin, setShowAdmin] = useState(false)
   const [showChangePin, setShowChangePin] = useState(false)
   const [showDigestPrefs, setShowDigestPrefs] = useState(false)
+  const [showAssistant, setShowAssistant] = useState(false)
   const [teamUsers, setTeamUsers] = useState([])
 
   // Fetch active team members for avatar display. team-members is available to
@@ -138,6 +140,16 @@ function Header({ activeView, onViewChange }) {
               </div>
             )}
 
+            {/* Ask AI — global read-only assistant (prospects + pipeline + state reports) */}
+            <button
+              onClick={() => setShowAssistant(true)}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title="Ask AI — read-only assistant across prospects & pipeline"
+            >
+              <Sparkles className="w-5 h-5" />
+              <span className="text-sm font-medium hidden lg:inline">Ask AI</span>
+            </button>
+
             {/* Digest preferences */}
             <button
               onClick={() => setShowDigestPrefs(true)}
@@ -190,6 +202,7 @@ function Header({ activeView, onViewChange }) {
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       {showChangePin && <ChangePinModal onClose={() => setShowChangePin(false)} />}
       {showDigestPrefs && <DigestPrefsModal onClose={() => setShowDigestPrefs(false)} />}
+      {showAssistant && <AssistantModal onClose={() => setShowAssistant(false)} />}
     </>
   )
 }
