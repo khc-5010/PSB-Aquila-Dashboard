@@ -37,6 +37,7 @@ const TOOL_LABELS = {
   search_pipeline: 'Searched pipeline',
   get_opportunity: 'Deal details',
   get_state_report: 'State report',
+  list_companies_by_category: 'Companies by category',
 }
 const TOOL_TIPS = {
   search_prospects: 'Searched the prospect database',
@@ -47,6 +48,7 @@ const TOOL_TIPS = {
   search_pipeline: 'Searched the live Pipeline (active deals/opportunities)',
   get_opportunity: "Pulled a deal's full record + recent activity",
   get_state_report: 'Read the current state research report',
+  list_companies_by_category: 'Listed companies by their category, straight from the data',
 }
 const labelForTool = (t) => TOOL_LABELS[t] || t.replace(/_/g, ' ')
 

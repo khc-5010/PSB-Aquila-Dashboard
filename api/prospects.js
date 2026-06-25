@@ -869,9 +869,11 @@ const ASSISTANT_SYSTEM = `You are the research assistant inside the PSB-Aquila p
 Answer questions about prospects using only data you retrieve through your tools. Ground every factual claim in tool results. If a tool returns nothing, or a brief is missing, say so plainly instead of guessing. You are read-only: you cannot change records, create tasks, or send anything, and you never imply that you have.
 
 You can read two distinct things, and you must keep them straight:
-- **Prospects** (the Prospects tab) — the ~179 companies the alliance is researching and qualifying. Tools: search_prospects, get_prospect, find_similar_prospects, query_ontology, get_research_brief.
+- **Prospects** (the Prospects tab) — the ~179 companies the alliance is researching and qualifying. Tools: search_prospects, get_prospect, find_similar_prospects, query_ontology, get_research_brief, list_companies_by_category.
 - **The Pipeline** (the opportunities tab) — the smaller set of active *deals* that have been promoted from prospects, each with a stage, owner, value, and a "who has the ball" (waiting_on) field. Tools: search_pipeline, get_opportunity. A deal's source_prospect_id links it back to its prospect.
 You can also read state-level research reports via get_state_report. When a user says "the pipeline," they mean the live opportunities/deals — use search_pipeline, and don't confuse a prospect (a research target) with an opportunity (an active deal). Be precise about which one a fact comes from.
+
+Categories: a prospect's category is exactly the value in its category field — never infer, assign, or upgrade a category from general knowledge about a brand (a well-known catalog distributor may be categorized a Converter in our data; report what the data says). For "who are the [type] companies" or "how many [type] companies" questions, use list_companies_by_category — the authoritative, exact roster. Brett's "knowledge companies" = category Knowledge Sector; "catalog companies" = Catalog/Standards. If a category search returns nothing, say nothing matched — never pad the answer with companies of other categories.
 
 Be concise and direct, in a neutral analyst voice. When sizing up a company, weight what Brett weights: press count over raw employee count, ownership type and acquisition urgency, relevant certifications, technology signals such as RJG cavity-pressure, and relationship warmth from the PSB connection notes. To compare a prospect against others, first call find_similar_prospects, then call get_prospect on the ones worth detailing, and write the comparison only once you actually have that detail.
 
@@ -931,8 +933,8 @@ const ASSISTANT_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        search: { type: 'string', description: 'Free text matched (ILIKE) against company name and notes.' },
-        category: { type: 'string' },
+        search: { type: 'string', description: 'Free text matched (ILIKE) against company name, also-known-as, category, and notes.' },
+        category: { type: 'string', description: "Category filter (case-insensitive substring). Known values include: Converter, Converter + In-House Tooling, Mold Maker, Mold Maker + Converter, Hot Runner Systems, Catalog/Standards, Knowledge Sector, Strategic Partner, Ecosystem/Channel, Captive OEM, Thermoformer. 'knowledge companies' = Knowledge Sector; 'catalog companies' = Catalog/Standards. For an exhaustive category roster prefer list_companies_by_category." },
         priority: { type: 'string' },
         corridor: { type: 'string' },
         outreach_group: { type: 'string' },
@@ -1009,6 +1011,17 @@ const ASSISTANT_TOOLS = [
     description: 'Return the current state research report (markdown) for a 2-letter US state code (e.g. PA, OH, TX), if one exists. These are the deep state-level prospecting reports from the National Map. Returns the report content or a note that none exists.',
     input_schema: { type: 'object', properties: { state: { type: 'string', description: '2-letter state code, e.g. "PA".' } }, required: ['state'] },
   },
+  {
+    name: 'list_companies_by_category',
+    description: "Authoritative, exact roster of prospects by category — use this for 'who are the X companies' / 'how many X companies' questions instead of guessing or padding. Pass category as a case-insensitive substring ('catalog' -> Catalog/Standards, 'knowledge' -> Knowledge Sector, 'converter', 'mold maker', etc.) to get every matching company. Omit category to get the full category distribution (every distinct category and its count). Deterministic: returns exactly what is in the data.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Case-insensitive substring of the category to list. Omit to get the category distribution (all categories + counts).' },
+      },
+      required: [],
+    },
+  },
 ]
 
 // search_prospects — mirrors the GET list arm's filter-building, with a trimmed
@@ -1021,12 +1034,16 @@ async function assistantSearchProspects(sql, input = {}) {
 
   if (input.search && String(input.search).trim()) {
     const p = add(`%${String(input.search).trim()}%`)
-    conditions.push(`(company ILIKE ${p} OR notes ILIKE ${p})`)
+    conditions.push(`(company ILIKE ${p} OR also_known_as ILIKE ${p} OR category ILIKE ${p} OR notes ILIKE ${p})`)
   }
   if (input.outreach_group) conditions.push(`outreach_group = ${add(input.outreach_group)}`)
   if (input.category) {
-    const c = buildCategoryCondition(String(input.category).trim(), params)
-    if (c) conditions.push(c)
+    // Forgiving, case-insensitive substring match — assistant-only, deliberately
+    // NOT buildCategoryCondition (whose exact parent-group logic the Prospects-tab
+    // filter depends on). That function turned any non-canonical value into
+    // `category = '<verbatim>'`, so "catalog"/"knowledge"/"Catalog" matched zero
+    // rows. ILIKE '%catalog%' -> Catalog/Standards, '%knowledge%' -> Knowledge Sector.
+    conditions.push(`category ILIKE ${add(`%${String(input.category).trim()}%`)}`)
   }
   if (input.priority) conditions.push(`priority = ${add(input.priority)}`)
   if (input.prospect_status) conditions.push(`prospect_status = ${add(input.prospect_status)}`)
@@ -1379,6 +1396,39 @@ async function assistantGetStateReport(sql, input = {}) {
   }
 }
 
+// list_companies_by_category — deterministic category roster (belt-and-suspenders
+// for "who are the X companies"): pure SQL on the category column so the model never
+// has to guess membership or invent a classification. With no category, returns the
+// full category distribution (the authoritative vocabulary + counts).
+async function assistantListByCategory(sql, input = {}) {
+  const cat = input.category ? String(input.category).trim() : ''
+  if (!cat) {
+    const dist = await sql`
+      SELECT COALESCE(NULLIF(TRIM(category), ''), '(uncategorized)') AS category, COUNT(*)::int AS count
+      FROM prospect_companies
+      GROUP BY 1
+      ORDER BY count DESC, category ASC
+    `
+    return { mode: 'distribution', total_categories: dist.length, categories: dist }
+  }
+  const CAP = 100
+  const rows = await sql`
+    SELECT id, company, city, state, category, priority, prospect_status
+    FROM prospect_companies
+    WHERE category ILIKE ${'%' + cat + '%'}
+    ORDER BY category ASC, company ASC
+  `
+  const matched = [...new Set(rows.map(r => r.category).filter(Boolean))]
+  return {
+    mode: 'list',
+    query: cat,
+    matched_categories: matched,
+    count: rows.length,
+    truncated: rows.length > CAP,
+    companies: rows.slice(0, CAP),
+  }
+}
+
 // Dispatch a tool_use block to its read-only executor.
 async function runAssistantTool(sql, name, input) {
   switch (name) {
@@ -1390,6 +1440,7 @@ async function runAssistantTool(sql, name, input) {
     case 'search_pipeline': return assistantSearchPipeline(sql, input)
     case 'get_opportunity': return assistantGetOpportunity(sql, input)
     case 'get_state_report': return assistantGetStateReport(sql, input)
+    case 'list_companies_by_category': return assistantListByCategory(sql, input)
     default: return { error: `Unknown tool: ${name}` }
   }
 }
