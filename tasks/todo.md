@@ -24,8 +24,9 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - [x] `implementation-notes.html` (design decisions / deviations / tradeoffs / open questions)
 - [x] Update `CLAUDE.md` (assistant arm, `ANTHROPIC_API_KEY`, plain-`fetch` Anthropic pattern)
 - [x] Commit + push to `claude/loving-allen-ubj6j4`
-- [ ] **(Kyle)** Add `ANTHROPIC_API_KEY` to Vercel Preview
-- [ ] **CHECKPOINT** — three live questions return grounded answers (I run via curl, or Kyle self-verifies)
+- [x] **Pivot:** switch LLM provider Anthropic → Together.ai (OpenAI-compatible), model `deepseek-ai/DeepSeek-V3`, env `TOGETHER_AI_API` — `node --check` PASS, commit + push
+- [x] **(Kyle)** Add `TOGETHER_AI_API` to Vercel Preview (done — confirmed in dashboard)
+- [ ] **CHECKPOINT** — three live questions return grounded answers (Kyle sends preview URL + `session_token`; I run via curl)
 - [ ] Only then: Prompt 2 (UI panel)
 
 ## Notes / gotchas (from recon)
@@ -33,4 +34,5 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - List arm uses `sql.query(text, params)` with `$N` placeholders for dynamic WHERE; tagged-template for fixed shape.
 - `ontology-neighborhood` takes an entity_id (not prospect_id) → NOT wired as a tool; use `ontology-similar`.
 - `add-activity` auto-overwrites `suggested_next_step` — irrelevant here (no writes in Phase 1).
-- ANTHROPIC_API_KEY unset in this env (can't run live loop here); DATABASE_URL set (can smoke-test SELECTs).
+- Provider is Together.ai (OpenAI-compatible chat completions), model DeepSeek-V3, env `TOGETHER_AI_API`. Plumbing: system = first message, tools = `{type:'function',...}`, tool calls on `choices[0].message.tool_calls`, results = `{role:'tool',...}`. The five SQL executors are unchanged (provider-agnostic).
+- `TOGETHER_AI_API` not in this build env (live loop runs on the preview only); DATABASE_URL set (smoke-tested the SELECTs).

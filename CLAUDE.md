@@ -332,7 +332,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 An embedded, **strictly read-only** AI assistant that answers questions and compares prospects, grounded entirely in data it fetches through five read-only tools. It **never** edits records, creates tasks, changes priority, or drafts outreach.
 
 - **Where:** a single `POST ?action=assistant` arm in `api/prospects.js` (no new serverless file — **function count stays 10**). Auth is the file-level `requireAuth` guard (`:861-864`), same as every other action.
-- **Runtime:** a server-side Anthropic Messages API tool-use loop via **plain `fetch`** (no SDK — house style, like Resend). Headers are `x-api-key: ${process.env.ANTHROPIC_API_KEY}` + `anthropic-version: 2023-06-01` (NOT `Authorization: Bearer` — that's Resend's pattern, not Anthropic's). Model `claude-sonnet-4-6`, `max_tokens` 2048, loop capped at 8 turns; single JSON response (no streaming). All work awaited before `res.json()`.
+- **Runtime:** a server-side tool-use loop against **Together.ai's OpenAI-compatible chat completions API** (`https://api.together.xyz/v1/chat/completions`) via **plain `fetch`** (no SDK — house style, like Resend). Auth is `Authorization: Bearer ${process.env.TOGETHER_AI_API}`. Model `deepseek-ai/DeepSeek-V3`, `max_tokens` 2048, loop capped at 8 turns; single JSON response (no streaming). Tools use OpenAI's `{type:'function', function:{name, description, parameters}}` shape (the neutral tool defs' `input_schema` is mapped to `parameters` at call time); tool calls come back on `choices[0].message.tool_calls` with `finish_reason === 'tool_calls'`, and results go back as `{role:'tool', tool_call_id, content}` messages. All work awaited before `res.json()`. (Was originally built against the Anthropic Messages API; switched to Together.ai — to swap providers again, the change is isolated to this arm's `callModel` + the endpoint/model/auth constants.)
 - **Contract:** body `{ messages:[{role:'user'|'assistant', content:string}], prospectId|null }` → `200 { answer, toolsUsed[] }`; `400` malformed, `401` auth, `500` safe message (never leaks the key or a stack trace).
 - **Five tools** (module-scope `assistant*` executors + `runAssistantTool` dispatcher; each a `SELECT`-only query mirroring an existing arm — **zero writes anywhere in the path**): `search_prospects` (list arm), `get_prospect` (trimmed export-json bundle), `find_similar_prospects` (`ontology-similar`), `query_ontology` (`ontology-query`), `get_research_brief` (`prospect_attachments`). `ontology-neighborhood` is deliberately NOT a tool (it needs an entity_id, not a prospect_id).
 - **Token-bounding:** search ≤50 rows, `query_ontology` ≤25, `find_similar` ≤15, brief excerpt 500 chars in `get_prospect` / ~8000 in `get_research_brief`, plus a 12K hard cap per stringified `tool_result`.
@@ -937,7 +937,7 @@ DATABASE_URL=            # Neon PostgreSQL connection string
 VITE_API_URL=            # API base URL (if separate backend)
 RESEND_API_KEY=          # Resend API key for daily digest emails
 CRON_SECRET=             # Vercel Cron secret for securing digest endpoint
-ANTHROPIC_API_KEY=       # Anthropic Messages API key for the ?action=assistant reasoning assistant (set in Vercel: Preview + Production)
+TOGETHER_AI_API=         # Together.ai API key for the ?action=assistant reasoning assistant (OpenAI-compatible chat completions; set in Vercel: Preview + Production)
 ```
 
 ## Conventions

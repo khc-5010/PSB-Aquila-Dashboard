@@ -28,6 +28,8 @@
 <h1>Read-Only Reasoning Assistant — Backend (Phase 1, Prompt 1)</h1>
 <p class="muted">Branch <code>claude/loving-allen-ubj6j4</code>. Endpoint <code>POST /api/prospects?action=assistant</code>. One new <code>?action=</code> arm + module-scope helpers in <code>api/prospects.js</code>. No new files, no schema changes, no DB writes, no SDK. Grounded in <code>tasks/agent-phase1-findings.md</code>.</p>
 
+<p style="background:#fef3c7;border-left:4px solid #d97706;padding:.6rem .9rem;border-radius:6px;"><strong>Update — provider switched to Together.ai.</strong> Originally built against the Anthropic Messages API; mid-task Kyle switched the assistant to <strong>Together.ai</strong> (OpenAI-compatible chat completions) and chose model <code>deepseek-ai/DeepSeek-V3</code>. Env var is <code>TOGETHER_AI_API</code> (already set in Vercel Preview). The five SQL tool executors were unchanged — only the LLM plumbing (request/response shape, tool format, system-prompt placement, auth header) was converted. Details in the provider decision below.</p>
+
 <h2>What was built</h2>
 <ul>
   <li>A module-scope block (just above the handler in <code>api/prospects.js</code>): constants (<code>ASSISTANT_MODEL = 'claude-sonnet-4-6'</code>, <code>ASSISTANT_MAX_TURNS = 8</code>, <code>ASSISTANT_MAX_TOKENS = 2048</code>), the <code>ASSISTANT_SYSTEM</code> prompt (verbatim from spec), the <code>ASSISTANT_TOOLS</code> array (5 tools, verbatim), five <strong>SELECT-only</strong> executors, and a <code>runAssistantTool</code> dispatcher.</li>
@@ -45,8 +47,8 @@ body:  { messages: [{ role: "user"|"assistant", content: "..." }], prospectId: 1
 <h3><span class="tag decision">DECISION</span> Auth: no new code — the file-level guard already covers it</h3>
 <p>Recon found <code>api/prospects.js:861-864</code> runs <code>requireAuth</code> for <em>every</em> action except <code>GET daily-digest</code>. A new POST action is therefore auth-gated automatically. Adding a second <code>requireAuth</code> call inside the arm would be redundant (and the <code>authUser</code> from the file-level call is block-scoped, so it isn't reachable here anyway — and Prompt 1 needs no DB writes, so no attribution is required).</p>
 
-<h3><span class="tag decision">DECISION</span> Plain <code>fetch</code>, <code>x-api-key</code> headers, model <code>claude-sonnet-4-6</code></h3>
-<p>House style (the Resend call at <code>~1062</code> is the template). Anthropic uses <code>x-api-key</code> + <code>anthropic-version: 2023-06-01</code> — <strong>not</strong> Resend's <code>Authorization: Bearer</code>. No SDK, no <code>thinking</code> param, no streaming (single JSON response, matching the await-before-response serverless model). Model is the spec's explicit choice (a real, current model id).</p>
+<h3><span class="tag decision">DECISION</span> Provider: Together.ai (OpenAI-compatible), model <code>deepseek-ai/DeepSeek-V3</code></h3>
+<p>Plain <code>fetch</code> to <code>https://api.together.xyz/v1/chat/completions</code> with <code>Authorization: Bearer ${TOGETHER_AI_API}</code> (house style; the Resend call at <code>~1062</code> is the fetch template). OpenAI-compatible shape: the system prompt is the first <code>messages</code> entry (not a top-level field); tools are mapped to <code>{type:'function', function:{name, description, parameters}}</code> at call time (the neutral defs keep <code>input_schema</code>, mapped to <code>parameters</code>); tool calls return on <code>choices[0].message.tool_calls</code> with <code>finish_reason === 'tool_calls'</code>; each result goes back as a separate <code>{role:'tool', tool_call_id, content}</code> message; <code>arguments</code> arrive as a JSON string and are <code>JSON.parse</code>d (guarded). No SDK, no streaming (single JSON response). The five SQL executors are provider-agnostic — unchanged by the switch; only <code>callModel</code> + the endpoint/model/auth constants changed.</p>
 
 <h3><span class="tag decision">DECISION</span> Tool SELECTs mirror existing arms verbatim</h3>
 <table>
@@ -89,13 +91,13 @@ body:  { messages: [{ role: "user"|"assistant", content: "..." }], prospectId: 1
 
 <h2>Not verifiable here — the live checkpoint (needs Kyle + Vercel preview)</h2>
 <ul>
-  <li><span class="tag open">OPEN</span> <code>ANTHROPIC_API_KEY</code> is <strong>unset</strong> in this environment and absent from the repo. It must be added to <strong>Vercel → Preview</strong> (and later Production) — I cannot set Vercel env vars.</li>
-  <li><span class="tag open">OPEN</span> The three spec questions (ISO 13485 list; summarize-this-company; compare-to-similar) must return grounded answers against the preview deploy before Prompt 2 starts. I can run them via <code>curl</code> from here if given the preview URL + a <code>session_token</code>, or Kyle self-verifies.</li>
+  <li><span class="tag open">OPEN</span> <code>TOGETHER_AI_API</code> is set in <strong>Vercel → Preview</strong> (confirmed by Kyle); add it to <strong>Production</strong> before the prod deploy. It is not present in this build environment, so the live loop can only run on the preview, not here.</li>
+  <li><span class="tag open">OPEN</span> The three spec questions (ISO 13485 list; summarize-this-company; compare-to-similar) must return grounded answers against the preview deploy before Prompt 2 starts. Kyle provides the preview URL + a <code>session_token</code>; I run them via <code>curl</code> from here and report answers + <code>toolsUsed</code>.</li>
 </ul>
 
 <h2>Open questions for Kyle</h2>
 <ul>
-  <li>Verification path: hand me the preview URL + a session token (I run the 3 checks), or self-run them?</li>
+  <li><strong>Resolved:</strong> provider = Together.ai; model = DeepSeek-V3; verification = Kyle sends the preview URL + a session token and I run the three checks.</li>
   <li>Should the assistant log each query to <code>prospect_activity_log</code> for an audit trail? (Out of scope for Prompt 1 — it would be the only DB write; flagged for a possible follow-up. If yes, it must be a bare INSERT, not the <code>add-activity</code> action, to avoid clobbering <code>suggested_next_step</code>.)</li>
 </ul>
 

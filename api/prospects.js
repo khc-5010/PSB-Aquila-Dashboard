@@ -854,14 +854,15 @@ function getProspectUrgency(prospect) {
 // ─────────────────────────────────────────────────────────────────────────
 // Read-only reasoning assistant (POST ?action=assistant)
 //
-// Server-side Anthropic Messages API tool-use loop. Plain fetch (house style,
-// like the Resend call above) — x-api-key + anthropic-version headers, NOT a
-// Bearer token. STRICTLY READ-ONLY: every tool executor issues SELECT only;
-// there is no INSERT/UPDATE/DELETE anywhere in this code path. All work is
-// awaited before the response is sent (Vercel freezes after res.end()).
+// Server-side tool-use loop against Together.ai's OpenAI-compatible chat
+// completions API. Plain fetch (house style, like the Resend call above) with
+// an Authorization: Bearer ${TOGETHER_AI_API} header. STRICTLY READ-ONLY:
+// every tool executor issues SELECT only; there is no INSERT/UPDATE/DELETE
+// anywhere in this code path. All work is awaited before the response is sent
+// (Vercel freezes after res.end()).
 // ─────────────────────────────────────────────────────────────────────────
-const ASSISTANT_MODEL = 'claude-sonnet-4-6'
-const ASSISTANT_ANTHROPIC_VERSION = '2023-06-01'
+const ASSISTANT_ENDPOINT = 'https://api.together.xyz/v1/chat/completions'
+const ASSISTANT_MODEL = 'deepseek-ai/DeepSeek-V3'
 const ASSISTANT_MAX_TURNS = 8
 const ASSISTANT_MAX_TOKENS = 2048
 const ASSISTANT_TOOL_RESULT_CAP = 12000 // hard backstop on each stringified tool_result
@@ -3507,15 +3508,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // ─── Read-only reasoning assistant (Anthropic Messages API tool-use loop) ───
+    // ─── Read-only reasoning assistant (Together.ai chat-completions tool-use loop) ───
     // Answers questions about prospects, grounded entirely in data fetched
     // through the five read-only tools above. No DB writes. Auth is already
     // enforced by the file-level requireAuth guard at the top of the handler.
     if (action === 'assistant') {
       try {
-        const apiKey = process.env.ANTHROPIC_API_KEY
+        const apiKey = process.env.TOGETHER_AI_API
         if (!apiKey) {
-          console.error('Assistant: ANTHROPIC_API_KEY is not configured')
+          console.error('Assistant: TOGETHER_AI_API is not configured')
           return res.status(500).json({ error: 'The assistant is not configured.' })
         }
 
@@ -3530,93 +3531,98 @@ export default async function handler(req, res) {
           }
         }
 
-        // System prompt; add the prospect-context line when launched from a prospect.
-        let system = ASSISTANT_SYSTEM
+        // OpenAI-compatible: the system prompt is the first message (not a
+        // top-level field). Add the prospect-context line when launched from one.
+        let systemPrompt = ASSISTANT_SYSTEM
         const prospectId = parseInt(body.prospectId, 10)
         if (Number.isFinite(prospectId)) {
           const ctxRows = await sql`SELECT company FROM prospect_companies WHERE id = ${prospectId}`
           if (ctxRows.length) {
-            system += `\n\nThe user is currently viewing prospect #${prospectId} (${ctxRows[0].company}). Treat that as the starting point unless they ask about something else.`
+            systemPrompt += `\n\nThe user is currently viewing prospect #${prospectId} (${ctxRows[0].company}). Treat that as the starting point unless they ask about something else.`
           }
         }
 
-        // Visible conversation only; tool round-trips are appended server-side.
-        const messages = incoming.map((m) => ({ role: m.role, content: m.content }))
+        // System message + the visible conversation; tool round-trips appended server-side.
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          ...incoming.map((m) => ({ role: m.role, content: m.content })),
+        ]
+        // Map the neutral tool defs to OpenAI's function-tool shape (input_schema → parameters).
+        const openaiTools = ASSISTANT_TOOLS.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.input_schema },
+        }))
         const toolsUsed = new Set()
 
-        const callAnthropic = async ({ forceText = false } = {}) => {
+        const callModel = async ({ forceText = false } = {}) => {
           const payload = {
             model: ASSISTANT_MODEL,
             max_tokens: ASSISTANT_MAX_TOKENS,
-            system,
             messages,
-            tools: ASSISTANT_TOOLS,
+            tools: openaiTools,
+            tool_choice: forceText ? 'none' : 'auto',
           }
-          if (forceText) payload.tool_choice = { type: 'none' }
-          const r = await fetch('https://api.anthropic.com/v1/messages', {
+          const r = await fetch(ASSISTANT_ENDPOINT, {
             method: 'POST',
             headers: {
-              'x-api-key': apiKey,
-              'anthropic-version': ASSISTANT_ANTHROPIC_VERSION,
+              Authorization: `Bearer ${apiKey}`,
               'content-type': 'application/json',
             },
             body: JSON.stringify(payload),
           })
           if (!r.ok) {
             const detail = await r.text().catch(() => '')
-            console.error(`Assistant: Anthropic API ${r.status}: ${detail.slice(0, 500)}`)
-            const err = new Error('anthropic_error')
-            err.isAnthropic = true
+            console.error(`Assistant: Together API ${r.status}: ${detail.slice(0, 500)}`)
+            const err = new Error('llm_error')
+            err.isLlm = true
             throw err
           }
           return r.json()
         }
 
-        const collectText = (content) =>
-          (content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim()
-
         for (let turn = 0; turn < ASSISTANT_MAX_TURNS; turn++) {
-          const data = await callAnthropic()
-          if (data.stop_reason !== 'tool_use') {
-            // end_turn / max_tokens / stop_sequence / refusal — terminal.
-            const answer = data.stop_reason === 'refusal'
-              ? "I can't help with that request."
-              : (collectText(data.content) || 'I was unable to produce an answer.')
+          const data = await callModel()
+          const choice = (data.choices && data.choices[0]) || {}
+          const message = choice.message || {}
+          const toolCalls = Array.isArray(message.tool_calls) ? message.tool_calls : []
+
+          if (choice.finish_reason !== 'tool_calls' || toolCalls.length === 0) {
+            // stop / length / content_filter — terminal.
+            const answer = (message.content && message.content.trim()) || 'I was unable to produce an answer.'
             return res.status(200).json({ answer, toolsUsed: [...toolsUsed] })
           }
 
-          // Append the assistant turn verbatim (carries the tool_use blocks).
-          messages.push({ role: 'assistant', content: data.content })
+          // Append the assistant turn (carries the tool_calls) before the tool results.
+          messages.push({ role: 'assistant', content: message.content ?? null, tool_calls: toolCalls })
 
-          // Run each tool_use block read-only; collect tool_result blocks.
-          const toolResults = []
-          for (const block of data.content) {
-            if (block.type !== 'tool_use') continue
-            toolsUsed.add(block.name)
+          // Run each tool call read-only; append one tool message per call.
+          for (const call of toolCalls) {
+            const fn = call.function || {}
+            toolsUsed.add(fn.name)
             let resultStr
-            let isError = false
             try {
-              const result = await runAssistantTool(sql, block.name, block.input || {})
+              let args = {}
+              if (fn.arguments) {
+                try { args = JSON.parse(fn.arguments) } catch { args = {} }
+              }
+              const result = await runAssistantTool(sql, fn.name, args)
               resultStr = JSON.stringify(result)
             } catch (toolErr) {
-              console.error(`Assistant tool ${block.name} failed:`, toolErr)
+              console.error(`Assistant tool ${fn.name} failed:`, toolErr)
               resultStr = JSON.stringify({ error: 'The tool failed to run.' })
-              isError = true
             }
             if (resultStr.length > ASSISTANT_TOOL_RESULT_CAP) {
               resultStr = resultStr.slice(0, ASSISTANT_TOOL_RESULT_CAP) + '…(truncated)'
             }
-            const tr = { type: 'tool_result', tool_use_id: block.id, content: resultStr }
-            if (isError) tr.is_error = true
-            toolResults.push(tr)
+            messages.push({ role: 'tool', tool_call_id: call.id, content: resultStr })
           }
-          messages.push({ role: 'user', content: toolResults })
         }
 
         // Hit MAX_TURNS — one final no-tools call to force a text wrap-up.
         try {
-          const data = await callAnthropic({ forceText: true })
-          const answer = collectText(data.content) || 'I gathered some information but ran out of reasoning steps before finishing.'
+          const data = await callModel({ forceText: true })
+          const message = (data.choices && data.choices[0] && data.choices[0].message) || {}
+          const answer = (message.content && message.content.trim()) || 'I gathered some information but ran out of reasoning steps before finishing.'
           return res.status(200).json({
             answer: answer + '\n\n_(Note: reached the reasoning-step limit.)_',
             toolsUsed: [...toolsUsed],
@@ -3628,7 +3634,7 @@ export default async function handler(req, res) {
           })
         }
       } catch (error) {
-        if (error && error.isAnthropic) {
+        if (error && error.isLlm) {
           return res.status(500).json({ error: 'The assistant is temporarily unavailable. Please try again.' })
         }
         console.error('Assistant error:', error)
