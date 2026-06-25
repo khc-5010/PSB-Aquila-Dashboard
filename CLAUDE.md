@@ -240,7 +240,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
 - **`users`** - Dashboard user accounts (4 users)
   - `id` (SERIAL, PK), `name`, `email` (unique), `pin_hash`, `color`, `role` (admin/member), `is_active`, `created_at`, `last_login_at`
   - `digest_enabled` (BOOLEAN, default true) — master toggle for daily digest emails
-  - `digest_preferences` (JSONB, default `{"overdue": true, "due_soon": true, "stale": true, "pe_windows": true}`) — per-section toggles
+  - `digest_preferences` (JSONB, default `{"overdue": true, "due_soon": true, "stale": true, "pe_windows": true}`) — per-section toggles. The `overdue` / `due_soon` keys are **vestigial**: those sections were removed when `follow_up_date` urgency was retired. They're ignored by the digest and the prefs modal; the DB default still carries them (no migration was run to drop them — harmless unread keys).
 
 - **`sessions`** - Active login sessions (persist until logout)
   - `id` (TEXT, PK — random UUID token), `user_id` (FK), `created_at`
@@ -881,8 +881,6 @@ Automated daily email digests notify users about action items in their prospect 
 ### Email Sections (user-configurable)
 | Section | Preference Key | What It Shows |
 |---------|---------------|---------------|
-| Overdue Follow-Ups | `overdue` | **Dormant** — keyed on the retired `follow_up_date` urgency level, so it never has items now. Section/toggle left in place (cosmetic dead code, flagged for a future cleanup). |
-| Due This Week | `due_soon` | **Dormant** — same as above (`due_today`/`due_soon`/`due_week` levels no longer produced). |
 | Stale / Stalled | `stale` | Prospects idle too long for their status. **De-duped:** a stale prospect that already has an open task is omitted here (it's in My Open Tasks), matching the TodayView Needs Attention de-dup. |
 | PE Window Watch | `pe_windows` | PE-backed companies with recent M&A activity |
 | My Open Tasks | `tasks` | Open `prospect_tasks` assigned to the user OR unassigned (badge rule). Pref key added later than the others — absence in stored JSONB means enabled (`prefs.tasks !== false`). Tasks query is try/catch-guarded so it can never sink the digest run. |
@@ -910,6 +908,7 @@ Automated daily email digests notify users about action items in their prospect 
 ALTER TABLE users ADD COLUMN digest_enabled BOOLEAN DEFAULT true;
 ALTER TABLE users ADD COLUMN digest_preferences JSONB DEFAULT '{"overdue": true, "due_soon": true, "stale": true, "pe_windows": true}'::jsonb;
 ```
+(Historical — already run. The `overdue` / `due_soon` keys are now unused; the live default still includes them, but no follow-up migration is needed since the digest ignores them.)
 
 ## Keeping This File Current
 
