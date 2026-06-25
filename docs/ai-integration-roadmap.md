@@ -126,7 +126,10 @@ Each phase is independently shippable and PR-sized. Effort is rough: **S** ≈ �
 **Guardrails:** read-only synthesis over existing data; the digest stays opt-in per the existing preference system.
 **Success signal:** digest → action rate; Call Sheet used as the morning plan.
 
-### Phase 4 — Close the copy-paste loops *(L2 — automate the tedious)* · **M–L**
+### Phase 4 — Close the copy-paste loops *(L2 — automate the tedious)* · **M–L** · ◑ PARTIAL (4a shipped this PR; 4b deferred)
+**As built (4a — server-side ontology extraction):** `GET ?action=ai-extract-ontology&id=X` reads the saved brief + existing entities (for dedup), calls Together once (9.5s abort + robust JSON parse + validation against the canonical type lists), and **returns** `{entities, relationships}` — it does **not** write. An **"Extract with AI"** button in `ImportOntologyModal` pipes the result into the existing validate → preview → **import** flow, so the human still confirms and the write goes through the unchanged, tested `import-ontology-extraction` path. The copy-paste flow (`ExtractionPromptModal`) stays as a fallback. This makes 4a effectively L1 (AI proposes; human commits via the existing write).
+**Deferred (4b — AI-assisted brief→field intake):** auto-proposing edits to canonical `prospect_companies` fields is higher-stakes, needs a new field-by-field approval-diff UI, and warrants live-testable LLM verification before it touches the scored record. Its own pass.
+
 **Value:** removes two manual external-Claude round-trips that exist today.
 **What it does:**
 - **Server-side Ontology Layer-2 extraction:** replace the `ExtractionPromptModal → ImportOntologyModal` copy-paste with a one-click "Extract from brief" that runs the extraction prompt server-side, validates the JSON against entity/relationship types, and imports via the *existing* `import-ontology-extraction` path. (No web search needed — extraction is from brief text.)

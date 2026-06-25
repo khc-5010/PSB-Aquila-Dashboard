@@ -901,6 +901,38 @@ Hard rules: ground every company-specific claim in tool data — never invent fa
 
 Output format: a "Subject:" line, then the message body. After the message, add one short italic line listing the hooks you used and any [placeholders] to fill before sending.`
 
+// ─── Phase 4a: server-side ontology Layer-2 extraction (?action=ai-extract-ontology) ───
+// Read-only: produces a {entities, relationships} proposal from a research brief.
+// The WRITE still goes through the existing, tested import-ontology-extraction
+// path on human confirm (ImportOntologyModal preview). These valid-type lists
+// SYNC with src/components/prospects/ImportOntologyModal.jsx — keep identical.
+const AI_EXTRACT_ENTITY_TYPES = [
+  'Technology / Software', 'Equipment Brand', 'Quality Method', 'Material',
+  'Market Vertical', 'Manufacturing Process', 'Workforce Capability',
+  'Company', 'Certification', 'Ownership Structure',
+]
+const AI_EXTRACT_REL_TYPES = [
+  'uses_technology', 'uses_equipment_brand', 'holds_certification', 'serves_market',
+  'operates_process', 'employs_method', 'processes_material', 'has_workforce_capability',
+  'acquired_by', 'subsidiary_of', 'partners_with', 'competes_with', 'supplies_to',
+  'has_ownership_structure',
+]
+const AI_EXTRACT_CONFIDENCES = ['Confirmed', 'Likely', 'Inferred']
+
+const ASSISTANT_EXTRACT_SYSTEM = `You are an information-extraction engine for a plastics-manufacturing knowledge graph. From a company's research brief, extract structured entities and the relationships connecting them to the company. Respond with ONLY a single JSON object — no markdown fences, no commentary.`
+
+// Robustly pull a JSON object out of a model reply (strips ``` fences / stray prose).
+function parseExtractionJson(text) {
+  if (!text || typeof text !== 'string') return null
+  let s = text.trim()
+  const fence = s.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i)
+  if (fence) s = fence[1].trim()
+  const first = s.indexOf('{')
+  const last = s.lastIndexOf('}')
+  if (first === -1 || last === -1 || last < first) return null
+  try { return JSON.parse(s.slice(first, last + 1)) } catch { return null }
+}
+
 const ASSISTANT_TOOLS = [
   {
     name: 'search_prospects',
@@ -1999,6 +2031,119 @@ export default async function handler(req, res) {
       } catch (error) {
         console.error('Error fetching ontology existing entities:', error)
         return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Phase 4a: server-side AI ontology extraction (read-only proposal) ───
+    // Reads the prospect's research brief + existing entities, asks the model for
+    // a {entities, relationships} extraction, validates against the canonical type
+    // lists, and RETURNS it (no write). The human reviews + imports via the
+    // existing ImportOntologyModal → import-ontology-extraction path.
+    if (action === 'ai-extract-ontology') {
+      try {
+        const apiKey = process.env.TOGETHER_AI_API
+        if (!apiKey) return res.status(500).json({ error: 'AI extraction is not configured.' })
+        const pid = parseInt(id, 10)
+        if (!Number.isFinite(pid)) return res.status(400).json({ error: 'A numeric prospect id is required.' })
+
+        const prows = await sql`SELECT id, company, category, state, source_report FROM prospect_companies WHERE id = ${pid}`
+        if (!prows.length) return res.status(404).json({ error: `No prospect found with id ${pid}.` })
+        const p = prows[0]
+
+        const briefRows = await sql`
+          SELECT content FROM prospect_attachments
+          WHERE prospect_id = ${pid} AND attachment_type = 'research_brief'
+          ORDER BY created_at DESC LIMIT 1`
+        if (!briefRows.length || !briefRows[0].content) {
+          return res.status(400).json({ error: 'This prospect has no research brief to extract from.' })
+        }
+        let brief = String(briefRows[0].content)
+        if (brief.length > 8000) brief = brief.slice(0, 8000)
+
+        const entRows = await sql`
+          SELECT et.name AS type_name, e.name AS entity_name
+          FROM ontology_entities e JOIN ontology_entity_types et ON et.id = e.type_id
+          ORDER BY et.name, e.name`
+        const grouped = {}
+        for (const r of entRows) { (grouped[r.type_name] = grouped[r.type_name] || []).push(r.entity_name) }
+        const existingList = Object.entries(grouped)
+          .map(([t, names]) => `- ${t}: ${names.slice(0, 40).join(', ')}`).join('\n') || '(none yet)'
+
+        const userPrompt = `Company: ${p.company} (prospect_id ${p.id})
+Category: ${p.category || 'N/A'} · State: ${p.state || 'N/A'} · Source: ${p.source_report || 'N/A'}
+
+Allowed entity "type" values (use these EXACTLY): ${AI_EXTRACT_ENTITY_TYPES.join(', ')}.
+Allowed "relationship_type" values (use these EXACTLY): ${AI_EXTRACT_REL_TYPES.join(', ')}.
+"confidence" must be one of: Confirmed, Likely, Inferred.
+
+Existing entities already in the graph — REUSE these exact names when the brief refers to them (do not create near-duplicates):
+${existingList}
+
+Output JSON shape (and nothing else):
+{"entities":[{"type":"<one of the allowed types>","name":"<entity name>","confidence":"Confirmed|Likely|Inferred","notes":"<short, optional>"}],"relationships":[{"relationship_type":"<one of the allowed types>","subject":"${p.company}","object":"<entity name>","confidence":"Confirmed|Likely|Inferred"}]}
+
+Rules: only extract what the brief actually supports — never invent. The subject of most relationships is "${p.company}". Skip anything you can't tie to a real statement in the brief.
+
+RESEARCH BRIEF:
+${brief}`
+
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 9500)
+        let modelData
+        try {
+          const r = await fetch(ASSISTANT_ENDPOINT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+              model: ASSISTANT_MODEL,
+              max_tokens: 2048,
+              temperature: 0.2,
+              messages: [
+                { role: 'system', content: ASSISTANT_EXTRACT_SYSTEM },
+                { role: 'user', content: userPrompt },
+              ],
+            }),
+            signal: controller.signal,
+          })
+          if (!r.ok) {
+            const detail = await r.text().catch(() => '')
+            console.error(`ai-extract-ontology: Together ${r.status}: ${detail.slice(0, 300)}`)
+            return res.status(502).json({ error: 'The extraction model is unavailable right now. Try the copy-paste extraction instead.' })
+          }
+          modelData = await r.json()
+        } catch (e) {
+          if (e && e.name === 'AbortError') {
+            return res.status(504).json({ error: 'Extraction timed out. Try again, or use the copy-paste extraction.' })
+          }
+          throw e
+        } finally {
+          clearTimeout(timer)
+        }
+
+        const text = modelData?.choices?.[0]?.message?.content || ''
+        const parsed = parseExtractionJson(text)
+        if (!parsed) {
+          return res.status(502).json({ error: 'The model did not return usable JSON. Try again or use the copy-paste extraction.' })
+        }
+        const entities = (Array.isArray(parsed.entities) ? parsed.entities : [])
+          .filter((e) => e && AI_EXTRACT_ENTITY_TYPES.includes(e.type) && e.name && String(e.name).trim())
+          .map((e) => {
+            const o = { type: e.type, name: String(e.name).trim() }
+            if (AI_EXTRACT_CONFIDENCES.includes(e.confidence)) o.confidence = e.confidence
+            if (e.notes && String(e.notes).trim()) o.notes = String(e.notes).trim()
+            return o
+          })
+        const relationships = (Array.isArray(parsed.relationships) ? parsed.relationships : [])
+          .filter((r) => r && AI_EXTRACT_REL_TYPES.includes(r.relationship_type) && r.subject && r.object)
+          .map((r) => {
+            const o = { relationship_type: r.relationship_type, subject: String(r.subject).trim(), object: String(r.object).trim() }
+            if (AI_EXTRACT_CONFIDENCES.includes(r.confidence)) o.confidence = r.confidence
+            return o
+          })
+        return res.status(200).json({ company: p.company, prospect_id: p.id, entities, relationships, model: ASSISTANT_MODEL })
+      } catch (error) {
+        console.error('Error in ai-extract-ontology:', error)
+        return res.status(500).json({ error: 'Something went wrong during extraction.' })
       }
     }
 
