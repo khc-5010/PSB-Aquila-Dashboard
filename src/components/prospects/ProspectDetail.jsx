@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, X, Flag, FileJson } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Flag, FileJson, Sparkles } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 
 import { calculatePriorityScore, calculateAiReadiness, getTierFromScore } from '../../utils/priorityScore'
@@ -14,6 +14,7 @@ import ConvertToOpportunityModal from './ConvertToOpportunityModal'
 import ExtractionPromptModal from './ExtractionPromptModal'
 import ImportOntologyModal from './ImportOntologyModal'
 import ExportJsonModal from './ExportJsonModal'
+import AssistantModal from './AssistantModal'
 import NeighborhoodPanel from '../ontology/NeighborhoodPanel'
 import FdaEnrichment from './FdaEnrichment'
 import TasksSection from './tasks/TasksSection'
@@ -254,6 +255,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   const [showExtractionModal, setShowExtractionModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const [showAssistantModal, setShowAssistantModal] = useState(false)
   const [editingBrief, setEditingBrief] = useState(null)
   const [attachments, setAttachments] = useState([])
 
@@ -326,7 +328,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal || showExportModal || editingBrief || showFlagInput
+        const anySubModalOpen = showPromptModal || showAttachModal || showConvertModal || showExtractionModal || showImportModal || showExportModal || showAssistantModal || editingBrief || showFlagInput
         if (!anySubModalOpen) {
           onClose()
         }
@@ -334,7 +336,7 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal, showExportModal, editingBrief, showFlagInput])
+  }, [onClose, showPromptModal, showAttachModal, showConvertModal, showExtractionModal, showImportModal, showExportModal, showAssistantModal, editingBrief, showFlagInput])
 
   // Prev/next navigation
   const currentIndex = prospectNavList ? prospectNavList.indexOf(prospect?.id) : -1
@@ -483,6 +485,14 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
 
               {/* Navigation + Close */}
               <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                <button
+                  onClick={() => setShowAssistantModal(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
+                  title="Ask AI about this company (read-only, grounded in dashboard data)"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="hidden sm:inline">Ask AI</span>
+                </button>
                 <button
                   onClick={() => setShowExportModal(true)}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 text-sm font-medium transition-colors"
@@ -1226,6 +1236,12 @@ function ProspectDetail({ prospect, onClose, onUpdate, onRefresh, prospectNavLis
         <ExportJsonModal
           prospect={p}
           onClose={() => setShowExportModal(false)}
+        />
+      )}
+      {showAssistantModal && (
+        <AssistantModal
+          prospect={p}
+          onClose={() => setShowAssistantModal(false)}
         />
       )}
     </>

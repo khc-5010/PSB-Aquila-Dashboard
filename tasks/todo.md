@@ -26,8 +26,15 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - [x] Commit + push to `claude/loving-allen-ubj6j4`
 - [x] **Pivot:** switch LLM provider Anthropic → Together.ai (OpenAI-compatible), model `deepseek-ai/DeepSeek-V3`, env `TOGETHER_AI_API` — `node --check` PASS, commit + push
 - [x] **(Kyle)** Add `TOGETHER_AI_API` to Vercel Preview (done — confirmed in dashboard)
-- [ ] **CHECKPOINT** — three live questions return grounded answers. BLOCKED: this sandbox's egress allowlist doesn't include `api.together.xyz` (403 from proxy). Code + SQL validated; only the live LLM round-trip is unverified. Resolve via: (a) add `api.together.xyz` to env Custom network access + **new session** → I re-run the read-only harness with the key; or (b) Kyle self-verifies on the Vercel preview (no egress limit on his machine).
-- [ ] Only then: Prompt 2 (UI panel)
+- [x] Prompt 1 merged into `main` (PR #136).
+
+## Prompt 2 — UI chat panel (branch `claude/assistant-ui-panel`, separate PR)
+- [x] `src/components/prospects/AssistantModal.jsx` — `z-[60]` sub-modal (ExportJsonModal family); message list, textarea (Enter to send / Shift+Enter newline), suggested starters, `ReportMarkdownRenderer` answers, `toolsUsed` tags, thinking indicator, error + Retry, read-only framing.
+- [x] ProspectDetail wiring — "Ask AI" button (`Sparkles`) in header cluster; `showAssistantModal` state added to `anySubModalOpen` Escape guard + deps; modal rendered alongside ExportJsonModal.
+- [x] Contract verified against merged backend: sends `{ messages:[{role,content}], prospectId }` via `authFetch`; reads `{ answer, toolsUsed }` / `{ error }`. Backend reads `body.prospectId` (camelCase) — matches.
+- [x] `npm run build` PASS. Update CLAUDE.md UI line.
+- [x] Commit + push `claude/assistant-ui-panel`.
+- [ ] **COMBINED CHECKPOINT (Kyle, on preview — test everything at once):** open a prospect → "Ask AI" → run the three questions; confirm grounded answers + sensible `toolsUsed`. Egress block only affects this sandbox; the deployed function reaches Together fine. If DeepSeek-V3 tool-calling is unreliable, swap `ASSISTANT_MODEL` to `meta-llama/Llama-3.3-70B-Instruct-Turbo` (one-line change).
 
 ## Notes / gotchas (from recon)
 - Auth already enforced at `api/prospects.js:861-864` for every non-digest action → no extra auth code.

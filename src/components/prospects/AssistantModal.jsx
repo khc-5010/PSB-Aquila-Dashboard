@@ -1,0 +1,225 @@
+import { useState, useRef, useEffect } from 'react'
+import { X, Send, Sparkles, Wrench } from 'lucide-react'
+import { authFetch, useAuth } from '../../context/AuthContext'
+import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
+
+// Read-only reasoning assistant chat panel, launched from ProspectDetail.
+// Talks to POST /api/prospects?action=assistant (Together.ai tool-use loop over
+// five SELECT-only tools). Non-streaming: one request per turn returns
+// { answer, toolsUsed[] }. The full conversation is sent each turn so follow-ups
+// stay coherent; the server prepends its own system prompt and the
+// "currently viewing prospect #X" context from prospectId.
+// Mirrors ExportJsonModal's z-[60] sub-modal shell + own-Escape pattern.
+
+const SUGGESTIONS = [
+  'Summarize what we know about this company and why it matters.',
+  'How does this company compare to similar ones in our pipeline?',
+  'What gaps or risks should I know before reaching out?',
+]
+
+export default function AssistantModal({ prospect, onClose }) {
+  const { user } = useAuth()
+  const [messages, setMessages] = useState([]) // { role: 'user'|'assistant', content, toolsUsed? }
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const scrollRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Own Escape handler so this sub-modal closes first (ProspectDetail's Escape
+  // is suppressed while showAssistantModal is open).
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Keep the latest message / thinking indicator in view.
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages, loading])
+
+  async function runRequest(convo) {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await authFetch('/api/prospects?action=assistant', {
+        method: 'POST',
+        body: JSON.stringify({
+          messages: convo.map((m) => ({ role: m.role, content: m.content })),
+          prospectId: prospect?.id ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Request failed (${res.status})`)
+      }
+      const data = await res.json()
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: data.answer || '(no answer returned)', toolsUsed: data.toolsUsed || [] },
+      ])
+    } catch (err) {
+      setError(err.message || 'Something went wrong.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function send(text) {
+    const content = (text ?? input).trim()
+    if (!content || loading) return
+    const next = [...messages, { role: 'user', content }]
+    setMessages(next)
+    setInput('')
+    runRequest(next)
+  }
+
+  // Re-send the current conversation (its last turn is the user message that failed).
+  function retry() {
+    if (loading || !messages.length) return
+    runRequest(messages)
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      send()
+    }
+  }
+
+  const empty = messages.length === 0
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold text-[#041E42] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#041E42]" />
+              Ask AI
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5 truncate">
+              {prospect?.company}
+              <span className="text-gray-400"> · read-only · answers grounded in dashboard data</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 flex-shrink-0" title="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {empty ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <Sparkles className="w-7 h-7 text-gray-300 mb-3" />
+              <p className="text-sm text-gray-500 max-w-sm">
+                Ask about {prospect?.company || 'this company'} or the pipeline. I can search prospects, pull
+                full context, find similar companies, query the knowledge graph, and read research briefs — but I
+                can&apos;t change anything.
+              </p>
+              <div className="mt-5 w-full max-w-md space-y-2">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => send(s)}
+                    className="w-full text-left text-sm text-[#041E42] bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.map((m, i) =>
+              m.role === 'user' ? (
+                <div key={i} className="flex justify-end">
+                  <div className="max-w-[85%] bg-[#041E42] text-white rounded-2xl rounded-br-sm px-4 py-2 text-sm whitespace-pre-wrap break-words">
+                    {m.content}
+                  </div>
+                </div>
+              ) : (
+                <div key={i} className="flex justify-start">
+                  <div className="max-w-[90%] bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-gray-800">
+                    <ReportMarkdownRenderer content={m.content} />
+                    {m.toolsUsed && m.toolsUsed.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-400">
+                        <Wrench className="w-3 h-3" />
+                        {m.toolsUsed.map((t) => (
+                          <span key={t} className="bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            )
+          )}
+
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
+                <span className="inline-flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                </span>
+                Thinking… (reading the data — may take a few seconds)
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex justify-start">
+              <div className="max-w-[90%] bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-600">
+                {error}{' '}
+                <button onClick={retry} className="underline font-medium hover:text-red-700">
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="border-t border-gray-200 p-3">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              placeholder={`Ask about ${prospect?.company || 'this company'}…`}
+              className="flex-1 resize-none max-h-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#041E42]/30 focus:border-[#041E42]"
+            />
+            <button
+              onClick={() => send()}
+              disabled={loading || !input.trim()}
+              className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#041E42] text-white hover:bg-[#041E42]/90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+              title="Send"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1.5 px-1">
+            Enter to send · Shift+Enter for a new line{user?.name ? ` · ${user.name}` : ''}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
