@@ -26,7 +26,7 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - [x] Commit + push to `claude/loving-allen-ubj6j4`
 - [x] **Pivot:** switch LLM provider Anthropic → Together.ai (OpenAI-compatible), model `deepseek-ai/DeepSeek-V3`, env `TOGETHER_AI_API` — `node --check` PASS, commit + push
 - [x] **(Kyle)** Add `TOGETHER_AI_API` to Vercel Preview (done — confirmed in dashboard)
-- [ ] **CHECKPOINT** — three live questions return grounded answers (Kyle sends preview URL + `session_token`; I run via curl)
+- [ ] **CHECKPOINT** — three live questions return grounded answers. BLOCKED: this sandbox's egress allowlist doesn't include `api.together.xyz` (403 from proxy). Code + SQL validated; only the live LLM round-trip is unverified. Resolve via: (a) add `api.together.xyz` to env Custom network access + **new session** → I re-run the read-only harness with the key; or (b) Kyle self-verifies on the Vercel preview (no egress limit on his machine).
 - [ ] Only then: Prompt 2 (UI panel)
 
 ## Notes / gotchas (from recon)
