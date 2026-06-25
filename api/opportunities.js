@@ -5,6 +5,13 @@ import { requireAuth } from '../lib/requireAuth.js'
 // src/constants/options.js (STAGES), and api/opportunities/[id].js (VALID_STAGES).
 const VALID_STAGES = ['on_deck', 'outreach', 'channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
+// SYNC: project types — mirrors PROJECT_TYPES values in src/constants/pipeline.js.
+// project_type is also a Postgres ENUM (with stale legacy values like 'research',
+// 'senior_design' — see PROJECT_TYPE_MAP in [id].js), so the app's display values
+// must be added to the type or INSERT/PATCH raises "invalid input value for enum
+// project_type".
+const VALID_PROJECT_TYPES = ['Pilot Project', 'Research Agreement', 'Senior Design', 'Strategic Membership']
+
 // Guarded one-time schema ensure: runs once per warm instance, not on every
 // request. The old per-request unguarded ALTER was the antipattern flagged in
 // the June QA audit. lead_type ('client'|'partner') and waiting_on ('us'|'them')
@@ -20,45 +27,85 @@ async function ensureOpportunitySchema(sql) {
     // Non-fatal: columns may already exist or the table differs.
     console.log('opportunity column ensure note:', e.message)
   }
+  // Two-step, separate try blocks so one failing never skips the other; both are
+  // idempotent and converge to no-ops. (1) Add the app's values to the legacy
+  // enums — the immediate fix, guarantees promotes work even if (2) hiccups.
+  // (2) Convert those columns to TEXT — the durable fix that ends the enum drift.
   try {
-    await ensureStageEnumValues(sql)
+    await ensureEnumValues(sql)
   } catch (e) {
-    // Non-fatal: stage may be a plain text column, or values may already exist.
-    console.log('stage enum ensure note:', e.message)
+    console.log('enum value ensure note:', e.message)
+  }
+  try {
+    await convertEnumColumnsToText(sql)
+  } catch (e) {
+    console.log('enum->text conversion note:', e.message)
   }
   // Best-effort, once per warm instance. DDL persists, so a later cold start
   // retries anything that failed transiently here.
   schemaEnsured = true
 }
 
-// `opportunities.stage` (and the stage_transitions stage columns) are backed by
-// a Postgres ENUM. The two new front stages must be added to that enum type or
-// INSERT/PATCH with 'on_deck'/'outreach' fails with "invalid input value for
-// enum stage". Each ALTER runs as its own neon HTTP statement (autocommit), which
-// sidesteps the "ALTER TYPE ADD VALUE cannot run inside a transaction block"
-// restriction. Idempotent via ADD VALUE IF NOT EXISTS; a no-op if stage is text.
-async function ensureStageEnumValues(sql) {
+// Transitional step 1 — make the legacy enums accept the app's values. `stage`
+// and `project_type` are Postgres ENUMs whose value lists drifted from the app
+// (new stages; project_type still carries legacy values like 'research'). Until
+// step 2 converts them to TEXT, INSERT/PATCH with a missing value fails with
+// "invalid input value for enum ...". Each ALTER runs as its own neon HTTP
+// statement (autocommit), sidestepping the "ALTER TYPE ADD VALUE cannot run inside
+// a transaction block" restriction. Idempotent via ADD VALUE IF NOT EXISTS; a
+// no-op once the column is TEXT.
+async function addEnumValues(sql, table, column, values) {
   const rows = await sql`
-    SELECT DISTINCT t.typname
+    SELECT t.typname
     FROM pg_type t
     JOIN pg_attribute a ON a.atttypid = t.oid
     JOIN pg_class c ON c.oid = a.attrelid
-    WHERE t.typtype = 'e'
-      AND (
-        (c.relname = 'opportunities' AND a.attname = 'stage')
-        OR (c.relname = 'stage_transitions' AND a.attname IN ('from_stage', 'to_stage'))
-      )
+    WHERE t.typtype = 'e' AND c.relname = ${table} AND a.attname = ${column}
+    LIMIT 1
   `
-  for (const { typname } of rows) {
-    // typname comes from pg_catalog, but validate as an identifier before
-    // interpolating (ALTER TYPE can't be parameterized). Looping VALID_STAGES
-    // (vetted ^[a-z_]+$ constants) means a future stage is covered for free —
-    // existing values are a harmless no-op via ADD VALUE IF NOT EXISTS.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(typname)) continue
-    for (const val of VALID_STAGES) {
-      if (!/^[a-z_]+$/.test(val)) continue
-      await sql.query(`ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${val}'`)
-    }
+  const typname = rows[0]?.typname
+  // typname is from pg_catalog, but validate as an identifier before
+  // interpolating (ALTER TYPE accepts neither bound params nor a quoted-elsewhere
+  // name). Values are trusted module constants; escape quotes defensively anyway.
+  if (!typname || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(typname)) return
+  for (const val of values) {
+    const safe = String(val).replace(/'/g, "''")
+    await sql.query(`ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${safe}'`)
+  }
+}
+
+async function ensureEnumValues(sql) {
+  await addEnumValues(sql, 'opportunities', 'stage', VALID_STAGES)
+  await addEnumValues(sql, 'stage_transitions', 'from_stage', VALID_STAGES)
+  await addEnumValues(sql, 'stage_transitions', 'to_stage', VALID_STAGES)
+  await addEnumValues(sql, 'opportunities', 'project_type', VALID_PROJECT_TYPES)
+}
+
+// Durable step 2 — convert the legacy enum columns to TEXT. This ends the enum
+// drift for good: TEXT matches the newer lead_type/waiting_on columns, and the
+// app's dropdowns + VALID_STAGES become the single source of valid values. Unlike
+// ALTER TYPE ADD VALUE, ALTER TABLE ... ALTER COLUMN TYPE is fully transactional
+// (no caveat). Guarded per column via information_schema; a no-op once the column
+// is already TEXT (or absent). Table/column names are hardcoded constants below.
+const TEXT_CONVERSION_TARGETS = [
+  { table: 'opportunities', column: 'stage', default: 'on_deck' },
+  { table: 'opportunities', column: 'project_type', default: null },
+  { table: 'opportunities', column: 'outcome', default: null },
+  { table: 'stage_transitions', column: 'from_stage', default: null },
+  { table: 'stage_transitions', column: 'to_stage', default: null },
+]
+async function convertEnumColumnsToText(sql) {
+  for (const { table, column, default: def } of TEXT_CONVERSION_TARGETS) {
+    const rows = await sql`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = ${table} AND column_name = ${column}
+      LIMIT 1
+    `
+    // USER-DEFINED == enum here; skip if already text, or the column is absent.
+    if (rows[0]?.data_type !== 'USER-DEFINED') continue
+    await sql.query(`ALTER TABLE ${table} ALTER COLUMN ${column} DROP DEFAULT`)
+    await sql.query(`ALTER TABLE ${table} ALTER COLUMN ${column} TYPE TEXT USING ${column}::text`)
+    if (def) await sql.query(`ALTER TABLE ${table} ALTER COLUMN ${column} SET DEFAULT '${def}'`)
   }
 }
 
