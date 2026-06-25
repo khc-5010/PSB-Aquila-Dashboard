@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -90,9 +90,12 @@ function App() {
       .catch(() => {})
   }, [user])
 
-  // Fetch opportunities
-  const fetchOpportunities = useCallback(() => {
-    setLoading(true)
+  // Fetch opportunities. `silent` (used by the pipeline-tab refresh below)
+  // updates the board in place: it skips the loading skeletons and won't flash
+  // an error banner on a transient failure — the current board stays put until
+  // fresh data arrives.
+  const fetchOpportunities = useCallback((silent = false) => {
+    if (!silent) setLoading(true)
     authFetch('/api/opportunities')
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -100,12 +103,15 @@ function App() {
       })
       .then(data => {
         setOpportunities(data)
-        setLoading(false)
+        setError(null)
+        if (!silent) setLoading(false)
       })
       .catch(err => {
         console.error('Error fetching opportunities:', err)
-        setError(err.message)
-        setLoading(false)
+        if (!silent) {
+          setError(err.message)
+          setLoading(false)
+        }
       })
   }, [])
 
@@ -114,6 +120,19 @@ function App() {
     if (!user) return
     fetchOpportunities()
   }, [user, fetchOpportunities])
+
+  // Refresh the board whenever the user *arrives* at the Pipeline tab, so a
+  // company just promoted on the Prospects tab (or a teammate's change) shows up
+  // without a manual page refresh. Silent → no skeleton flash. The prevView ref
+  // makes this fire only on a transition *into* pipeline, so the initial mount
+  // (where pipeline is the desktop default) doesn't double-fetch.
+  const prevViewRef = useRef(activeView)
+  useEffect(() => {
+    if (!user) return
+    const arrivedAtPipeline = activeView === 'pipeline' && prevViewRef.current !== 'pipeline'
+    prevViewRef.current = activeView
+    if (arrivedAtPipeline) fetchOpportunities(true)
+  }, [activeView, user, fetchOpportunities])
 
   // Group opportunities by stage using PIPELINE_STAGES keys
   const opportunitiesByStage = PIPELINE_STAGES.reduce((acc, stage) => {
