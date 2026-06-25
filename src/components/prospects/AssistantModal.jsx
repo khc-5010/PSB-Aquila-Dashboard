@@ -13,7 +13,7 @@ import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
 
 const SUGGESTIONS = [
   'Summarize what we know about this company and why it matters.',
-  'How does this company compare to similar ones in our pipeline?',
+  'How does this company compare to similar prospects we track?',
   'What gaps or risks should I know before reaching out?',
 ]
 
@@ -144,7 +144,7 @@ export default function AssistantModal({ prospect, onClose }) {
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <Sparkles className="w-7 h-7 text-gray-300 mb-3" />
               <p className="text-sm text-gray-500 max-w-sm">
-                Ask about {prospect?.company || 'this company'} or the pipeline. I can search prospects, pull
+                Ask about {prospect?.company || 'this company'} or your other prospects. I can search prospects, pull
                 full context, find similar companies, query the knowledge graph, and read research briefs — but I
                 can&apos;t change anything.
               </p>
