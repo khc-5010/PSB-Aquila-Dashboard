@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Sparkles } from 'lucide-react'
 import InfoTooltip from '../national-map/InfoTooltip'
 import { authFetch } from '../../context/AuthContext'
 
@@ -71,6 +72,7 @@ export default function ImportOntologyModal({ prospect, onClose, onImported }) {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [error, setError] = useState(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   function handleParse() {
     setParseErrors([])
@@ -94,6 +96,39 @@ export default function ImportOntologyModal({ prospect, onClose, onImported }) {
     data.prospect_id = prospect.id
     setParsed(data)
     setStep('preview')
+  }
+
+  // Server-side AI extraction (Phase 4a): asks the model to read the saved brief
+  // and propose entities/relationships, then drops the JSON into the same
+  // validate → preview → import flow the manual paste uses. The human still
+  // confirms the import; the write path is unchanged.
+  async function handleAiExtract() {
+    setAiLoading(true)
+    setError(null)
+    setParseErrors([])
+    try {
+      const res = await authFetch(`/api/prospects?action=ai-extract-ontology&id=${prospect.id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'AI extraction failed')
+      const extracted = {
+        entities: Array.isArray(data.entities) ? data.entities : [],
+        relationships: Array.isArray(data.relationships) ? data.relationships : [],
+        prospect_id: prospect.id,
+      }
+      // Show the JSON for transparency/editing, and run the same validation.
+      setRawJson(JSON.stringify({ entities: extracted.entities, relationships: extracted.relationships }, null, 2))
+      const validationErrors = validateImportData(extracted, prospect.id)
+      if (validationErrors.length > 0) {
+        setParseErrors(validationErrors)
+        return
+      }
+      setParsed(extracted)
+      setStep('preview')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   async function handleImport() {
@@ -166,13 +201,29 @@ export default function ImportOntologyModal({ prospect, onClose, onImported }) {
               </div>
             </div>
           ) : step === 'paste' ? (
-            /* Step 1: Paste JSON */
+            /* Step 1: Extract with AI, or paste JSON */
             <div>
+              <div className="flex items-center justify-between gap-3 mb-3 bg-[#041E42]/5 border border-[#041E42]/15 rounded-lg px-3 py-2.5">
+                <p className="text-xs text-gray-600">
+                  Let AI read the saved research brief and propose the entities &amp; relationships — you review before importing.
+                </p>
+                <button
+                  onClick={handleAiExtract}
+                  disabled={aiLoading}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-[#041E42] hover:bg-[#041E42]/90 disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {aiLoading ? 'Extracting…' : 'Extract with AI'}
+                </button>
+              </div>
+              {error && (
+                <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700">{error}</div>
+              )}
               <textarea
                 autoFocus
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
-                placeholder='Paste the JSON output from the extraction Claude session here...'
+                placeholder='Click "Extract with AI" above, or paste JSON from an extraction Claude session here...'
                 className="w-full min-h-[300px] font-mono text-sm border border-gray-300 rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 resize-none"
               />
               {parseErrors.length > 0 && (

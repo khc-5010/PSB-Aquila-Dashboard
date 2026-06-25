@@ -1,9 +1,13 @@
 import { useState } from 'react'
-import { Phone, ChevronDown } from 'lucide-react'
+import { Phone, ChevronDown, Sparkles } from 'lucide-react'
 import { isPEOwnership } from '../../utils/priorityScore'
 import { buildHookLine } from '../../utils/buildHookLine'
 import { getPEWindowInfo } from '../../utils/peWindow'
 import StatusBadge from './StatusBadge'
+import AssistantModal from './AssistantModal'
+
+const BRIEF_DAY_SEED =
+  'What should I focus on today? Rank my priorities across prospects and the live pipeline — PE windows closing, overdue follow-ups, stalled research, and hot CWP leads — and briefly say why each matters.'
 
 /**
  * Call Sheet (QA audit E3) — a ranked "next calls" queue so the dashboard is
@@ -95,6 +99,9 @@ function daysAgo(dateStr) {
 
 export default function CallSheet({ prospects, taskCounts, getUrgency, onSelect }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT)
+  // AI assistant launch: { prospect, seed } — null = closed. Prep = per-call talking
+  // points (prospect-scoped); Brief my day = global priorities (prospect null).
+  const [assistant, setAssistant] = useState(null)
 
   const entries = prospects
     .map(p => buildCallEntry(p, taskCounts.get(p.id), getUrgency))
@@ -104,10 +111,21 @@ export default function CallSheet({ prospects, taskCounts, getUrgency, onSelect 
   const visible = entries.slice(0, visibleCount)
 
   return (
+    <>
     <div className="max-w-3xl mx-auto px-6 py-5">
-      <div className="flex items-center gap-2 mb-1">
-        <Phone className="w-4 h-4 text-[#041E42]" />
-        <h2 className="text-base font-semibold text-[#041E42]">Next Calls</h2>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="flex items-center gap-2">
+          <Phone className="w-4 h-4 text-[#041E42]" />
+          <h2 className="text-base font-semibold text-[#041E42]">Next Calls</h2>
+        </div>
+        <button
+          onClick={() => setAssistant({ prospect: null, seed: BRIEF_DAY_SEED })}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#041E42] bg-white border border-gray-200 hover:bg-gray-50 text-xs font-medium transition-colors"
+          title="Ask AI to rank today's priorities across prospects & pipeline"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Brief my day
+        </button>
       </div>
       <p className="text-xs text-gray-500 mb-4">
         Ranked by priority score, plus boosts for due/overdue work and open PE windows.
@@ -161,6 +179,14 @@ export default function CallSheet({ prospects, taskCounts, getUrgency, onSelect 
                       </p>
                     )}
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setAssistant({ prospect: p, seed: `Give me 3 concise talking points and a strong opening line for a call with ${p.company}.` }) }}
+                    className="flex-shrink-0 self-start flex items-center gap-1 px-2 py-1 rounded-lg text-gray-400 hover:text-[#041E42] hover:bg-gray-100 text-xs font-medium transition-colors"
+                    title="AI call prep — talking points for this company"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Prep</span>
+                  </button>
                 </div>
               )
             })}
@@ -178,5 +204,13 @@ export default function CallSheet({ prospects, taskCounts, getUrgency, onSelect 
         </>
       )}
     </div>
+    {assistant && (
+      <AssistantModal
+        prospect={assistant.prospect}
+        initialMessage={assistant.seed}
+        onClose={() => setAssistant(null)}
+      />
+    )}
+    </>
   )
 }

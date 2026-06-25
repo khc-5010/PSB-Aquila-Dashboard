@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Sparkles, Search } from 'lucide-react'
+import { X, Send, Sparkles, Search, Copy, Check } from 'lucide-react'
 import { authFetch, useAuth } from '../../context/AuthContext'
 import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
+import { copyText } from '../../utils/exportProspect'
 
 // Read-only reasoning assistant chat panel, launched from ProspectDetail.
 // Talks to POST /api/prospects?action=assistant (Together.ai tool-use loop over
@@ -11,10 +12,17 @@ import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
 // "currently viewing prospect #X" context from prospectId.
 // Mirrors ExportJsonModal's z-[60] sub-modal shell + own-Escape pattern.
 
-const SUGGESTIONS = [
+// Starter prompts: prospect-scoped (launched from a prospect) vs global
+// (launched from the header — spans prospects + the live pipeline + state reports).
+const PROSPECT_SUGGESTIONS = [
   'Summarize what we know about this company and why it matters.',
   'How does this company compare to similar prospects we track?',
   'What gaps or risks should I know before reaching out?',
+]
+const GLOBAL_SUGGESTIONS = [
+  "What's in the pipeline right now, and what looks stalled?",
+  'Which medical-device molders have ISO 13485 certification?',
+  'Which prospects have a closing PE-acquisition window?',
 ]
 
 // Plain-English names + tooltips for the read-only data sources the assistant
@@ -26,6 +34,9 @@ const TOOL_LABELS = {
   find_similar_prospects: 'Similar companies',
   query_ontology: 'Knowledge graph',
   get_research_brief: 'Research brief',
+  search_pipeline: 'Searched pipeline',
+  get_opportunity: 'Deal details',
+  get_state_report: 'State report',
 }
 const TOOL_TIPS = {
   search_prospects: 'Searched the prospect database',
@@ -33,17 +44,22 @@ const TOOL_TIPS = {
   find_similar_prospects: 'Found companies with similar certifications, technologies, and markets',
   query_ontology: 'Searched the knowledge graph by capability (certifications, technology, markets)',
   get_research_brief: 'Read the saved research brief',
+  search_pipeline: 'Searched the live Pipeline (active deals/opportunities)',
+  get_opportunity: "Pulled a deal's full record + recent activity",
+  get_state_report: 'Read the current state research report',
 }
 const labelForTool = (t) => TOOL_LABELS[t] || t.replace(/_/g, ' ')
 
-export default function AssistantModal({ prospect, onClose }) {
+export default function AssistantModal({ prospect, onClose, mode = 'chat', initialMessage = null }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState([]) // { role: 'user'|'assistant', content, toolsUsed? }
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [copiedIdx, setCopiedIdx] = useState(null)
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
+  const seededRef = useRef(false)
 
   // Own Escape handler so this sub-modal closes first (ProspectDetail's Escape
   // is suppressed while showAssistantModal is open).
@@ -57,6 +73,17 @@ export default function AssistantModal({ prospect, onClose }) {
 
   useEffect(() => {
     inputRef.current?.focus()
+  }, [])
+
+  // Draft mode (and any caller that passes initialMessage): auto-send the seed
+  // once on open so the user sees their request + the grounded draft. Ref-guarded
+  // against StrictMode double-invoke.
+  useEffect(() => {
+    if (initialMessage && !seededRef.current) {
+      seededRef.current = true
+      send(initialMessage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Keep the latest message / thinking indicator in view.
@@ -73,6 +100,7 @@ export default function AssistantModal({ prospect, onClose }) {
         body: JSON.stringify({
           messages: convo.map((m) => ({ role: m.role, content: m.content })),
           prospectId: prospect?.id ?? null,
+          mode,
         }),
       })
       if (!res.ok) {
@@ -114,6 +142,24 @@ export default function AssistantModal({ prospect, onClose }) {
   }
 
   const empty = messages.length === 0
+  // Global mode = launched from the header (no prospect context); prospect mode =
+  // launched from a specific prospect. Drives copy + starter prompts.
+  const isGlobal = !prospect
+  const isDraft = mode === 'draft'
+  const suggestions = isGlobal ? GLOBAL_SUGGESTIONS : PROSPECT_SUGGESTIONS
+  const title = isDraft ? 'Draft message' : 'Ask AI'
+  const subtitle = isDraft
+    ? 'AI draft · review & edit before sending'
+    : (isGlobal ? 'across prospects & pipeline' : prospect?.company)
+  const askName = isGlobal ? 'your prospects or the pipeline' : (prospect?.company || 'this company')
+
+  async function handleCopy(text, idx) {
+    const ok = await copyText(text)
+    if (ok) {
+      setCopiedIdx(idx)
+      setTimeout(() => setCopiedIdx((c) => (c === idx ? null : c)), 2000)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" onClick={onClose}>
@@ -126,10 +172,10 @@ export default function AssistantModal({ prospect, onClose }) {
           <div className="min-w-0">
             <h3 className="text-lg font-semibold text-[#041E42] flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#041E42]" />
-              Ask AI
+              {title}
             </h3>
             <p className="text-sm text-gray-500 mt-0.5 truncate">
-              {prospect?.company}
+              {subtitle}
               <span className="text-gray-400"> · read-only · answers grounded in dashboard data</span>
             </p>
           </div>
@@ -140,16 +186,22 @@ export default function AssistantModal({ prospect, onClose }) {
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {empty ? (
+          {empty && !initialMessage ? (
             <div className="h-full flex flex-col items-center justify-center text-center px-4">
               <Sparkles className="w-7 h-7 text-gray-300 mb-3" />
               <p className="text-sm text-gray-500 max-w-sm">
-                Ask about {prospect?.company || 'this company'} or your other prospects. I can search prospects, pull
-                full context, find similar companies, query the knowledge graph, and read research briefs — but I
-                can&apos;t change anything.
+                {isGlobal ? (
+                  <>Ask about your prospects or the live pipeline. I can search prospects and deals, pull full
+                  context, find similar companies, query the knowledge graph, and read research &amp; state reports —
+                  but I can&apos;t change anything.</>
+                ) : (
+                  <>Ask about {prospect?.company || 'this company'} or your other prospects. I can search prospects, pull
+                  full context, find similar companies, query the knowledge graph, and read research briefs — but I
+                  can&apos;t change anything.</>
+                )}
               </p>
               <div className="mt-5 w-full max-w-md space-y-2">
-                {SUGGESTIONS.map((s) => (
+                {suggestions.map((s) => (
                   <button
                     key={s}
                     onClick={() => send(s)}
@@ -189,6 +241,16 @@ export default function AssistantModal({ prospect, onClose }) {
                         ))}
                       </div>
                     )}
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => handleCopy(m.content, i)}
+                        className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600"
+                        title="Copy this message"
+                      >
+                        {copiedIdx === i ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        {copiedIdx === i ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -229,7 +291,7 @@ export default function AssistantModal({ prospect, onClose }) {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               rows={1}
-              placeholder={`Ask about ${prospect?.company || 'this company'}…`}
+              placeholder={`Ask about ${askName}…`}
               className="flex-1 resize-none max-h-32 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#041E42]/30 focus:border-[#041E42]"
             />
             <button

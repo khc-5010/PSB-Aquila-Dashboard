@@ -877,13 +877,61 @@ const ASSISTANT_SYSTEM = `You are the research assistant inside the PSB-Aquila p
 
 Answer questions about prospects using only data you retrieve through your tools. Ground every factual claim in tool results. If a tool returns nothing, or a brief is missing, say so plainly instead of guessing. You are read-only: you cannot change records, create tasks, or send anything, and you never imply that you have.
 
-Your scope is the prospect database (the Prospects tab) — the companies the alliance is researching and qualifying. You do NOT have access to the live opportunities "Pipeline" tab (active deals, stages, owners). So when a user says "the pipeline," treat it as their prospect list, compare across prospects, and refer to them as "prospects" or "companies we're tracking" — never describe a result as being "in the pipeline."
+You can read two distinct things, and you must keep them straight:
+- **Prospects** (the Prospects tab) — the ~179 companies the alliance is researching and qualifying. Tools: search_prospects, get_prospect, find_similar_prospects, query_ontology, get_research_brief.
+- **The Pipeline** (the opportunities tab) — the smaller set of active *deals* that have been promoted from prospects, each with a stage, owner, value, and a "who has the ball" (waiting_on) field. Tools: search_pipeline, get_opportunity. A deal's source_prospect_id links it back to its prospect.
+You can also read state-level research reports via get_state_report. When a user says "the pipeline," they mean the live opportunities/deals — use search_pipeline, and don't confuse a prospect (a research target) with an opportunity (an active deal). Be precise about which one a fact comes from.
 
 Be concise and direct, in a neutral analyst voice. When sizing up a company, weight what Brett weights: press count over raw employee count, ownership type and acquisition urgency, relevant certifications, technology signals such as RJG cavity-pressure, and relationship warmth from the PSB connection notes. To compare a prospect against others, first call find_similar_prospects, then call get_prospect on the ones worth detailing, and write the comparison only once you actually have that detail.
 
 Your reply is shown to the user as the finished answer. Never end a reply by saying you "will" retrieve, look up, or pull records next — if you need more data, call the tool now (it runs automatically and hands you the result so you can keep going). Only write a text reply once your answer is complete and self-contained; the user cannot see your tool calls or trigger them, so don't ask them to wait or promise a follow-up.
 
 Keep answers to a few short paragraphs. Use a compact list only when comparing multiple companies.`
+
+// Appended to the system prompt only when the request is mode:'draft' (Phase 2,
+// L1). The assistant writes a message for the user to review/edit/send — it still
+// sends nothing and writes nothing. Grounding + no-fabrication rules still apply.
+const ASSISTANT_DRAFT_GUIDANCE = `DRAFTING MODE. The user wants you to draft a message they will review, edit, and send themselves. You are NOT sending anything and you cannot send — produce text only. First gather context with your tools (get_prospect / get_research_brief for a prospect; search_pipeline / get_opportunity for a live deal), then write.
+
+Voice & shape: write as the Penn State Behrend - Aquila Industrial AI Alliance making a warm, professional first contact. Open with a specific, genuine reason we're reaching out to THIS company — a real hook from the data (RJG/cavity-pressure use, in-house tooling, a recent acquisition or PE window, a relevant certification, medical/automotive focus, a PSB/CWP connection). Keep it short and skimmable (~120-180 words), plain language, no buzzword soup, no hard sell. Close with a low-friction call to action (a brief intro conversation).
+
+Stakeholder notifications (for an opportunity / deal): route by project type — Research Agreement → Alicyn Rhoades (VC Research) + Jennifer Surrena (contracts), 4-6 week processing; Senior Design → Dean Lewis (dal16@psu.edu), Aug 15 fall deadline; Strategic Membership → Amy Bridger. Reflect the right contact and any deadline.
+
+Hard rules: ground every company-specific claim in tool data — never invent facts, names, numbers, contacts, or relationships. For anything you can't know (sender name, scheduling, signature, a recipient name not in the data), leave a clearly marked [placeholder]. If you lack enough data to personalize, say so and draft a minimal version rather than fabricating.
+
+Output format: a "Subject:" line, then the message body. After the message, add one short italic line listing the hooks you used and any [placeholders] to fill before sending.`
+
+// ─── Phase 4a: server-side ontology Layer-2 extraction (?action=ai-extract-ontology) ───
+// Read-only: produces a {entities, relationships} proposal from a research brief.
+// The WRITE still goes through the existing, tested import-ontology-extraction
+// path on human confirm (ImportOntologyModal preview). These valid-type lists
+// SYNC with src/components/prospects/ImportOntologyModal.jsx — keep identical.
+const AI_EXTRACT_ENTITY_TYPES = [
+  'Technology / Software', 'Equipment Brand', 'Quality Method', 'Material',
+  'Market Vertical', 'Manufacturing Process', 'Workforce Capability',
+  'Company', 'Certification', 'Ownership Structure',
+]
+const AI_EXTRACT_REL_TYPES = [
+  'uses_technology', 'uses_equipment_brand', 'holds_certification', 'serves_market',
+  'operates_process', 'employs_method', 'processes_material', 'has_workforce_capability',
+  'acquired_by', 'subsidiary_of', 'partners_with', 'competes_with', 'supplies_to',
+  'has_ownership_structure',
+]
+const AI_EXTRACT_CONFIDENCES = ['Confirmed', 'Likely', 'Inferred']
+
+const ASSISTANT_EXTRACT_SYSTEM = `You are an information-extraction engine for a plastics-manufacturing knowledge graph. From a company's research brief, extract structured entities and the relationships connecting them to the company. Respond with ONLY a single JSON object — no markdown fences, no commentary.`
+
+// Robustly pull a JSON object out of a model reply (strips ``` fences / stray prose).
+function parseExtractionJson(text) {
+  if (!text || typeof text !== 'string') return null
+  let s = text.trim()
+  const fence = s.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i)
+  if (fence) s = fence[1].trim()
+  const first = s.indexOf('{')
+  const last = s.lastIndexOf('}')
+  if (first === -1 || last === -1 || last < first) return null
+  try { return JSON.parse(s.slice(first, last + 1)) } catch { return null }
+}
 
 const ASSISTANT_TOOLS = [
   {
@@ -943,6 +991,32 @@ const ASSISTANT_TOOLS = [
     name: 'get_research_brief',
     description: 'Return the full research-brief text for a prospect by its prospect_id, if one exists. Call this only when the excerpt from get_prospect is not enough. Returns the brief content or a note that none exists.',
     input_schema: { type: 'object', properties: { prospect_id: { type: 'integer' } }, required: ['prospect_id'] },
+  },
+  {
+    name: 'search_pipeline',
+    description: "Search the live Pipeline — the opportunities (active deals) the team is working, NOT the prospect list. Returns deals with stage, owner, estimated value, lead_type, waiting_on (who has the ball), next_action, outcome, the source prospect, and when each was last touched. Optional filters: search (company name), stage (on_deck/outreach/channel_routing/client_readiness/project_setup/active/complete), owner, lead_type (client/partner), outcome (won/lost/abandoned). Use for 'what's in the pipeline', 'what's stalled', 'what deals does X own'.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string' },
+        stage: { type: 'string' },
+        owner: { type: 'string' },
+        lead_type: { type: 'string' },
+        outcome: { type: 'string' },
+        limit: { type: 'integer', description: 'Default 25, max 50.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_opportunity',
+    description: 'Get full detail for one live Pipeline opportunity (active deal) by its opportunity_id, including its recent activity log (the bidirectional comms history). Use to summarize a deal or answer "what is the next step / who has the ball / what happened so far".',
+    input_schema: { type: 'object', properties: { opportunity_id: { type: 'integer' } }, required: ['opportunity_id'] },
+  },
+  {
+    name: 'get_state_report',
+    description: 'Return the current state research report (markdown) for a 2-letter US state code (e.g. PA, OH, TX), if one exists. These are the deep state-level prospecting reports from the National Map. Returns the report content or a note that none exists.',
+    input_schema: { type: 'object', properties: { state: { type: 'string', description: '2-letter state code, e.g. "PA".' } }, required: ['state'] },
   },
 ]
 
@@ -1236,6 +1310,84 @@ async function assistantGetResearchBrief(sql, input = {}) {
   return { content, truncated, created_at: rows[0].created_at, created_by: rows[0].created_by }
 }
 
+// search_pipeline — the live opportunities (Pipeline tab), SELECT-only. Mirrors
+// the GET list shape in api/opportunities.js (source_prospect_name join +
+// last_activity_at subquery). Optional filters; capped at 50.
+async function assistantSearchPipeline(sql, input = {}) {
+  const conditions = []
+  const params = []
+  const add = (val) => { params.push(val); return `$${params.length}` }
+  if (input.search && String(input.search).trim()) {
+    conditions.push(`o.company_name ILIKE ${add(`%${String(input.search).trim()}%`)}`)
+  }
+  if (input.stage) conditions.push(`o.stage = ${add(String(input.stage).trim())}`)
+  if (input.owner) conditions.push(`o.owner = ${add(String(input.owner).trim())}`)
+  if (input.lead_type) conditions.push(`o.lead_type = ${add(String(input.lead_type).trim())}`)
+  if (input.outcome) conditions.push(`o.outcome = ${add(String(input.outcome).trim())}`)
+  let limit = parseInt(input.limit, 10)
+  if (!Number.isFinite(limit) || limit <= 0) limit = 25
+  if (limit > 50) limit = 50
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const text = `
+    SELECT o.id, o.company_name, o.project_type, o.stage, o.owner, o.estimated_value,
+           o.lead_type, o.waiting_on, o.next_action, o.outcome, o.source_prospect_id,
+           o.created_at, o.updated_at,
+           pc.company AS source_prospect_name,
+           (SELECT MAX(a.activity_date) FROM activities a WHERE a.opportunity_id = o.id) AS last_activity_at
+    FROM opportunities o
+    LEFT JOIN prospect_companies pc ON pc.id = o.source_prospect_id
+    ${where}
+    ORDER BY o.updated_at DESC
+    LIMIT ${add(limit)}
+  `
+  const rows = await sql.query(text, params)
+  return { count: rows.length, limit, results: rows }
+}
+
+// get_opportunity — one opportunity (the live deal) by id + its recent activity log.
+async function assistantGetOpportunity(sql, input = {}) {
+  const id = input.opportunity_id ?? input.id
+  if (id == null || String(id).trim() === '') return { error: 'An opportunity_id is required.' }
+  const rows = await sql`
+    SELECT o.id, o.company_name, o.description, o.project_type, o.stage, o.owner,
+           o.estimated_value, o.source, o.psb_relationship, o.next_action, o.outcome,
+           o.lead_type, o.waiting_on, o.source_prospect_id, o.closed_at, o.created_at, o.updated_at,
+           pc.company AS source_prospect_name
+    FROM opportunities o
+    LEFT JOIN prospect_companies pc ON pc.id = o.source_prospect_id
+    WHERE o.id = ${id}
+  `
+  if (!rows.length) return { error: `No opportunity found with id ${id}.` }
+  const activities = await sql`
+    SELECT activity_date, description, created_by FROM activities
+    WHERE opportunity_id = ${id} ORDER BY activity_date DESC LIMIT 10
+  `
+  return { opportunity: rows[0], recent_activity: activities }
+}
+
+// get_state_report — the current state research report (markdown, token-capped).
+async function assistantGetStateReport(sql, input = {}) {
+  const state = input.state ? String(input.state).trim().toUpperCase() : ''
+  if (!state) return { error: 'A 2-letter state code is required.' }
+  const rows = await sql`
+    SELECT state_code, state_name, title, content, researched_at, researched_by, prospect_count_at_time
+    FROM state_research_reports
+    WHERE state_code = ${state} AND is_current = true
+    ORDER BY uploaded_at DESC LIMIT 1
+  `
+  if (!rows.length || !rows[0].content) return { note: `No current research report on file for ${state}.` }
+  const r = rows[0]
+  const MAX = 8000
+  let content = String(r.content)
+  let truncated = false
+  if (content.length > MAX) { content = content.slice(0, MAX); truncated = true }
+  return {
+    state_code: r.state_code, state_name: r.state_name, title: r.title,
+    researched_at: r.researched_at, researched_by: r.researched_by,
+    prospect_count_at_time: r.prospect_count_at_time, content, truncated,
+  }
+}
+
 // Dispatch a tool_use block to its read-only executor.
 async function runAssistantTool(sql, name, input) {
   switch (name) {
@@ -1244,6 +1396,9 @@ async function runAssistantTool(sql, name, input) {
     case 'find_similar_prospects': return assistantFindSimilar(sql, input)
     case 'query_ontology': return assistantQueryOntology(sql, input)
     case 'get_research_brief': return assistantGetResearchBrief(sql, input)
+    case 'search_pipeline': return assistantSearchPipeline(sql, input)
+    case 'get_opportunity': return assistantGetOpportunity(sql, input)
+    case 'get_state_report': return assistantGetStateReport(sql, input)
     default: return { error: `Unknown tool: ${name}` }
   }
 }
@@ -1876,6 +2031,119 @@ export default async function handler(req, res) {
       } catch (error) {
         console.error('Error fetching ontology existing entities:', error)
         return res.status(500).json({ error: error.message })
+      }
+    }
+
+    // ─── Phase 4a: server-side AI ontology extraction (read-only proposal) ───
+    // Reads the prospect's research brief + existing entities, asks the model for
+    // a {entities, relationships} extraction, validates against the canonical type
+    // lists, and RETURNS it (no write). The human reviews + imports via the
+    // existing ImportOntologyModal → import-ontology-extraction path.
+    if (action === 'ai-extract-ontology') {
+      try {
+        const apiKey = process.env.TOGETHER_AI_API
+        if (!apiKey) return res.status(500).json({ error: 'AI extraction is not configured.' })
+        const pid = parseInt(id, 10)
+        if (!Number.isFinite(pid)) return res.status(400).json({ error: 'A numeric prospect id is required.' })
+
+        const prows = await sql`SELECT id, company, category, state, source_report FROM prospect_companies WHERE id = ${pid}`
+        if (!prows.length) return res.status(404).json({ error: `No prospect found with id ${pid}.` })
+        const p = prows[0]
+
+        const briefRows = await sql`
+          SELECT content FROM prospect_attachments
+          WHERE prospect_id = ${pid} AND attachment_type = 'research_brief'
+          ORDER BY created_at DESC LIMIT 1`
+        if (!briefRows.length || !briefRows[0].content) {
+          return res.status(400).json({ error: 'This prospect has no research brief to extract from.' })
+        }
+        let brief = String(briefRows[0].content)
+        if (brief.length > 8000) brief = brief.slice(0, 8000)
+
+        const entRows = await sql`
+          SELECT et.name AS type_name, e.name AS entity_name
+          FROM ontology_entities e JOIN ontology_entity_types et ON et.id = e.type_id
+          ORDER BY et.name, e.name`
+        const grouped = {}
+        for (const r of entRows) { (grouped[r.type_name] = grouped[r.type_name] || []).push(r.entity_name) }
+        const existingList = Object.entries(grouped)
+          .map(([t, names]) => `- ${t}: ${names.slice(0, 40).join(', ')}`).join('\n') || '(none yet)'
+
+        const userPrompt = `Company: ${p.company} (prospect_id ${p.id})
+Category: ${p.category || 'N/A'} · State: ${p.state || 'N/A'} · Source: ${p.source_report || 'N/A'}
+
+Allowed entity "type" values (use these EXACTLY): ${AI_EXTRACT_ENTITY_TYPES.join(', ')}.
+Allowed "relationship_type" values (use these EXACTLY): ${AI_EXTRACT_REL_TYPES.join(', ')}.
+"confidence" must be one of: Confirmed, Likely, Inferred.
+
+Existing entities already in the graph — REUSE these exact names when the brief refers to them (do not create near-duplicates):
+${existingList}
+
+Output JSON shape (and nothing else):
+{"entities":[{"type":"<one of the allowed types>","name":"<entity name>","confidence":"Confirmed|Likely|Inferred","notes":"<short, optional>"}],"relationships":[{"relationship_type":"<one of the allowed types>","subject":"${p.company}","object":"<entity name>","confidence":"Confirmed|Likely|Inferred"}]}
+
+Rules: only extract what the brief actually supports — never invent. The subject of most relationships is "${p.company}". Skip anything you can't tie to a real statement in the brief.
+
+RESEARCH BRIEF:
+${brief}`
+
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 9500)
+        let modelData
+        try {
+          const r = await fetch(ASSISTANT_ENDPOINT, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+            body: JSON.stringify({
+              model: ASSISTANT_MODEL,
+              max_tokens: 2048,
+              temperature: 0.2,
+              messages: [
+                { role: 'system', content: ASSISTANT_EXTRACT_SYSTEM },
+                { role: 'user', content: userPrompt },
+              ],
+            }),
+            signal: controller.signal,
+          })
+          if (!r.ok) {
+            const detail = await r.text().catch(() => '')
+            console.error(`ai-extract-ontology: Together ${r.status}: ${detail.slice(0, 300)}`)
+            return res.status(502).json({ error: 'The extraction model is unavailable right now. Try the copy-paste extraction instead.' })
+          }
+          modelData = await r.json()
+        } catch (e) {
+          if (e && e.name === 'AbortError') {
+            return res.status(504).json({ error: 'Extraction timed out. Try again, or use the copy-paste extraction.' })
+          }
+          throw e
+        } finally {
+          clearTimeout(timer)
+        }
+
+        const text = modelData?.choices?.[0]?.message?.content || ''
+        const parsed = parseExtractionJson(text)
+        if (!parsed) {
+          return res.status(502).json({ error: 'The model did not return usable JSON. Try again or use the copy-paste extraction.' })
+        }
+        const entities = (Array.isArray(parsed.entities) ? parsed.entities : [])
+          .filter((e) => e && AI_EXTRACT_ENTITY_TYPES.includes(e.type) && e.name && String(e.name).trim())
+          .map((e) => {
+            const o = { type: e.type, name: String(e.name).trim() }
+            if (AI_EXTRACT_CONFIDENCES.includes(e.confidence)) o.confidence = e.confidence
+            if (e.notes && String(e.notes).trim()) o.notes = String(e.notes).trim()
+            return o
+          })
+        const relationships = (Array.isArray(parsed.relationships) ? parsed.relationships : [])
+          .filter((r) => r && AI_EXTRACT_REL_TYPES.includes(r.relationship_type) && r.subject && r.object)
+          .map((r) => {
+            const o = { relationship_type: r.relationship_type, subject: String(r.subject).trim(), object: String(r.object).trim() }
+            if (AI_EXTRACT_CONFIDENCES.includes(r.confidence)) o.confidence = r.confidence
+            return o
+          })
+        return res.status(200).json({ company: p.company, prospect_id: p.id, entities, relationships, model: ASSISTANT_MODEL })
+      } catch (error) {
+        console.error('Error in ai-extract-ontology:', error)
+        return res.status(500).json({ error: 'Something went wrong during extraction.' })
       }
     }
 
@@ -3544,8 +3812,10 @@ export default async function handler(req, res) {
         }
 
         // OpenAI-compatible: the system prompt is the first message (not a
-        // top-level field). Add the prospect-context line when launched from one.
-        let systemPrompt = ASSISTANT_SYSTEM
+        // top-level field). Draft mode (L1) appends drafting guidance; still
+        // read-only on data (it generates text, sends nothing). Then add the
+        // prospect-context line when launched from one.
+        let systemPrompt = body.mode === 'draft' ? `${ASSISTANT_SYSTEM}\n\n${ASSISTANT_DRAFT_GUIDANCE}` : ASSISTANT_SYSTEM
         const prospectId = parseInt(body.prospectId, 10)
         if (Number.isFinite(prospectId)) {
           const ctxRows = await sql`SELECT company FROM prospect_companies WHERE id = ${prospectId}`
