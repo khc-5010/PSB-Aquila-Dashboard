@@ -34,12 +34,18 @@ No new files, no schema changes, no DB writes, no SDK (plain `fetch`).
 - [x] Contract verified against merged backend: sends `{ messages:[{role,content}], prospectId }` via `authFetch`; reads `{ answer, toolsUsed }` / `{ error }`. Backend reads `body.prospectId` (camelCase) — matches.
 - [x] `npm run build` PASS. Update CLAUDE.md UI line.
 - [x] Commit + push `claude/assistant-ui-panel`.
-- [ ] **COMBINED CHECKPOINT (Kyle, on preview — test everything at once):** open a prospect → "Ask AI" → run the three questions; confirm grounded answers + sensible `toolsUsed`. Egress block only affects this sandbox; the deployed function reaches Together fine. If DeepSeek-V3 tool-calling is unreliable, swap `ASSISTANT_MODEL` to `meta-llama/Llama-3.3-70B-Instruct-Turbo` (one-line change).
+- [x] Prompt 2 (UI) merged into `main` (PR #137). UI confirmed good.
+
+## Bug fix — assistant 500 "temporarily unavailable" (branch `claude/fix-assistant-model`, PR #__)
+- [x] **Root cause:** `ASSISTANT_MODEL = 'deepseek-ai/DeepSeek-V3'` is a stale Together model id (Together serves DeepSeek V3 as `deepseek-ai/DeepSeek-V3-0324` now). Unknown model id → Together 4xx → `!r.ok` (`callModel`, ~3573) → `err.isLlm` → catch returns 500 "The assistant is temporarily unavailable." (Confirmed model strings via web search; couldn't reproduce live — sandbox egress still blocks `api.together.xyz` this session.)
+- [x] **Fix:** switch to `meta-llama/Llama-3.3-70B-Instruct-Turbo` — current, tool-calling-capable, **stable id** (date-stamped DeepSeek ids rotate and re-break). One constant (`api/prospects.js:865`).
+- [x] **Ripple/regression:** `ASSISTANT_MODEL` used only at `:3559` (model-agnostic payload). Tool schemas, the turn loop, `tool_calls`/`finish_reason` parsing, `tool_choice`, `toolsUsed` — all standard OpenAI tool-calling, identical across models → no plumbing change. No `src/` refs (UI calls the endpoint, model-blind). CLAUDE.md model line updated. `node --check` + `npm run build` PASS.
+- [ ] **(Kyle) Verify on the PR preview:** open a prospect → "Ask AI" → three questions return grounded answers + sensible `toolsUsed`. Definitive root-cause confirmation is the Vercel runtime log line `Assistant: Together API <status>: <detail>` (added at `:3575`) — grab it if the fix doesn't take.
 
 ## Notes / gotchas (from recon)
 - Auth already enforced at `api/prospects.js:861-864` for every non-digest action → no extra auth code.
 - List arm uses `sql.query(text, params)` with `$N` placeholders for dynamic WHERE; tagged-template for fixed shape.
 - `ontology-neighborhood` takes an entity_id (not prospect_id) → NOT wired as a tool; use `ontology-similar`.
 - `add-activity` auto-overwrites `suggested_next_step` — irrelevant here (no writes in Phase 1).
-- Provider is Together.ai (OpenAI-compatible chat completions), model DeepSeek-V3, env `TOGETHER_AI_API`. Plumbing: system = first message, tools = `{type:'function',...}`, tool calls on `choices[0].message.tool_calls`, results = `{role:'tool',...}`. The five SQL executors are unchanged (provider-agnostic).
+- Provider is Together.ai (OpenAI-compatible chat completions), model `meta-llama/Llama-3.3-70B-Instruct-Turbo` (was DeepSeek-V3 — stale id, see bug-fix section), env `TOGETHER_AI_API`. Plumbing: system = first message, tools = `{type:'function',...}`, tool calls on `choices[0].message.tool_calls`, results = `{role:'tool',...}`. The five SQL executors are unchanged (provider-agnostic).
 - `TOGETHER_AI_API` not in this build env (live loop runs on the preview only); DATABASE_URL set (smoke-tested the SELECTs).

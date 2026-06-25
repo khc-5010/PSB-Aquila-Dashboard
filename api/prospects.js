@@ -862,7 +862,13 @@ function getProspectUrgency(prospect) {
 // (Vercel freezes after res.end()).
 // ─────────────────────────────────────────────────────────────────────────
 const ASSISTANT_ENDPOINT = 'https://api.together.xyz/v1/chat/completions'
-const ASSISTANT_MODEL = 'deepseek-ai/DeepSeek-V3'
+// Must be a current Together model that supports OpenAI-style function calling.
+// Llama-3.3-70B-Instruct-Turbo has a STABLE id (not a date-stamped snapshot) and
+// solid tool-calling — preferred over DeepSeek snapshots (`DeepSeek-V3-0324`,
+// `-V3.1`, …) whose ids rotate and silently 4xx when retired. The bare
+// `deepseek-ai/DeepSeek-V3` id we shipped first was already stale → every call
+// 4xx'd → "assistant temporarily unavailable".
+const ASSISTANT_MODEL = 'meta-llama/Llama-3.3-70B-Instruct-Turbo'
 const ASSISTANT_MAX_TURNS = 8
 const ASSISTANT_MAX_TOKENS = 2048
 const ASSISTANT_TOOL_RESULT_CAP = 12000 // hard backstop on each stringified tool_result
