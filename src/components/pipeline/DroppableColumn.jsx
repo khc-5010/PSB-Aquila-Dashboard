@@ -41,13 +41,13 @@ function DroppableColumn({ stage, opportunities, children }) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-72 max-lg:snap-center rounded-lg p-4 transition-all duration-200 border ${colors.border} ${
+      className={`flex-shrink-0 w-72 max-lg:snap-center lg:flex lg:flex-col lg:h-full rounded-lg p-4 transition-all duration-200 border ${colors.border} ${
         isOver ? 'ring-2 ring-blue-400 shadow-md' : ''
       }`}
       style={{ backgroundColor: isOver ? colors.hoverBg : colors.bg }}
     >
-      {/* Column header */}
-      <div className="mb-4">
+      {/* Column header (stays put; only the card list below scrolls) */}
+      <div className="mb-4 lg:shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stageInfo?.color || '#94A3B8' }} />
@@ -93,7 +93,7 @@ function DroppableColumn({ stage, opportunities, children }) {
         items={opportunities.map(o => o.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-3 min-h-[200px]">
+        <div className="space-y-3 min-h-[200px] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           {children}
         </div>
       </SortableContext>
