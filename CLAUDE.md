@@ -128,6 +128,8 @@ The pipeline has **7 stages**. The first two ("activation") model the pre-discov
 
 Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'`, `'Strategic Membership'`
 
+**`opportunities.project_type` is a Postgres ENUM** (like `stage`) and still carries stale legacy values (`'research'`, `'senior_design'`, … — see `PROJECT_TYPE_MAP` in `api/opportunities/[id].js`). The current display values must exist in the enum type or INSERT/PATCH raises `invalid input value for enum project_type`. `ensureProjectTypeEnumValues()` in `api/opportunities.js` self-heals this on deploy via the shared `addEnumValues()` helper (looping `VALID_PROJECT_TYPES`), and `scripts/pipeline-activation.sql` does the same for manual application. **SYNC:** `VALID_PROJECT_TYPES` in `api/opportunities.js` ↔ `PROJECT_TYPES` in `src/constants/pipeline.js`.
+
 ### Prospect-to-Pipeline Conversion (Pipeline Activation)
 
 - **Add to Pipeline** button appears on ProspectDetail when `prospect_status` is `'Outreach Ready'` or `'Converted'`

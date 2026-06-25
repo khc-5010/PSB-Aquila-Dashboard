@@ -35,3 +35,29 @@ BEGIN
     RAISE NOTICE 'Added on_deck/outreach to enum type %', tn;
   END LOOP;
 END $$;
+
+-- 3. project_type is ALSO a Postgres enum, and its value list drifted from the
+--    app: it still carries legacy values ('research', 'senior_design', …) while
+--    the app writes display values ('Pilot Project', …). Add the current display
+--    values so promoting a client with a project type doesn't raise
+--    "invalid input value for enum project_type". Idempotent. No-op if text.
+DO $$
+DECLARE
+  tn text;
+  v  text;
+BEGIN
+  SELECT t.typname INTO tn
+  FROM pg_type t
+  JOIN pg_attribute a ON a.atttypid = t.oid
+  JOIN pg_class c ON c.oid = a.attrelid
+  WHERE t.typtype = 'e' AND c.relname = 'opportunities' AND a.attname = 'project_type'
+  LIMIT 1;
+
+  IF tn IS NOT NULL THEN
+    FOREACH v IN ARRAY ARRAY['Pilot Project', 'Research Agreement', 'Senior Design', 'Strategic Membership']
+    LOOP
+      EXECUTE format('ALTER TYPE %I ADD VALUE IF NOT EXISTS %L', tn, v);
+    END LOOP;
+    RAISE NOTICE 'Added current project types to enum type %', tn;
+  END IF;
+END $$;

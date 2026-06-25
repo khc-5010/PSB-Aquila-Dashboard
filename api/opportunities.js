@@ -5,6 +5,13 @@ import { requireAuth } from '../lib/requireAuth.js'
 // src/constants/options.js (STAGES), and api/opportunities/[id].js (VALID_STAGES).
 const VALID_STAGES = ['on_deck', 'outreach', 'channel_routing', 'client_readiness', 'project_setup', 'active', 'complete']
 
+// SYNC: project types — mirrors PROJECT_TYPES values in src/constants/pipeline.js.
+// project_type is also a Postgres ENUM (with stale legacy values like 'research',
+// 'senior_design' — see PROJECT_TYPE_MAP in [id].js), so the app's display values
+// must be added to the type or INSERT/PATCH raises "invalid input value for enum
+// project_type".
+const VALID_PROJECT_TYPES = ['Pilot Project', 'Research Agreement', 'Senior Design', 'Strategic Membership']
+
 // Guarded one-time schema ensure: runs once per warm instance, not on every
 // request. The old per-request unguarded ALTER was the antipattern flagged in
 // the June QA audit. lead_type ('client'|'partner') and waiting_on ('us'|'them')
@@ -22,44 +29,52 @@ async function ensureOpportunitySchema(sql) {
   }
   try {
     await ensureStageEnumValues(sql)
+    await ensureProjectTypeEnumValues(sql)
   } catch (e) {
-    // Non-fatal: stage may be a plain text column, or values may already exist.
-    console.log('stage enum ensure note:', e.message)
+    // Non-fatal: a column may be plain text, or the values may already exist.
+    console.log('enum ensure note:', e.message)
   }
   // Best-effort, once per warm instance. DDL persists, so a later cold start
   // retries anything that failed transiently here.
   schemaEnsured = true
 }
 
-// `opportunities.stage` (and the stage_transitions stage columns) are backed by
-// a Postgres ENUM. The two new front stages must be added to that enum type or
-// INSERT/PATCH with 'on_deck'/'outreach' fails with "invalid input value for
-// enum stage". Each ALTER runs as its own neon HTTP statement (autocommit), which
-// sidesteps the "ALTER TYPE ADD VALUE cannot run inside a transaction block"
-// restriction. Idempotent via ADD VALUE IF NOT EXISTS; a no-op if stage is text.
-async function ensureStageEnumValues(sql) {
+// Both `stage` and `project_type` are backed by Postgres ENUMs whose value lists
+// have drifted from the app (new stages; project_type still carries legacy values
+// like 'research'/'senior_design'). The app's values must exist in the enum type
+// or INSERT/PATCH fails with "invalid input value for enum ...". Each ALTER runs
+// as its own neon HTTP statement (autocommit), which sidesteps the "ALTER TYPE
+// ADD VALUE cannot run inside a transaction block" restriction. Idempotent via
+// ADD VALUE IF NOT EXISTS; a no-op if the column is plain text. Looping the app's
+// value list means a future value is covered for free.
+async function addEnumValues(sql, table, column, values) {
   const rows = await sql`
-    SELECT DISTINCT t.typname
+    SELECT t.typname
     FROM pg_type t
     JOIN pg_attribute a ON a.atttypid = t.oid
     JOIN pg_class c ON c.oid = a.attrelid
-    WHERE t.typtype = 'e'
-      AND (
-        (c.relname = 'opportunities' AND a.attname = 'stage')
-        OR (c.relname = 'stage_transitions' AND a.attname IN ('from_stage', 'to_stage'))
-      )
+    WHERE t.typtype = 'e' AND c.relname = ${table} AND a.attname = ${column}
+    LIMIT 1
   `
-  for (const { typname } of rows) {
-    // typname comes from pg_catalog, but validate as an identifier before
-    // interpolating (ALTER TYPE can't be parameterized). Looping VALID_STAGES
-    // (vetted ^[a-z_]+$ constants) means a future stage is covered for free —
-    // existing values are a harmless no-op via ADD VALUE IF NOT EXISTS.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(typname)) continue
-    for (const val of VALID_STAGES) {
-      if (!/^[a-z_]+$/.test(val)) continue
-      await sql.query(`ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${val}'`)
-    }
+  const typname = rows[0]?.typname
+  // typname is from pg_catalog, but validate as an identifier before
+  // interpolating (ALTER TYPE accepts neither bound params nor a quoted-elsewhere
+  // name). Values are trusted module constants; escape quotes defensively anyway.
+  if (!typname || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(typname)) return
+  for (const val of values) {
+    const safe = String(val).replace(/'/g, "''")
+    await sql.query(`ALTER TYPE "${typname}" ADD VALUE IF NOT EXISTS '${safe}'`)
   }
+}
+
+async function ensureStageEnumValues(sql) {
+  await addEnumValues(sql, 'opportunities', 'stage', VALID_STAGES)
+  await addEnumValues(sql, 'stage_transitions', 'from_stage', VALID_STAGES)
+  await addEnumValues(sql, 'stage_transitions', 'to_stage', VALID_STAGES)
+}
+
+async function ensureProjectTypeEnumValues(sql) {
+  await addEnumValues(sql, 'opportunities', 'project_type', VALID_PROJECT_TYPES)
 }
 
 export default async function handler(req, res) {
