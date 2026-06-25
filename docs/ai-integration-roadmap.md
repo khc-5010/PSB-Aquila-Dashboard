@@ -114,7 +114,9 @@ Each phase is independently shippable and PR-sized. Effort is rough: **S** ≈ �
 **Guardrails:** L1 — generates text only, never sends or writes. Drafts flag any field they're unsure of rather than inventing it.
 **Success signal:** time from `Research Complete` → first logged outreach drops; drafts are used (lightly edited) rather than written from scratch.
 
-### Phase 3 — Proactive triage *(L0/L1 — recurring value)* · **M**
+### Phase 3 — Proactive triage *(L0/L1 — recurring value)* · **M** · ✅ SHIPPED (this PR, with one deferral)
+**As built:** **Call Sheet "Prep"** (per-call talking points — seeded prospect-scoped assistant) and **"Brief my day"** (header button → global assistant seeded to rank today's priorities across prospects + pipeline with reasons). Both reuse the assistant; zero new endpoints; appear in the Call Sheet sub-view AND the Today view (which embeds CallSheet). The **stalled-deal scan** is answerable today via global Ask AI ("what's stalled?"). **DEFERRED — in-email digest narration:** narrating inside the `daily-digest` cron would add an LLM call per user to an unattended path under the function's ~10s budget; sequential calls risk breaking the digest, and it can't be live-tested from the sandbox. The same value is available on-demand via "Brief my day." Revisit when the cron `maxDuration` is raised (a plan/config decision) or via a parallelized, tight-timeout, fail-safe pass.
+
 **Value:** tells the team what to do each day, in priority order, with the reasoning — instead of making them assemble it.
 **What it does:**
 - **AI-narrated daily digest:** the existing cron digest gains a short "Your 3 priorities today and why" synthesis (ranked by the team's logic: PE windows closing, overdue follow-ups, stalled research, hot CWP leads).
