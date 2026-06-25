@@ -328,27 +328,23 @@ function aggregateGroupTaskInfo(parentP, children, taskCounts) {
 
 // Exported for TodayView (no circular import — TodayView is not imported here).
 // CallSheet still receives it as a prop from this component.
+//
+// SYNC: Keep in sync with getProspectUrgency() in api/prospects.js
+//
+// `follow_up_date` no longer drives urgency. The ProspectDetail editor for it was
+// removed when tasks (with their own due_dates) superseded it, so the only rows that
+// still carry a value are pre-task fossils. A stale fossil date was pinning promoted /
+// parked companies into "Nd overdue" in Needs Attention and the digest with no UI to
+// clear it (Brett's Silgan Dispensing report). Date-based urgency now lives entirely on
+// tasks — see getTaskUrgency() in tasks/taskUtils.js. The column is retained for
+// CSV/export round-trips only.
 export function getProspectUrgency(prospect) {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  // Tier 1: Explicit follow-up date
-  if (prospect.follow_up_date) {
-    const followUp = parseLocalDate(prospect.follow_up_date)
-    if (!followUp || isNaN(followUp)) return null
-    const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }
-    if (diffDays === 0) return { level: 'due_today', label: 'Due today', color: 'amber', priority: 2 }
-    if (diffDays <= 3) return { level: 'due_soon', label: `Due in ${diffDays}d`, color: 'yellow', priority: 3 }
-    if (diffDays <= 7) return { level: 'due_week', label: `Due in ${diffDays}d`, color: 'blue', priority: 4 }
-    return { level: 'scheduled', label: followUp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), color: 'gray', priority: 10 }
-  }
-
-  // Tier 2: Auto-detected staleness (only for active statuses)
+  // Parked statuses are off the radar: Converted (promoted to the pipeline — its next
+  // action lives on the opportunity now), Nurture, and Identified (not yet worked).
   const parkedStatuses = ['Converted', 'Nurture', 'Identified']
   if (parkedStatuses.includes(prospect.prospect_status)) return null
 
+  const now = new Date()
   const updatedAt = prospect.updated_at ? new Date(prospect.updated_at) : null
   const daysSinceUpdate = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null
 

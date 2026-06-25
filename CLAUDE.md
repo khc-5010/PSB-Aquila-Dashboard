@@ -293,7 +293,7 @@ Project type values: `'Pilot Project'`, `'Research Agreement'`, `'Senior Design'
   - `PATCH /api/prospects?action=tasks&task_id=X` — update. Body: any of `{ description, due_date, assignee, status, updated_by }`. Status transitions auto-fill / clear `completed_at`/`completed_by` and emit a lifecycle activity log entry.
   - `DELETE /api/prospects?action=tasks&task_id=X&deleted_by=...` — hard delete with activity log entry.
 
-- **`follow_up_date` disposition.** Column stays in `prospect_companies` for backward compat. The ProspectDetail editor is removed; the table's "Due" column is replaced by a "Tasks" column showing open count + earliest-due urgency dot. `getProspectUrgency`'s Tier-1 follow_up_date branch is preserved (so the "Stale" preset still works on the 3 legacy rows until they're migrated via `scripts/migrate-followup-to-tasks.js`).
+- **`follow_up_date` disposition.** Column stays in `prospect_companies` for backward compat / export round-trips. The ProspectDetail editor is removed; the table's "Due" column is replaced by a "Tasks" column showing open count + earliest-due urgency dot. **`getProspectUrgency` no longer reads `follow_up_date` at all** — its Tier-1 branch was retired (it was surfacing pre-task fossils as phantom "Nd overdue"; see Follow-Up Tracking & Staleness Detection) and the 3 leftover production values were nulled via `scripts/clear-legacy-followup-dates.js`. Forward-looking work lives on `prospect_tasks` (migrated via `scripts/migrate-followup-to-tasks.js`).
 
 ### State Research Tables
 
@@ -468,38 +468,25 @@ All four columns added to PATCH `allowedFields` in `api/prospects.js`.
 
 ### Follow-Up Tracking & Staleness Detection
 
-Two-tier "attention needed" system combining explicit follow-up dates with auto-detected staleness.
+`getProspectUrgency()` flags prospects needing attention. **It reports status-staleness only** — the old `follow_up_date` "Tier 1" was retired in the Needs Attention fix (below). It returns `{ level, label, color, priority }` or `null`.
 
-**Database:** `follow_up_date DATE` column on `prospect_companies` (nullable, day-precision only). Added to PATCH `allowedFields` in `api/prospects.js`.
+**`follow_up_date` (retired from urgency).** `DATE` column on `prospect_companies`, still in PATCH `allowedFields` and CSV/JSON export but **no longer read by `getProspectUrgency`**. Its ProspectDetail editor was removed when tasks (with their own `due_date`) replaced it, so the only rows that still carried a value were pre-task fossils — and a stale fossil date pinned promoted/parked companies into phantom "Nd overdue" entries in Needs Attention + the digest with no UI to clear them (Brett's Silgan Dispensing report). Date-based urgency now lives entirely on tasks (`getTaskUrgency` in `tasks/taskUtils.js`). The 3 leftover production values were nulled via `scripts/clear-legacy-followup-dates.js` (deliberately does **not** touch `updated_at`, so staleness isn't reset). Column kept for export round-trips only.
 
-**Tier 1 — Explicit Follow-Up Dates:**
-- Date picker in ProspectDetail Engagement Planning section (after Suggested Next Step)
-- Quick-set buttons: Tomorrow, +3 days, +1 week, +2 weeks, +1 month. Uses local-timezone date formatting (not `toISOString()`) to avoid UTC off-by-one errors.
-- "Due" column in ProspectTable (between CWP and Ownership), sortable with nulls-last
-- Urgency levels: overdue (red, priority 1), due_today (amber, 2), due_soon ≤3d (yellow, 3), due_week ≤7d (blue, 4), scheduled (gray, 10)
-
-**Tier 2 — Auto-Detected Staleness (client-side only, no DB columns):**
-- Computed from `updated_at`, `prospect_status`, and current date via `getProspectUrgency()` in ProspectTable
-- Outreach Ready + 14d idle → "stale" (orange, priority 5)
-- Prioritized + 14d idle → **"Research stalled"** (orange, priority 6) — triggers when a prospect has `prospect_status = 'Prioritized'` and `updated_at` is 14+ days ago. This means someone marked it for research but no progress has been recorded. Any edit to the prospect resets the timer by updating `updated_at`.
+**Staleness levels (the whole of `getProspectUrgency` now):**
+- Outreach Ready + 14d idle → "stale" (orange, priority 5, label `Nd idle`)
+- Prioritized + 14d idle → **"Research stalled"** (orange, priority 6). Any edit resets the timer (updates `updated_at`).
 - Research Complete + 7d idle → "Needs outreach" (orange, priority 7)
-- **Parked statuses exempt:** Converted, Nurture, Identified — never show staleness
+- **Parked statuses exempt:** Converted, Nurture, Identified → always `null` (Converted = promoted to the pipeline; its next action lives on the opportunity, not the prospect).
+- **SYNC pair:** `ProspectTable.jsx` (client) ↔ `api/prospects.js` (server, used by the digest) — keep identical.
+- Consumed by: Today's **Needs Attention** list, the table/card urgency badge, the **"Stale"** filter preset, CallSheet's fallback boost, and the digest **"Stale / Stalled"** section.
 
 **`parseLocalDate()` — Date Parsing Utility (critical pattern):**
 - PostgreSQL `DATE` columns may come back as `"2026-04-21"` or `"2026-04-21T00:00:00.000Z"` depending on driver serialization
 - `parseLocalDate(val)` safely handles both formats (plus Date objects and null) by splitting on `'T'` first, then parsing `YYYY-MM-DD` components into a local-timezone Date
-- **SYNC**: Exists in both `ProspectTable.jsx` and `api/prospects.js` — keep identical
-- **Rule**: Never use `new Date(follow_up_date + 'T00:00:00')` — always use `parseLocalDate()` for any DATE column parsing
+- **SYNC**: Exists in `ProspectTable.jsx`, `tasks/taskUtils.js`, and `api/prospects.js` — keep identical
+- **Rule**: Never use `new Date(dateStr + 'T00:00:00')` — always use `parseLocalDate()` for any DATE column parsing
 
-**Visual indicators:**
-- Colored urgency badge in Next Step column (before next-step text)
-- Color-coded date in Due column
-- Action items count badge in filter bar (red pill `<button>`, clickable to activate Action Items preset, always visible regardless of active filter)
-
-**Filter presets:**
-- "Action Items" (first preset) — shows all prospects with urgency priority ≤ 7 (overdue + due today + due soon + stale + stalled)
-- "Stale" — shows only auto-detected stale/stalled prospects
-- All presets and the action items badge clear the search text input when clicked
+**Filter preset:** "Stale" — shows auto-detected stale/stalled prospects. (The old "Action Items" preset was removed in Threads 2+3; the filter-bar count badge now reflects the open-task count and switches to the Tasks sub-view.)
 
 **CSV export** includes `follow_up_date` field.
 
@@ -894,9 +881,9 @@ Automated daily email digests notify users about action items in their prospect 
 ### Email Sections (user-configurable)
 | Section | Preference Key | What It Shows |
 |---------|---------------|---------------|
-| Overdue Follow-Ups | `overdue` | Prospects past their `follow_up_date` |
-| Due This Week | `due_soon` | Follow-ups due today or within 7 days |
-| Stale / Stalled | `stale` | Prospects idle too long for their status |
+| Overdue Follow-Ups | `overdue` | **Dormant** — keyed on the retired `follow_up_date` urgency level, so it never has items now. Section/toggle left in place (cosmetic dead code, flagged for a future cleanup). |
+| Due This Week | `due_soon` | **Dormant** — same as above (`due_today`/`due_soon`/`due_week` levels no longer produced). |
+| Stale / Stalled | `stale` | Prospects idle too long for their status. **De-duped:** a stale prospect that already has an open task is omitted here (it's in My Open Tasks), matching the TodayView Needs Attention de-dup. |
 | PE Window Watch | `pe_windows` | PE-backed companies with recent M&A activity |
 | My Open Tasks | `tasks` | Open `prospect_tasks` assigned to the user OR unassigned (badge rule). Pref key added later than the others — absence in stored JSONB means enabled (`prefs.tasks !== false`). Tasks query is try/catch-guarded so it can never sink the digest run. |
 
@@ -966,7 +953,7 @@ The dashboard is being retrofitted for phone use (Kyle's couch/passenger-seat en
 1. **`max-*` variant additions** (`max-sm:`, `max-lg:` — Tailwind 3.4 default screens): add overrides for small viewports; never edit/remove an existing desktop class. Example: `gap-8 max-sm:gap-4`.
 2. **Additive mobile-first stacking** where the desktop breakpoint restores today's exact layout: `grid-cols-2` → `grid-cols-1 sm:grid-cols-2` (identical at ≥640px).
 A `useIsMobile()` matchMedia hook (~1024px pivot) for conditionally rendering mobile-only components (e.g. card list instead of the prospect table) arrives with Phase 1 — desktop code paths must render untouched.
-- Phase status: **Phases 0–1 shipped.** Phase 0: header icon-only tabs below `lg`, MetricsBar swipeable, footer hidden below `lg`, form-modal grids stack below `sm`, OpportunityDetail panel full-width below `sm`. Phase 1: `src/hooks/useIsMobile.js` (matchMedia, <1024px) + `src/components/prospects/ProspectCardList.jsx` — the Prospects **table sub-view renders the card list instead of the 1200px `<table>` on mobile** (flattened parent groups, urgency/task/CWP chips, hook line; ProspectTable passes its own `getProspectUrgency`/`formatLocation`/`cwpHeatClass`/`PRIORITY_COLORS` as props — no SYNC copies); ProspectDetail goes true full-screen below `sm`; sub-view tab bar wraps/scrolls on phones, Import + CSV Export hidden below `sm` (Add stays, label shortens); filter search full-width below `sm`; ProspectTable root height compensates for the hidden footer (`max-lg:h-[calc(100vh-4rem)]`). Phase 2 shipped: **Today view** (`src/components/today/TodayView.jsx`, view key `today`) — self-fetching aggregate of My Tasks (badge rule, optimistic tap-to-complete), Flagged for Review, Needs Attention (urgency ≤7), and an embedded CallSheet; company taps hand off via the `#prospects?id=` deep link. Tab for everyone (Header, ClipboardCheck icon, first position); **default landing on mobile only** (`getViewFromHash` falls back to `today` when `matchMedia(MOBILE_QUERY)` matches, `pipeline` otherwise — Brett's desktop default unchanged). `getProspectUrgency` is now a named export from ProspectTable (no cycle; CallSheet still takes it as a prop). Digest gained the My Open Tasks section (see Daily Digest). Phase 3 shipped: **FDA match-confidence** (see FDA Intelligence section — badges, gated confirm, zero-hit snapshots; never auto-writes `medical_device_mfg`) and **Fill the Blanks** (`src/components/today/DataGapQueue.jsx` in TodayView): client-side gap detection over 6 ordered rules (state/category/ownership → press/employees/year-founded, scale rules only for scored companies), one-field-at-a-time inline editor, saves via the normal PATCH route (score/ontology recalc free), session-local Skip. `US_STATES` and `OWNERSHIP_TYPES` are now named exports from ProspectDetail. Phase 4 shipped (retrofit complete): **mobile stage mover** — below `lg`, OpportunityDetail's Stage cell renders a `<select>` (desktop keeps the chip) that PATCHes the stage and logs to `stage_transitions` with the exact same contract as the board's drag handler; touch drag stays un-enabled on purpose (SortableOpportunityCard sets no `touch-action`, so native scroll wins on phones — do not "fix" this); pipeline columns snap-scroll below `lg` (`snap-x snap-mandatory` + `snap-center`); StateDetailPanel full-width below `sm`; touch-target bumps on the Today complete button (40px hit area) and ProspectDetail header nav/close (`max-sm:p-2.5`).
+- Phase status: **Phases 0–1 shipped.** Phase 0: header icon-only tabs below `lg`, MetricsBar swipeable, footer hidden below `lg`, form-modal grids stack below `sm`, OpportunityDetail panel full-width below `sm`. Phase 1: `src/hooks/useIsMobile.js` (matchMedia, <1024px) + `src/components/prospects/ProspectCardList.jsx` — the Prospects **table sub-view renders the card list instead of the 1200px `<table>` on mobile** (flattened parent groups, urgency/task/CWP chips, hook line; ProspectTable passes its own `getProspectUrgency`/`formatLocation`/`cwpHeatClass`/`PRIORITY_COLORS` as props — no SYNC copies); ProspectDetail goes true full-screen below `sm`; sub-view tab bar wraps/scrolls on phones, Import + CSV Export hidden below `sm` (Add stays, label shortens); filter search full-width below `sm`; ProspectTable root height compensates for the hidden footer (`max-lg:h-[calc(100vh-4rem)]`). Phase 2 shipped: **Today view** (`src/components/today/TodayView.jsx`, view key `today`) — self-fetching aggregate of My Tasks (badge rule, optimistic tap-to-complete), Flagged for Review, Needs Attention (staleness, priority ≤7 — **de-duped against open tasks** so a company already tracked in My Tasks / the call queue isn't double-surfaced; each row shows a plain-language reason + a `Last note:` line and an inline **Log contact** action that posts an activity-log note and optimistically clears the row), and an embedded CallSheet; company taps hand off via the `#prospects?id=` deep link. Tab for everyone (Header, ClipboardCheck icon, first position); **default landing on mobile only** (`getViewFromHash` falls back to `today` when `matchMedia(MOBILE_QUERY)` matches, `pipeline` otherwise — Brett's desktop default unchanged). `getProspectUrgency` is now a named export from ProspectTable (no cycle; CallSheet still takes it as a prop). Digest gained the My Open Tasks section (see Daily Digest). Phase 3 shipped: **FDA match-confidence** (see FDA Intelligence section — badges, gated confirm, zero-hit snapshots; never auto-writes `medical_device_mfg`) and **Fill the Blanks** (`src/components/today/DataGapQueue.jsx` in TodayView): client-side gap detection over 6 ordered rules (state/category/ownership → press/employees/year-founded, scale rules only for scored companies), one-field-at-a-time inline editor, saves via the normal PATCH route (score/ontology recalc free), session-local Skip. `US_STATES` and `OWNERSHIP_TYPES` are now named exports from ProspectDetail. Phase 4 shipped (retrofit complete): **mobile stage mover** — below `lg`, OpportunityDetail's Stage cell renders a `<select>` (desktop keeps the chip) that PATCHes the stage and logs to `stage_transitions` with the exact same contract as the board's drag handler; touch drag stays un-enabled on purpose (SortableOpportunityCard sets no `touch-action`, so native scroll wins on phones — do not "fix" this); pipeline columns snap-scroll below `lg` (`snap-x snap-mandatory` + `snap-center`); StateDetailPanel full-width below `sm`; touch-target bumps on the Today complete button (40px hit area) and ProspectDetail header nav/close (`max-sm:p-2.5`).
 - Knowledge Graph and bulk import remain desktop-only by design. Pipeline touch-drag is deliberately NOT enabled (stage changes on mobile go through EditOpportunityModal's stage dropdown).
 - Verify each phase with `npm run build` + visual check at 1440px (desktop must be pixel-identical) and 390px.
 

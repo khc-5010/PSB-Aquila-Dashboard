@@ -4,8 +4,14 @@
  *
  * The new task entity (Threads 2+3) supersedes follow_up_date for forward-looking work.
  * Only 3 prospects in production have follow_up_date set, so this is a small, opt-in
- * migration. follow_up_date itself stays in the schema — the legacy "Stale" preset and
- * server-side getProspectUrgency still read it as a fallback signal.
+ * migration. It creates a task per row but deliberately leaves follow_up_date in place.
+ *
+ * NOTE: leaving the date populated later caused "fossils" — getProspectUrgency used to
+ * read follow_up_date (Tier 1) and pinned promoted/parked companies into phantom
+ * "Nd overdue" entries in Needs Attention + the digest with no UI to clear them (Brett's
+ * Silgan Dispensing report). getProspectUrgency no longer reads follow_up_date at all
+ * (date-urgency lives on tasks now), and scripts/clear-legacy-followup-dates.js clears the
+ * leftover values. follow_up_date stays in the schema for CSV/export round-trips only.
  *
  * Usage:
  *   node scripts/migrate-followup-to-tasks.js              # dry-run (prints proposed tasks, no writes)
