@@ -804,27 +804,18 @@ function parseLocalDate(val) {
 }
 
 // SYNC: Keep in sync with getProspectUrgency() in ProspectTable.jsx
+//
+// `follow_up_date` no longer drives urgency (its UI editor was removed when tasks
+// superseded it; remaining values are pre-task fossils that pinned promoted/parked
+// companies into phantom "Nd overdue" with no way to clear them). Date-based urgency
+// now lives on tasks; this function reports status-staleness only.
 function getProspectUrgency(prospect) {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  // Tier 1: Explicit follow-up date
-  if (prospect.follow_up_date) {
-    const followUp = parseLocalDate(prospect.follow_up_date)
-    if (!followUp || isNaN(followUp)) return null
-    const diffDays = Math.floor((followUp - today) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return { level: 'overdue', label: `${Math.abs(diffDays)}d overdue`, color: 'red', priority: 1 }
-    if (diffDays === 0) return { level: 'due_today', label: 'Due today', color: 'amber', priority: 2 }
-    if (diffDays <= 3) return { level: 'due_soon', label: `Due in ${diffDays}d`, color: 'yellow', priority: 3 }
-    if (diffDays <= 7) return { level: 'due_week', label: `Due in ${diffDays}d`, color: 'blue', priority: 4 }
-    return { level: 'scheduled', label: 'Scheduled', color: 'gray', priority: 10 }
-  }
-
-  // Tier 2: Auto-detected staleness (only for active statuses)
+  // Parked statuses are off the radar: Converted (promoted to the pipeline), Nurture,
+  // and Identified (not yet worked).
   const parkedStatuses = ['Converted', 'Nurture', 'Identified']
   if (parkedStatuses.includes(prospect.prospect_status)) return null
 
+  const now = new Date()
   const updatedAt = prospect.updated_at ? new Date(prospect.updated_at) : null
   const daysSinceUpdate = updatedAt ? Math.floor((now - updatedAt) / (1000 * 60 * 60 * 24)) : null
 
@@ -1486,6 +1477,12 @@ export default async function handler(req, res) {
           console.error('Digest: tasks query failed (section skipped):', taskErr.message)
         }
 
+        // Prospects that already have an open task are tracked in "My Open Tasks"
+        // below — used to de-dup them out of the Stale / Stalled section so a single
+        // company never appears twice in one digest (matches the TodayView
+        // Needs Attention de-dup). Empty set if the tasks query failed → no de-dup.
+        const openTaskProspectIds = new Set(openTasks.map(t => t.prospect_id))
+
         // 5. Send personalized digest to each user
         const results = []
         const dashboardUrl = 'https://psb-aquila-dashboard.vercel.app'
@@ -1507,7 +1504,9 @@ export default async function handler(req, res) {
           }
 
           if (prefs.stale) {
-            const items = actionItems.filter(p => ['stale', 'stalled'].includes(p.urgency.level))
+            const items = actionItems.filter(p =>
+              ['stale', 'stalled'].includes(p.urgency.level) && !openTaskProspectIds.has(p.id)
+            )
             if (items.length > 0) sections.push({ title: 'Stale / Stalled', emoji: '🟠', items, color: '#F97316' })
           }
 

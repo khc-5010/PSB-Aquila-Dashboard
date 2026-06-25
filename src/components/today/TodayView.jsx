@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { CheckCircle, Flag, AlertTriangle } from 'lucide-react'
+import { CheckCircle, Flag, AlertTriangle, Phone, Send, X } from 'lucide-react'
 import { useAuth, authFetch } from '../../context/AuthContext'
 import CallSheet from '../prospects/CallSheet'
 import DataGapQueue from './DataGapQueue'
@@ -16,6 +16,21 @@ import { isMyTaskInBadge, getTaskUrgency, getUrgencyClasses, parseLocalDate } fr
 
 function openProspect(id) {
   window.location.hash = `prospects?id=${id}`
+}
+
+// Plain-language "why is this flagged" for a Needs Attention row. The urgency chip
+// is the short signal; this spells out the reason and the next move so the row is
+// never mistaken for a task or a stray note (Brett's Silgan Dispensing confusion).
+function attentionReason(p) {
+  const updated = p.updated_at ? new Date(p.updated_at) : null
+  const days = updated ? Math.floor((Date.now() - updated.getTime()) / 86400000) : null
+  const d = days != null ? `${days}d` : 'a while'
+  switch (p.prospect_status) {
+    case 'Outreach Ready': return `Outreach-ready, but nothing logged in ${d} — log an update or open to act.`
+    case 'Prioritized': return `Flagged for research ${d} ago with no progress recorded.`
+    case 'Research Complete': return `Research done (${d} idle) — time for first outreach.`
+    default: return `No activity in ${d}.`
+  }
 }
 
 function SectionCard({ title, icon, count, children }) {
@@ -79,6 +94,11 @@ function TodayView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [completingId, setCompletingId] = useState(null)
+  // Inline "Log contact" on a Needs Attention row: loggingId = which prospect's
+  // note form is open; logText = its draft; logBusy = save in flight.
+  const [loggingId, setLoggingId] = useState(null)
+  const [logText, setLogText] = useState('')
+  const [logBusy, setLogBusy] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -123,8 +143,12 @@ function TodayView() {
     return prospects
       .map(p => ({ p, urgency: getProspectUrgency(p) }))
       .filter(x => x.urgency && x.urgency.priority <= 7)
+      // De-dup (Decision B): a prospect that already has an open task is tracked in
+      // My Tasks / the call queue — don't double-surface it here. taskCounts holds an
+      // entry only for prospects with ≥1 open task.
+      .filter(x => !taskCounts.has(x.p.id))
       .sort((a, b) => a.urgency.priority - b.urgency.priority)
-  }, [prospects])
+  }, [prospects, taskCounts])
 
   // Fill-the-Blanks save: patch local state so the gap leaves the queue
   // without a refetch (the server already recalculated score/ontology).
@@ -148,6 +172,35 @@ function TodayView() {
       setError('Could not complete the task — try again.')
     } finally {
       setCompletingId(null)
+    }
+  }
+
+  // Inline "Log contact" on a Needs Attention row. Posts an activity-log entry, which
+  // server-side also bumps updated_at + suggested_next_step (api/prospects.js add-activity).
+  // We mirror that optimistically so the row's staleness clears and it leaves the list.
+  const handleLogContact = async (prospect) => {
+    const text = logText.trim()
+    if (!text) return
+    setLogBusy(true)
+    const prev = prospects
+    const nowIso = new Date().toISOString()
+    setProspects(ps => ps.map(pr =>
+      pr.id === prospect.id ? { ...pr, updated_at: nowIso, suggested_next_step: text } : pr
+    ))
+    try {
+      const res = await authFetch('/api/prospects?action=add-activity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prospect_id: prospect.id, entry_text: text, created_by: user?.name || 'Unknown' }),
+      })
+      if (!res.ok) throw new Error('Failed to log contact')
+      setLoggingId(null)
+      setLogText('')
+    } catch {
+      setProspects(prev) // revert — keep the form open with the text for a retry
+      setError('Could not log the update — try again.')
+    } finally {
+      setLogBusy(false)
     }
   }
 
@@ -219,25 +272,74 @@ function TodayView() {
           <div className="divide-y divide-gray-50">
             {attention.slice(0, 10).map(({ p, urgency }) => {
               const classes = getUrgencyClasses(urgency)
+              const isLogging = loggingId === p.id
               return (
-                <button key={p.id} onClick={() => openProspect(p.id)} className="w-full text-left px-4 py-3 hover:bg-gray-50">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-gray-900">{p.company}</span>
-                    <StatusBadge status={p.prospect_status} />
-                    <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${classes.bg} ${classes.text}`}>
-                      {urgency.label}
-                    </span>
+                <div key={p.id} className="px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <button onClick={() => openProspect(p.id)} className="min-w-0 flex-1 text-left group">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-900 group-hover:underline">{p.company}</span>
+                        <StatusBadge status={p.prospect_status} />
+                        <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${classes.bg} ${classes.text}`}>
+                          {urgency.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{attentionReason(p)}</p>
+                      {p.suggested_next_step && (
+                        <p className="text-xs text-gray-400 truncate mt-0.5">
+                          <span className="font-medium">Last note:</span> {p.suggested_next_step}
+                        </p>
+                      )}
+                    </button>
+                    {!isLogging && (
+                      <button
+                        onClick={() => { setLoggingId(p.id); setLogText('') }}
+                        className="flex-shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium text-[#041E42] bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                        title="Log a contact/update — clears this from the list"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Log contact</span>
+                      </button>
+                    )}
                   </div>
-                  {p.suggested_next_step && (
-                    <p className="text-xs text-gray-500 truncate mt-0.5">→ {p.suggested_next_step}</p>
+                  {isLogging && (
+                    <div className="mt-2">
+                      <textarea
+                        autoFocus
+                        value={logText}
+                        onChange={e => setLogText(e.target.value)}
+                        placeholder={`What happened with ${p.company}? (logs an update and clears this item)`}
+                        rows={2}
+                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#041E42]/20 focus:border-[#041E42]"
+                      />
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button
+                          onClick={() => handleLogContact(p)}
+                          disabled={logBusy || !logText.trim()}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#041E42] hover:bg-[#041E42]/90 disabled:opacity-50 transition-colors"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          {logBusy ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => { setLoggingId(null); setLogText('') }}
+                          disabled={logBusy}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancel
+                        </button>
+                        <span className="text-[11px] text-gray-400">logging as {user?.name || 'Unknown'}</span>
+                      </div>
+                    </div>
                   )}
-                </button>
+                </div>
               )
             })}
           </div>
           {attention.length > 10 && (
             <p className="px-4 py-2 text-xs text-gray-400 border-t border-gray-50">
-              +{attention.length - 10} more — see the Prospects tab Action Items preset
+              +{attention.length - 10} more — see the Stale preset on the Prospects tab
             </p>
           )}
         </SectionCard>
