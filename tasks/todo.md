@@ -47,7 +47,14 @@ Kyle's feedback on the working assistant: (1) the `find_similar_prospects` chip 
 - [x] **Tool tags → plain English, clearly non-interactive.** `AssistantModal.jsx`: `TOOL_LABELS`/`TOOL_TIPS` maps (e.g. `find_similar_prospects` → "Similar companies"), caption changed to "Based on:" with a `Search` icon (was a bare wrench), tags now muted `cursor-default` pills with hover tooltips — read as a data-source footnote, not buttons. (No onClick existed; the bordered/mono styling just implied one.)
 - [x] **Self-contained answers.** System prompt (`api/prospects.js`): added a rule that the reply IS the finished answer — never end by saying it "will" look something up; call the tool now (runs automatically) or finish. Also tightened the compare instruction (find_similar → get_prospect → then write).
 - [x] `node --check` + `npm run build` PASS.
-- [ ] **(Kyle) Verify on the PR preview:** re-ask the compare question — answer should be complete (no "I will…" dangling), and the footnote should read "Based on: Similar companies, Company details" etc. with tooltips, not clickable jargon.
+- [x] Merged (PR #139). Tags clear + answers self-contained — confirmed.
+
+## Bug fix — get_prospect "tool not functioning" (branch `claude/fix-get-prospect-param`, PR #__)
+Compare question: find_similar worked but get_prospect kept "erroring" (consistent across 3 tries).
+- [x] **Root cause:** tool param-name inconsistency. `find_similar_prospects` takes `prospect_id`; `get_prospect`/`get_research_brief` took `id`. The model carries `prospect_id` over → `get_prospect({prospect_id})` → executor read only `input.id` (undefined) → `NaN` → returns `{ error: 'A numeric prospect id is required.' }`, which the model relays as "tool not functioning." NOT a SQL error — verified all 6 get_prospect sub-queries run clean against the live DB for ids 1/3/6/7/10/926 (DB reachable from sandbox; Together is not). Earlier smoke test only validated replicated copies, so the shipped mismatch slipped through.
+- [x] **Fix:** standardize all id-taking tools on `prospect_id` (schemas for get_prospect + get_research_brief), and read `input.prospect_id ?? input.id` in all three id-taking executors (get_prospect, get_research_brief, find_similar) — defensive against either name.
+- [x] **Ripple:** search_prospects (filter params) and query_ontology (capability arrays) take no id → untouched. Loop/dispatcher pass args through unchanged. `node --check` + `npm run build` PASS. CLAUDE.md param-convention note added.
+- [ ] **(Kyle) Verify on the PR preview:** re-ask the compare question — should now pull each company's details and give a real comparison (no "get_prospect not functioning").
 
 ## Notes / gotchas (from recon)
 - Auth already enforced at `api/prospects.js:861-864` for every non-digest action → no extra auth code.

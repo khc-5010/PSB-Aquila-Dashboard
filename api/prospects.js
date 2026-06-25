@@ -905,8 +905,8 @@ const ASSISTANT_TOOLS = [
   },
   {
     name: 'get_prospect',
-    description: 'Get full context for one prospect by id: company profile, metrics, signals, ownership and relationship notes (including PSB connection notes), contacts, corporate links (parent/subsidiaries), and whether a research brief exists (with a short excerpt). For the full brief text, call get_research_brief.',
-    input_schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+    description: 'Get full context for one prospect by its prospect_id: company profile, metrics, signals, ownership and relationship notes (including PSB connection notes), contacts, corporate links (parent/subsidiaries), and whether a research brief exists (with a short excerpt). For the full brief text, call get_research_brief.',
+    input_schema: { type: 'object', properties: { prospect_id: { type: 'integer' } }, required: ['prospect_id'] },
   },
   {
     name: 'find_similar_prospects',
@@ -939,8 +939,8 @@ const ASSISTANT_TOOLS = [
   },
   {
     name: 'get_research_brief',
-    description: 'Return the full research-brief text for a prospect, if one exists. Call this only when the excerpt from get_prospect is not enough. Returns the brief content or a note that none exists.',
-    input_schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] },
+    description: 'Return the full research-brief text for a prospect by its prospect_id, if one exists. Call this only when the excerpt from get_prospect is not enough. Returns the brief content or a note that none exists.',
+    input_schema: { type: 'object', properties: { prospect_id: { type: 'integer' } }, required: ['prospect_id'] },
   },
 ]
 
@@ -1008,8 +1008,10 @@ async function assistantSearchProspects(sql, input = {}) {
 // (never SELECT *), 1-hop typed corporate links, contacts, and a research-brief
 // flag + ~500-char excerpt.
 async function assistantGetProspect(sql, input = {}) {
-  const id = parseInt(input.id, 10)
-  if (!Number.isFinite(id)) return { error: 'A numeric prospect id is required.' }
+  // Accept either name — sibling tools use prospect_id, so the model often
+  // carries that key over to this tool too.
+  const id = parseInt(input.prospect_id ?? input.id, 10)
+  if (!Number.isFinite(id)) return { error: 'A numeric prospect_id is required.' }
 
   const rows = await sql`
     SELECT id, company, also_known_as, website, category, in_house_tooling, city, state, country,
@@ -1094,7 +1096,7 @@ async function assistantGetProspect(sql, input = {}) {
 
 // find_similar_prospects — mirrors the ontology-similar arm.
 async function assistantFindSimilar(sql, input = {}) {
-  const prospectId = parseInt(input.prospect_id, 10)
+  const prospectId = parseInt(input.prospect_id ?? input.id, 10)
   if (!Number.isFinite(prospectId)) return { error: 'A numeric prospect_id is required.' }
   let limit = parseInt(input.limit, 10)
   if (!Number.isFinite(limit) || limit <= 0) limit = 5
@@ -1217,8 +1219,8 @@ async function assistantQueryOntology(sql, input = {}) {
 
 // get_research_brief — full brief content (token-capped) or a "none" note.
 async function assistantGetResearchBrief(sql, input = {}) {
-  const id = parseInt(input.id, 10)
-  if (!Number.isFinite(id)) return { error: 'A numeric prospect id is required.' }
+  const id = parseInt(input.prospect_id ?? input.id, 10)
+  if (!Number.isFinite(id)) return { error: 'A numeric prospect_id is required.' }
   const rows = await sql`
     SELECT content, created_at, created_by FROM prospect_attachments
     WHERE prospect_id = ${id} AND attachment_type = 'research_brief'
