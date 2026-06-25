@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { X, Send, Sparkles, Wrench } from 'lucide-react'
+import { X, Send, Sparkles, Search } from 'lucide-react'
 import { authFetch, useAuth } from '../../context/AuthContext'
 import ReportMarkdownRenderer from '../shared/ReportMarkdownRenderer'
 
@@ -16,6 +16,25 @@ const SUGGESTIONS = [
   'How does this company compare to similar ones in our pipeline?',
   'What gaps or risks should I know before reaching out?',
 ]
+
+// Plain-English names + tooltips for the read-only data sources the assistant
+// consulted. Shown under each answer as a non-clickable "what I checked" footnote
+// (the raw tool names like find_similar_prospects are jargon to end users).
+const TOOL_LABELS = {
+  search_prospects: 'Searched prospects',
+  get_prospect: 'Company details',
+  find_similar_prospects: 'Similar companies',
+  query_ontology: 'Knowledge graph',
+  get_research_brief: 'Research brief',
+}
+const TOOL_TIPS = {
+  search_prospects: 'Searched the prospect database',
+  get_prospect: "Pulled the company's full record",
+  find_similar_prospects: 'Found companies with similar certifications, technologies, and markets',
+  query_ontology: 'Searched the knowledge graph by capability (certifications, technology, markets)',
+  get_research_brief: 'Read the saved research brief',
+}
+const labelForTool = (t) => TOOL_LABELS[t] || t.replace(/_/g, ' ')
 
 export default function AssistantModal({ prospect, onClose }) {
   const { user } = useAuth()
@@ -154,11 +173,18 @@ export default function AssistantModal({ prospect, onClose }) {
                   <div className="max-w-[90%] bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-gray-800">
                     <ReportMarkdownRenderer content={m.content} />
                     {m.toolsUsed && m.toolsUsed.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-gray-200 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-400">
-                        <Wrench className="w-3 h-3" />
+                      <div className="mt-2.5 pt-2 border-t border-gray-200 flex flex-wrap items-center gap-1.5 text-[11px] text-gray-400">
+                        <span className="inline-flex items-center gap-1 cursor-default" title="The dashboard data this answer is based on">
+                          <Search className="w-3 h-3" />
+                          Based on:
+                        </span>
                         {m.toolsUsed.map((t) => (
-                          <span key={t} className="bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono">
-                            {t}
+                          <span
+                            key={t}
+                            title={TOOL_TIPS[t] || ''}
+                            className="bg-gray-100 text-gray-500 rounded px-1.5 py-0.5 cursor-default"
+                          >
+                            {labelForTool(t)}
                           </span>
                         ))}
                       </div>
