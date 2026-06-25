@@ -57,6 +57,16 @@ Compare question: find_similar worked but get_prospect kept "erroring" (consiste
 - [x] **Verified working** — compare question now pulls each company's details and gives a real grounded comparison (Kyle's screenshot).
 - [x] **Terminology fix (folded into this PR per Kyle):** the question/answer said "pipeline," but the assistant only reads prospects (no `opportunities` access). Confirmed via code (5 executors read `prospect_companies`/ontology/`prospect_attachments`, never `opportunities`). De-"pipeline"d the suggested prompt, empty-state copy, and `find_similar_prospects` description; added a system-prompt rule to treat "pipeline" as the prospect list and never call results "in the pipeline." Kyle chose to keep it prospect-scoped (vs. adding a live-Pipeline tool). CLAUDE.md scope note added. `npm run build` PASS.
 
+## AI roadmap + Phases 1–4 (branch `claude/ai-integration-roadmap`, one bundled PR)
+Per Kyle: bundle the roadmap with Phase 1, then execute Phases 2–4 with the same cadence/caution. All in one branch (phases share code → separate branches would conflict), one commit per phase. **LLM behavior is preview-tested by Kyle (Together egress blocked in sandbox); everything else verified here (build, node --check, live-DB SQL smoke, adversarial subagent review).**
+- [x] **Roadmap** `docs/ai-integration-roadmap.md` + **Phase 1 ripple/spec** `docs/ai-phase1-spec.md`.
+- [x] **Phase 1 — whole-app analyst (L0):** `search_pipeline` / `get_opportunity` / `get_state_report` tools; system prompt reads prospects + pipeline + state reports (kept distinct); global header "Ask AI" (AssistantModal global mode). Gateway extraction DEFERRED (documented). Smoke-tested all 3 tool queries. (commit `4583221`)
+- [x] **Phase 2 — drafting (L1):** `mode:'draft'` → `ASSISTANT_DRAFT_GUIDANCE`; "Draft" buttons in ProspectDetail (outreach) + OpportunityDetail (stakeholder note, routed by project type); AssistantModal auto-send seed + per-message Copy; copy-to-clipboard only (no send). (commit `2f4ae3a`)
+- [x] **Phase 3 — proactive triage (L0/L1):** CallSheet "Prep" (per-call talking points) + "Brief my day" (global priorities); both inherit into Today view. In-email digest narration DEFERRED (cron ~10s budget; same value on-demand via Brief my day). (commit `3507c83`)
+- [x] **Phase 4a — server-side ontology extraction (L1):** read-only `?action=ai-extract-ontology` (Together once, 9.5s abort, robust JSON parse, type-validated) → "Extract with AI" in ImportOntologyModal feeds the existing validate→preview→import (write path unchanged). 4b (AI editing canonical fields) DEFERRED. (commit `2891e8b`)
+- [ ] **Adversarial review** (2 parallel subagents over the full diff) — running; fix findings.
+- [ ] **(Kyle) Preview-test the live LLM:** global Ask AI (pipeline Qs), Draft buttons, Brief my day / Prep, Extract with AI. Add `TOGETHER_AI_API` to Production env if promoting past Preview.
+
 ## Notes / gotchas (from recon)
 - Auth already enforced at `api/prospects.js:861-864` for every non-digest action → no extra auth code.
 - List arm uses `sql.query(text, params)` with `$N` placeholders for dynamic WHERE; tagged-template for fixed shape.
