@@ -573,6 +573,9 @@ Companies that share a `parent_company` value are grouped into expandable/collap
 - Barnes Molding Solutions: real parent + 6 subsidiaries
 - Hillenbrand: virtual parent, 2 subsidiaries (DME Company, Mold-Masters)
 - Peterson Manufacturing: real parent + 3 subsidiaries
+- Silgan Dispensing: real parent + 3 absorbed/subsidiary children — MWV Calmar (fka MeadWestvaco/Calmar, absorbed into Silgan's dispensing business in the 2017 WestRock→Silgan sale), Silgan Specialty Packaging (fka Gateway Plastics), Weener Plastik GmbH.
+
+**`parent_company` must EXACTLY match the parent's `company` (gotcha):** the client-side grouping links a child to its parent by exact (case-insensitive, trimmed) string equality on `parent_company` ↔ `company`. A near-miss silently fails to group and the child renders standalone. Real example (fixed via `scripts/fold-mwv-into-silgan.mjs`): MWV Calmar was correctly typed `parent_relationship_kind='absorbed_into'` but its `parent_company` was `'Silgan Dispensing Systems'` while the actual row is named `'Silgan Dispensing'` — so it floated on its own until the string was corrected. (The `absorbed_into` kind deliberately keeps the child row + its legacy data — e.g. MWV's 9 CWP contacts — rather than deleting it.) Raw `parent_company` edits don't fire the app's ontology rebuild, so the Knowledge-Graph `absorbed_into` edge reconciles on the next Layer-1 rebuild; the table grouping is immediate.
 
 **Brett's corporate structure taxonomy:**
 - **Parent Company**: owns a controlling interest in subsidiaries that still operate independently (e.g., Barnes → Synventive, Männer)
